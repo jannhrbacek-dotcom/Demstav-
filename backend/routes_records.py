@@ -1,0 +1,320 @@
+import re
+import hashlib
+import json
+from datetime import date as date_cls
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
+from core import db, iso_now, new_id, get_ready_user, is_manager, audit, text
+from worktime import time_breakdown, TIME
+from storage import put_object, get_object, APP_PREFIX
+
+router = APIRouter()
+
+ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DEC_RE = re.compile(r"^\d+(?:[.,]\d{1,3})?$")
+SIG_RE = re.compile(r"^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$")
+MAX_UPLOAD = 15 * 1024 * 1024
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"}
+
+RECORD_FIELDS_TEXT = {
+    "shift": 100, "operator": 200, "crew": 1000, "attendanceWorkplaceId": 100, "machine": 200, "customer": 300,
+    "site": 500, "job": 200, "vehiclesTo": 500, "vehiclesFrom": 500, "downtimeReason": 2000, "work": 12000,
+    "mthStart": 30, "mthEnd": 30, "notes": 12000, "handover": 12000, "handoverName": 200, "diesel": 30,
+    "hydraulic": 30, "oil": 30, "otherFluid": 1000, "serviceDescription": 12000, "repairDescription": 12000,
+    "externalCompany": 300,
+}
+
+
+def _valid_date(s: str) -> bool:
+    if not DATE_RE.match(s or ""):
+        return False
+    try:
+        d = date_cls.fromisoformat(s)
+    except ValueError:
+        return False
+    return "2000-01-01" <= s <= "2100-12-31" and d.isoformat() == s
+
+
+def _num(v: str):
+    return float(v.replace(",", ".")) if v and DEC_RE.match(v) else None
+
+
+def validate_record(r: dict, confirm: bool):
+    errors = []
+    if not isinstance(r, dict):
+        return ["Záznam musí být objekt."], None
+    out = {}
+    for k, mx in RECORD_FIELDS_TEXT.items():
+        v = r.get(k)
+        if v is None:
+            out[k] = ""
+            continue
+        if not isinstance(v, str):
+            v = str(v)
+        if len(v) > mx:
+            errors.append(f"Pole {k} je příliš dlouhé (nejvýše {mx} znaků).")
+        out[k] = v.strip()[:mx]
+    out["id"] = str(r.get("id") or "")
+    if not ID_RE.match(out["id"]):
+        errors.append("Záznam nemá platný identifikátor.")
+    out["date"] = str(r.get("date") or "")
+    if not _valid_date(out["date"]):
+        errors.append("Vyplňte platné datum.")
+    drive = str(r.get("drive") or "").strip()
+    if drive and not re.match(r"^\d{1,3}$", drive):
+        errors.append("Jízda *: zadejte celé číslo (0–999).")
+    out["drive"] = drive
+    acc = r.get("accommodation") or ""
+    out["accommodation"] = acc if acc in ("yes", "no", "") else ""
+    out["workTimeMode"] = "legacy" if r.get("workTimeMode") == "legacy" else "shift"
+    labels = {"billing": "pracovní doba", "service": "servis", "downtime": "prostoj"}
+    for key in ("billing", "service", "downtime"):
+        items = r.get(key) or []
+        if not isinstance(items, list) or len(items) > 48:
+            errors.append(f"Pole {labels[key]} musí být seznam nejvýše 48 úseků.")
+            items = []
+        clean = []
+        for idx, it in enumerate(items):
+            if not isinstance(it, dict):
+                continue
+            s, e = str(it.get("start") or "").strip(), str(it.get("end") or "").strip()
+            if (s and not TIME.match(s)) or (e and not TIME.match(e)) or (confirm and (not s or not e)):
+                errors.append(f"Doplňte platný čas od–do ({labels[key]}, řádek {idx + 1}).")
+            if s and e and s == e:
+                errors.append(f"Začátek a konec úseku ({labels[key]}, řádek {idx + 1}) nesmí být shodné.")
+            clean.append({"start": s, "end": e})
+        out[key] = clean
+    for k in ("dailyCheck", "accessoryCheck", "equipmentCheck"):
+        out[k] = r.get(k) is True
+    out["fit"] = r.get("fit") if r.get("fit") in ("yes", "no", "unknown") else "unknown"
+    out["serviceBy"] = r.get("serviceBy") if r.get("serviceBy") in ("operator", "workshop", "external", "") else ""
+    for k in ("operatorSignature", "handoverSignature", "workshopSignature"):
+        s = r.get(k) or ""
+        if s and (not isinstance(s, str) or len(s) > 1_200_000 or not SIG_RE.match(s)):
+            errors.append("Podpis musí být obrázek PNG nebo JPEG vytvořený podepisující osobou.")
+            s = ""
+        out[k] = s
+    faults = r.get("faults") or []
+    if not isinstance(faults, list) or len(faults) > 100:
+        errors.append("Závady musí být seznam nejvýše 100 položek.")
+        faults = []
+    out["faults"] = []
+    for i, f in enumerate(faults):
+        if not isinstance(f, dict):
+            continue
+        fault = {"id": str(f.get("id") or new_id())[:100], "date": str(f.get("date") or out["date"])[:10],
+                 "time": str(f.get("time") or "")[:5], "description": str(f.get("description") or "").strip()[:12000],
+                 "severity": "stop" if f.get("severity") == "stop" else "normal", "resolved": f.get("resolved") is True,
+                 "resolution": str(f.get("resolution") or "").strip()[:12000], "acknowledged": f.get("acknowledged") is True,
+                 "reportedToWorkshop": f.get("reportedToWorkshop") is True}
+        if not fault["description"]:
+            errors.append(f"Doplňte popis závady {i + 1}.")
+        if fault["time"] and not TIME.match(fault["time"]):
+            errors.append(f"Závada {i + 1} nemá platný čas.")
+        if confirm and not fault["time"]:
+            errors.append(f"Doplňte čas nahlášení závady {i + 1}.")
+        if confirm and fault["resolved"] and not fault["resolution"]:
+            errors.append(f"Doplňte způsob odstranění závady {i + 1}.")
+        out["faults"].append(fault)
+    atts = r.get("attachments") or []
+    out["attachments"] = []
+    if isinstance(atts, list):
+        for a in atts[:50]:
+            if isinstance(a, dict) and ID_RE.match(str(a.get("id") or "")):
+                out["attachments"].append({"id": a["id"], "name": str(a.get("name") or "")[:300], "type": str(a.get("type") or "")[:100],
+                                           "size": int(a.get("size") or 0), "kind": a.get("kind") if a.get("kind") in ("vehicleFuel", "machineFuel", "invoice", "photo", "other") else "other",
+                                           "km": str(a.get("km") or "")[:30]})
+    for k in ("mthStart", "mthEnd", "diesel", "hydraulic", "oil"):
+        if out[k] and _num(out[k]) is None:
+            errors.append(f"Pole {k}: zadejte nezáporné číslo (lze desetinnou čárku).")
+    if confirm:
+        if not out["machine"]:
+            errors.append("Vyberte stroj.")
+        if not out["operator"]:
+            errors.append("Doplňte jméno obsluhy.")
+        if not out["billing"]:
+            errors.append("Doplňte alespoň jeden úsek pracovní doby.")
+        if not out["mthStart"] or not out["mthEnd"]:
+            errors.append("Povinnost psát začátek a konec MTH.")
+        elif _num(out["mthStart"]) is not None and _num(out["mthEnd"]) is not None and _num(out["mthEnd"]) < _num(out["mthStart"]):
+            errors.append("Konečný stav MTH nesmí být nižší než počáteční.")
+        bd = time_breakdown(out)
+        if bd["ambiguousDay"]:
+            errors.append("Pracovní úseky zahrnují 24 hodin nebo více; rozdělte je do samostatných dnů.")
+        if bd["serviceOutsideShift"]:
+            errors.append("Servis musí ležet uvnitř pracovní doby (servis je její součástí).")
+        if bd["downtimeOutsideShift"]:
+            errors.append("Prostoj musí ležet uvnitř pracovní doby.")
+        if bd["serviceHours"] > 0 and not (out["serviceDescription"] or out["repairDescription"]):
+            errors.append("K hodinám servisu doplňte popis provedené práce – bez popisu nelze čas započítat.")
+        if bd["serviceHours"] > 0 and not out["serviceBy"]:
+            errors.append("Uveďte, kdo servis provedl (strojník / dílna výjezd / cizí firma).")
+        if out["serviceBy"] == "external" and not out["externalCompany"]:
+            errors.append("Uveďte název cizí servisní firmy.")
+    return errors, out
+
+
+def public_record(doc: dict) -> dict:
+    d = {k: v for k, v in doc.items() if k != "_id"}
+    d["breakdown"] = time_breakdown(d)
+    return d
+
+
+async def _can_view(user: dict, rec: dict) -> bool:
+    return rec.get("owner_id") == user["id"] or is_manager(user)
+
+
+@router.get("/records")
+async def list_records(mine: int = 0, employee_id: str = "", date_from: str = "", date_to: str = "", machine: str = "",
+                       status: str = "", limit: int = 500, user: dict = Depends(get_ready_user)):
+    q = {}
+    if mine or not is_manager(user):
+        q["owner_id"] = user["id"]
+    elif employee_id:
+        q["owner_id"] = employee_id
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from:
+            q["date"]["$gte"] = date_from
+        if date_to:
+            q["date"]["$lte"] = date_to
+    if machine:
+        q["machine"] = machine
+    if status in ("draft", "confirmed"):
+        q["status"] = status
+    docs = await db.records.find(q, {"_id": 0, "operatorSignature": 0, "handoverSignature": 0, "workshopSignature": 0}) \
+        .sort([("date", -1), ("updatedAt", -1)]).to_list(min(max(limit, 1), 2000))
+    return [public_record(d) for d in docs]
+
+
+@router.get("/records/{rid}")
+async def get_record(rid: str, user: dict = Depends(get_ready_user)):
+    rec = await db.records.find_one({"id": rid}, {"_id": 0})
+    if not rec or not await _can_view(user, rec):
+        raise HTTPException(status_code=404, detail="Záznam nenalezen.")
+    return public_record(rec)
+
+
+@router.get("/records/{rid}/versions")
+async def record_versions(rid: str, user: dict = Depends(get_ready_user)):
+    rec = await db.records.find_one({"id": rid}, {"_id": 0, "owner_id": 1})
+    if not rec or not await _can_view(user, rec):
+        raise HTTPException(status_code=404, detail="Záznam nenalezen.")
+    vs = await db.record_versions.find({"record_id": rid}, {"_id": 0}).sort("revision", -1).to_list(500)
+    for v in vs:
+        for k in ("operatorSignature", "handoverSignature", "workshopSignature"):
+            v["payload"].pop(k, None)
+        v["payload"]["breakdown"] = time_breakdown(v["payload"])
+    return vs
+
+
+@router.put("/records/{rid}")
+async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)):
+    """Idempotent, revisioned save. body: {opId, baseRevision, confirm, correctionReason, record, deviceSavedAt}"""
+    op_id = str(body.get("opId") or "")[:100]
+    confirm = body.get("confirm") is True
+    base = body.get("baseRevision") or 0
+    payload = body.get("record") or {}
+    payload["id"] = rid
+    if op_id:
+        done = await db.record_versions.find_one({"record_id": rid, "op_id": op_id}, {"_id": 0})
+        if done:
+            cur = await db.records.find_one({"id": rid}, {"_id": 0})
+            return {"status": "duplicate", "record": public_record(cur)}
+    current = await db.records.find_one({"id": rid}, {"_id": 0})
+    if current and current["owner_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Cizí záznam nelze upravit.")
+    cur_rev = current["revision"] if current else 0
+    if base != cur_rev:
+        raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Záznam byl mezitím změněn na jiném zařízení.",
+                                                     "server": public_record(current) if current else None})
+    errors, rec = validate_record(payload, confirm)
+    reason = text(body.get("correctionReason"), 2000)
+    if current and current["status"] == "confirmed" and not reason:
+        errors.append("Oprava potvrzeného záznamu vyžaduje důvod opravy.")
+    if current and current["status"] == "confirmed" and not confirm:
+        errors.append("Potvrzený záznam lze opravit pouze novou potvrzenou revizí.")
+    if errors:
+        raise HTTPException(status_code=422, detail={"code": "invalid", "message": errors[0], "errors": errors})
+    if rec["attachments"]:
+        ids = [a["id"] for a in rec["attachments"]]
+        found = await db.attachments.count_documents({"id": {"$in": ids}, "owner_id": user["id"], "is_deleted": False})
+        if found != len(set(ids)):
+            raise HTTPException(status_code=422, detail={"code": "attachments_missing", "message": "Některá příloha ještě nebyla nahrána na server."})
+    now = iso_now()
+    rev = cur_rev + 1
+    rec.update({"owner_id": user["id"], "owner_name": user["name"], "revision": rev,
+                "status": "confirmed" if confirm else "draft", "createdAt": current["createdAt"] if current else (text(payload.get("createdAt"), 40) or now),
+                "updatedAt": now, "serverReceivedAt": now, "deviceSavedAt": text(body.get("deviceSavedAt"), 40),
+                "author_id": user["id"], "author_name": user["name"], "correctionReason": reason or None,
+                "confirmedAt": now if confirm else None, "confirmedBy": user["id"] if confirm else None,
+                "last_op_id": op_id})
+    await db.records.replace_one({"id": rid}, rec, upsert=True)
+    snapshot = {k: v for k, v in rec.items() if k not in ("_id",)}
+    await db.record_versions.insert_one({"record_id": rid, "revision": rev, "op_id": op_id, "payload": snapshot,
+                                         "author_id": user["id"], "author_name": user["name"], "at": now,
+                                         "status": rec["status"], "correction_reason": reason or None,
+                                         "hash": hashlib.sha256(json.dumps(snapshot, sort_keys=True, default=str).encode()).hexdigest()})
+    if current and current["status"] == "confirmed":
+        await audit(user, "record_corrected", {"record_id": rid, "revision": rev, "reason": reason})
+    rec.pop("_id", None)
+    return {"status": "saved", "record": public_record(rec)}
+
+
+@router.delete("/records/{rid}")
+async def delete_draft(rid: str, user: dict = Depends(get_ready_user)):
+    rec = await db.records.find_one({"id": rid}, {"_id": 0})
+    if not rec or rec["owner_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Záznam nenalezen.")
+    if rec["status"] != "draft" or rec["revision"] > 1:
+        raise HTTPException(status_code=400, detail="Smazat lze pouze nikdy nepotvrzený koncept bez historie.")
+    await db.records.delete_one({"id": rid})
+    await db.record_versions.delete_many({"record_id": rid})
+    await audit(user, "draft_deleted", {"record_id": rid})
+    return {"ok": True}
+
+
+# ---------------- attachments ----------------
+@router.post("/attachments")
+async def upload_attachment(file: UploadFile = File(...), id: str = Form(...), kind: str = Form("other"),
+                            km: str = Form(""), record_id: str = Form(""), user: dict = Depends(get_ready_user)):
+    if not ID_RE.match(id):
+        raise HTTPException(status_code=400, detail="Neplatný identifikátor přílohy.")
+    existing = await db.attachments.find_one({"id": id}, {"_id": 0})
+    if existing:
+        if existing["owner_id"] != user["id"]:
+            raise HTTPException(status_code=409, detail="Identifikátor přílohy je obsazený.")
+        return existing  # idempotent re-upload
+    ctype = (file.content_type or "application/octet-stream").lower()
+    if ctype not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="Povolené jsou fotografie (JPG, PNG, WEBP, HEIC) a PDF.")
+    data = await file.read()
+    if len(data) > MAX_UPLOAD:
+        raise HTTPException(status_code=413, detail="Soubor je větší než 15 MB.")
+    if not data:
+        raise HTTPException(status_code=400, detail="Soubor je prázdný.")
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "bin"
+    path = f"{APP_PREFIX}/attachments/{user['id']}/{id}.{re.sub(r'[^a-z0-9]', '', ext)[:8] or 'bin'}"
+    try:
+        result = put_object(path, data, ctype)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Úložiště souborů je dočasně nedostupné. Zkuste odeslat znovu. ({type(e).__name__})")
+    doc = {"id": id, "owner_id": user["id"], "record_id": record_id[:100], "name": (file.filename or "soubor")[:300],
+           "type": ctype, "size": len(data), "kind": kind if kind in ("vehicleFuel", "machineFuel", "invoice", "photo", "other") else "other",
+           "km": km[:30], "storage_path": result["path"], "sha256": hashlib.sha256(data).hexdigest(), "is_deleted": False, "at": iso_now()}
+    await db.attachments.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@router.get("/attachments/{aid}")
+async def download_attachment(aid: str, user: dict = Depends(get_ready_user)):
+    att = await db.attachments.find_one({"id": aid, "is_deleted": False}, {"_id": 0})
+    if not att or (att["owner_id"] != user["id"] and not is_manager(user)):
+        raise HTTPException(status_code=404, detail="Příloha nenalezena.")
+    try:
+        data, _ = get_object(att["storage_path"])
+    except Exception:
+        raise HTTPException(status_code=503, detail="Úložiště souborů je dočasně nedostupné.")
+    return Response(content=data, media_type=att["type"], headers={"Cache-Control": "private, max-age=3600"})

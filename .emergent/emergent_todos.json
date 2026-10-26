@@ -1,0 +1,34 @@
+[
+  {
+    "content": "Visual UI check",
+    "status": "completed"
+  },
+  {
+    "content": "PDF template analysis",
+    "status": "completed"
+  },
+  {
+    "content": "Seed demo accounts",
+    "status": "completed"
+  },
+  {
+    "content": "Simple Mode toggle",
+    "status": "completed"
+  },
+  {
+    "content": "Smart autocomplete + 'Load from last' button",
+    "status": "completed"
+  },
+  {
+    "content": "Verify exports.py layout",
+    "status": "completed"
+  },
+  {
+    "content": "Run testing_agent_v3",
+    "status": "completed"
+  },
+  {
+    "content": "All tests passed (BE 100%, FE 95%)",
+    "status": "completed"
+  }
+]

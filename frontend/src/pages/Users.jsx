@@ -1,0 +1,94 @@
+import React, { useState } from "react";
+import { toast } from "sonner";
+import { UserPlus, KeyRound, ShieldCheck, Ban, RotateCcw, Copy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { PageHeader, Field } from "@/components/Section";
+import { useAuth, atLeast } from "@/lib/auth";
+import { useCached } from "@/lib/data";
+import { http, errText } from "@/lib/api";
+import { ROLE_LABELS, dateTime } from "@/lib/format";
+
+const canManage = (actor, role) => (actor.role === "owner" ? role !== "owner" : actor.role === "admin" ? ["employee", "manager"].includes(role) : false);
+
+function Workplaces({ value, onChange, wps }) {
+  return <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">{(wps || []).length === 0 && <div className="text-sm text-slate-600">Zatím žádná pracoviště.</div>}
+    {(wps || []).map((w) => <label key={w.id} className="flex min-h-[40px] items-center gap-2"><Checkbox checked={value.includes(w.id)} onCheckedChange={(v) => onChange(v ? [...value, w.id] : value.filter((x) => x !== w.id))} />{w.name}</label>)}</div>;
+}
+
+export default function UsersPage() {
+  const { user: me } = useAuth();
+  const q = useCached("/users");
+  const wps = useCached("/workplaces?all=1");
+  const [create, setCreate] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const [secret, setSecret] = useState(null);
+  const admin = atLeast(me, "admin");
+  const roles = Object.keys(ROLE_LABELS).filter((r) => canManage(me, r));
+
+  const doCreate = async () => {
+    try { const { data } = await http.post("/users", create); setCreate(null); setSecret({ name: data.user.name, email: data.user.email, pw: data.temporary_password }); q.reload(); } catch (e) { toast.error(errText(e)); }
+  };
+  const patch = async (u, body, msg) => { try { await http.patch(`/users/${u.id}`, body); toast.success(msg); q.reload(); setEdit(null); } catch (e) { toast.error(errText(e)); } };
+  const reset = async (u) => { if (!window.confirm(`Vygenerovat nové dočasné heslo pro ${u.name}? Současné přihlášení bude zneplatněno.`)) return; try { const { data } = await http.post(`/users/${u.id}/reset-password`); setSecret({ name: u.name, email: u.email, pw: data.temporary_password }); } catch (e) { toast.error(errText(e)); } };
+
+  return (
+    <div className="space-y-4">
+      <PageHeader title="Uživatelé a přístupy" subtitle="Správce založí účet s dočasným heslem; při prvním přihlášení je změna hesla povinná. Deaktivace zachová historii."
+        actions={admin && <Button className="btn-primary h-12 font-semibold" onClick={() => setCreate({ name: "", email: "", role: "employee", workplace_ids: [] })} data-testid="user-create-button"><UserPlus className="mr-1 h-5 w-5" />Nový uživatel</Button>} />
+      <div className="space-y-2">{(q.data || []).map((u) => {
+        const manageable = canManage(me, u.role) && u.id !== me.id;
+        return (
+          <div key={u.id} className={`flex flex-wrap items-center gap-3 rounded-xl border bg-white p-4 shadow-sm ${u.active ? "border-slate-200" : "border-dashed border-slate-300 bg-slate-50"}`} data-testid="user-item">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 font-semibold">{u.name}{u.protected && <span className="flex items-center gap-1 rounded bg-black px-2 py-0.5 text-xs text-[#FFD200]"><ShieldCheck className="h-3.5 w-3.5" />chráněný vlastník</span>}{!u.active && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-900" data-testid="user-inactive-badge">deaktivován {dateTime(u.deactivated_at)}</span>}{u.must_change_password && u.active && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">čeká na změnu hesla</span>}</div>
+              <div className="text-sm text-slate-600">{u.email} · {ROLE_LABELS[u.role]} · pracoviště: {u.workplace_ids.length ? u.workplace_ids.map((id) => (wps.data || []).find((w) => w.id === id)?.name).filter(Boolean).join(", ") : "všechna aktivní"}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(manageable || (me.role === "manager" && u.role === "employee")) && <Button variant="outline" className="h-10" onClick={() => setEdit({ ...u })} data-testid="user-edit-button">Upravit</Button>}
+              {manageable && admin && <Button variant="outline" className="h-10" onClick={() => reset(u)} data-testid="user-reset-button"><KeyRound className="mr-1 h-4 w-4" />Reset hesla</Button>}
+              {manageable && admin && (u.active ? <Button variant="outline" className="h-10 text-red-700" onClick={() => window.confirm(`Deaktivovat ${u.name}? Přihlášení okamžitě přestane platit, historie zůstane.`) && patch(u, { active: false }, "Účet deaktivován")} data-testid="user-deactivate-button"><Ban className="mr-1 h-4 w-4" />Deaktivovat</Button>
+                : <Button variant="outline" className="h-10" onClick={() => patch(u, { active: true }, "Účet aktivován")} data-testid="user-activate-button"><RotateCcw className="mr-1 h-4 w-4" />Aktivovat</Button>)}
+            </div>
+          </div>);
+      })}</div>
+      <p className="text-xs text-slate-600">Ochrana účtu vlastníka platí v aplikaci; nechrání proti osobě s přímým přístupem k serveru či databázi.</p>
+
+      <Dialog open={!!create} onOpenChange={(o) => !o && setCreate(null)}>
+        <DialogContent className="max-w-md" data-testid="user-create-dialog">
+          <DialogHeader><DialogTitle className="font-heading">Nový uživatel</DialogTitle><DialogDescription>Dočasné heslo se zobrazí jednou – předejte ho osobně.</DialogDescription></DialogHeader>
+          {create && <div className="space-y-3">
+            <Field label="Jméno a příjmení"><Input value={create.name} onChange={(e) => setCreate({ ...create, name: e.target.value })} className="h-12" data-testid="user-name-input" /></Field>
+            <Field label="E-mail (přihlašovací jméno)"><Input type="email" value={create.email} onChange={(e) => setCreate({ ...create, email: e.target.value })} className="h-12" data-testid="user-email-input" /></Field>
+            <Field label="Role"><Select value={create.role} onValueChange={(v) => setCreate({ ...create, role: v })}><SelectTrigger className="h-12" data-testid="user-role-select"><SelectValue /></SelectTrigger><SelectContent>{roles.map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label="Přiřazená pracoviště" hint="Bez výběru vidí zaměstnanec všechna aktivní pracoviště."><Workplaces value={create.workplace_ids} onChange={(v) => setCreate({ ...create, workplace_ids: v })} wps={wps.data} /></Field>
+          </div>}
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={doCreate} data-testid="user-create-submit">Založit účet</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!edit} onOpenChange={(o) => !o && setEdit(null)}>
+        <DialogContent className="max-w-md" data-testid="user-edit-dialog">
+          <DialogHeader><DialogTitle className="font-heading">Upravit – {edit?.name}</DialogTitle><DialogDescription>{edit?.email}</DialogDescription></DialogHeader>
+          {edit && <div className="space-y-3">
+            {admin && <Field label="Jméno"><Input value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} className="h-12" data-testid="user-edit-name-input" /></Field>}
+            {admin && <Field label="Role"><Select value={edit.role} onValueChange={(v) => setEdit({ ...edit, role: v })}><SelectTrigger className="h-12" data-testid="user-edit-role-select"><SelectValue /></SelectTrigger><SelectContent>{roles.map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent></Select></Field>}
+            <Field label="Přiřazená pracoviště"><Workplaces value={edit.workplace_ids} onChange={(v) => setEdit({ ...edit, workplace_ids: v })} wps={wps.data} /></Field>
+          </div>}
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={() => patch(edit, admin ? { name: edit.name, role: edit.role, workplace_ids: edit.workplace_ids } : { workplace_ids: edit.workplace_ids }, "Uloženo")} data-testid="user-edit-submit">Uložit</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!secret} onOpenChange={(o) => !o && setSecret(null)}>
+        <DialogContent className="max-w-md" data-testid="temp-password-dialog">
+          <DialogHeader><DialogTitle className="font-heading">Dočasné heslo – {secret?.name}</DialogTitle><DialogDescription>Zobrazí se pouze nyní. Při prvním přihlášení (e-mail {secret?.email}) si ho zaměstnanec musí změnit.</DialogDescription></DialogHeader>
+          <div className="flex items-center gap-2"><code className="flex-1 rounded-lg bg-slate-900 px-4 py-3 text-center font-mono text-2xl tracking-widest text-[#FFD200]" data-testid="temp-password-value">{secret?.pw}</code>
+            <Button variant="outline" className="h-12" onClick={() => { navigator.clipboard?.writeText(secret.pw); toast.success("Zkopírováno"); }} data-testid="temp-password-copy"><Copy className="h-4 w-4" /></Button></div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
