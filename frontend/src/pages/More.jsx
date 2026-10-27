@@ -37,6 +37,7 @@ export default function More() {
         <L to="/jak-na-to" icon={Eye} label="Jak na to – průvodce aplikací" testid="more-guide" />
         <L to="/prehledy" icon={BarChart3} label="Moje přehledy (šichtovnice, deník, směny)" testid="more-my-overview" />
         <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
+        <L to="/kalendar" icon={CalendarDays} label="Sdílený kalendář zaměstnanců" testid="more-calendar" />
         <L to="/vykazy-vazeni" icon={Files} label="Společný výkaz práce a vážní lístky" testid="more-production" />
         <L to="/exporty" icon={FileDown} label="Exporty a reporty (PDF, XLSX, CSV)" testid="more-exports" />
         <L to="/zmena-hesla" icon={KeyRound} label="Změnit heslo" testid="more-change-password" />
