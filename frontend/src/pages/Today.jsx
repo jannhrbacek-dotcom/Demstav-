@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, CloudUpload, WifiOff, AlertTriangle, ChevronRight, ClipboardList, Clock3, FileDown, CalendarDays, BarChart3 } from "lucide-react";
+import { Plus, CloudUpload, ClipboardList, Clock3, FileDown, CalendarDays, BarChart3 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
