@@ -1,3 +1,4 @@
+import BreakRequests from "@/components/BreakRequests";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -32,6 +33,7 @@ const INTERVAL_SERVICE_ALLOWED_NAMES = ["jan hrbáček", "jan hrbacek"];
 
 function canUserDoIntervalService(user) {
   if (!user) return false;
+  if (user.role === "operations_manager") return true;
   if ((user.position || "") === "mechanik") return true;
   if (INTERVAL_SERVICE_ALLOWED_NAMES.includes((user.name || "").trim().toLowerCase())) return true;
   return false;
@@ -124,7 +126,7 @@ export default function RecordForm() {
     const load = async () => {
       let full = srv;
       try { full = (await http.get(`/records/${id}`)).data; } catch { /* offline */ }
-      if (full && full.owner_id && full.owner_id !== user.id) { nav(`/detail/${id}`, { replace: true }); return; }
+      if (full && full.owner_id && full.owner_id !== user.id && user.role !== "operations_manager") { nav(`/detail/${id}`, { replace: true }); return; }
       setServer(full || null);
       const loaded = loc ? { ...loc.record } : full ? { ...full } : null;
       setRec(loaded);
@@ -138,14 +140,20 @@ export default function RecordForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, mine.loading]);
 
-  const bd = useMemo(() => (rec ? timeBreakdown(rec) : null), [rec]);
+  const breakApprovals = useCached("/break-requests?mine=1");
+  const effectiveRec = useMemo(() => {
+    if (!rec) return null;
+    const approved = (breakApprovals.data || []).filter(r => (!rec.owner_id || rec.owner_id === user.id) && r.status === "approved" && r.date === rec.date).sort((a, b) => (b.decision?.at || "").localeCompare(a.decision?.at || ""))[0];
+    return approved ? { ...rec, approvedBreaks: approved.breaks } : rec;
+  }, [rec, breakApprovals.data, user.id]);
+  const bd = useMemo(() => (effectiveRec ? timeBreakdown(effectiveRec) : null), [effectiveRec]);
   const local = rec ? s.records[rec.id] : null;
   const serverConfirmed = (server?.status || local?.record?.status) === "confirmed" && (local?.serverRevision || server?.revision || 0) > 0;
   const status = local ? local.localState : server ? (server.status === "confirmed" ? "confirmed" : "draft") : "local";
   const autoMth = useRef(null);
   if (!rec) return <div className="py-10 text-center text-slate-600" data-testid="record-loading">{mine.loading ? "Načítám…" : "Zápis nenalezen."}</div>;
 
-  const set = (k, v) => setRec((r) => ({ ...r, [k]: v }));
+  const set = (k, v) => setRec((r) => { const next = { ...r, [k]: v }; if (k === "date" && v !== r.date) delete next.approvedBreaks; return next; });
   // Při výběru stroje předvyplní MTH začátek: konec MTH z posledního zápisu na tento stroj, jinak stav MTH ze seznamu strojů.
   const setMachine = (v) => setRec((r) => {
     const next = { ...r, machine: v };
@@ -347,7 +355,9 @@ export default function RecordForm() {
       </Section>
 
       <Section title="4. Pracovní čas" subtitle="Celá pracovní doba a prostoje" testid="section-time">
-        <IntervalEditor label="Pracovní doba (celá směna)" hint="Nezapočítávanou přestávku vynechte – zadejte dva úseky (např. 06:00–11:30 a 12:00–15:30)." items={rec.billing} onChange={(v) => set("billing", v)} testid="billing" />
+        <IntervalEditor label="Pracovní doba (celá směna)" hint="Zadejte celou směnu. Od 27. 10. 2026 se přestávky 12:00–12:30 a 15:30–16:00 odečítají automaticky pouze uvnitř směny." items={rec.billing} onChange={(v) => set("billing", v)} testid="billing" />
+        <BreakRequests initialDate={rec.date} compact />
+        <p className="text-sm">Odečtené přestávky: {fmtH(bd.breakHours)} h</p>
         <IntervalEditor label="Prostoje" hint="Samostatná kategorie uvnitř pracovní doby (např. čekání na materiál). Není to přestávka." items={rec.downtime} onChange={(v) => set("downtime", v)} testid="downtime" />
         {rec.downtime.length > 0 && <Field label="Důvod prostoje"><Input value={rec.downtimeReason} onChange={(e) => set("downtimeReason", e.target.value)} className="h-12" data-testid="record-downtime-reason-input" /></Field>}
         <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#0B0F14] p-4 text-white sm:grid-cols-4" data-testid="record-time-breakdown">

@@ -5,6 +5,7 @@ from datetime import date as date_cls
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
 from core import db, iso_now, new_id, get_ready_user, is_manager, audit, text
+from break_policy import hydrate_records
 from worktime import time_breakdown, TIME
 from storage import put_object, get_object, APP_PREFIX
 
@@ -18,6 +19,8 @@ def can_record_interval_service(user: dict, service_by: str) -> bool:
     (serviceBy=external), nebo konkrétní pověřený strojník/mechanik Jan Hrbáček."""
     if not user:
         return False
+    if user.get("role") == "operations_manager":
+        return True
     if (user.get("position") or "") == "mechanik":
         return True
     if (user.get("name") or "").strip().lower() in INTERVAL_SERVICE_USER_NAMES:
@@ -249,7 +252,7 @@ async def list_records(mine: int = 0, employee_id: str = "", date_from: str = ""
         q["status"] = status
     docs = await db.records.find(q, {"_id": 0, "operatorSignature": 0, "handoverSignature": 0, "workshopSignature": 0}) \
         .sort([("date", -1), ("updatedAt", -1)]).to_list(min(max(limit, 1), 2000))
-    return [public_record(d) for d in docs]
+    return [public_record(d) for d in await hydrate_records(docs)]
 
 
 @router.get("/records/{rid}")
@@ -257,7 +260,7 @@ async def get_record(rid: str, user: dict = Depends(get_ready_user)):
     rec = await db.records.find_one({"id": rid}, {"_id": 0})
     if not rec or not await _can_view(user, rec):
         raise HTTPException(status_code=404, detail="Záznam nenalezen.")
-    return public_record(rec)
+    return public_record((await hydrate_records([rec]))[0])
 
 
 @router.get("/records/{rid}/versions")
@@ -293,9 +296,9 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
         done = await db.record_versions.find_one({"record_id": rid, "op_id": op_id}, {"_id": 0})
         if done:
             cur = await db.records.find_one({"id": rid}, {"_id": 0})
-            return {"status": "duplicate", "record": public_record(cur)}
+            return {"status": "duplicate", "record": public_record((await hydrate_records([cur]))[0])}
     current = await db.records.find_one({"id": rid}, {"_id": 0})
-    if current and current["owner_id"] != user["id"]:
+    if current and current["owner_id"] != user["id"] and user["role"] != "operations_manager":
         raise HTTPException(status_code=403, detail="Cizí záznam nelze upravit.")
     cur_rev = current["revision"] if current else 0
     if base != cur_rev:
@@ -314,7 +317,7 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
         raise HTTPException(status_code=422, detail={"code": "invalid", "message": errors[0], "errors": errors})
     if rec["attachments"]:
         ids = [a["id"] for a in rec["attachments"]]
-        docs = {d["id"]: d for d in await db.attachments.find({"id": {"$in": ids}, "owner_id": user["id"], "is_deleted": False},
+        docs = {d["id"]: d for d in await db.attachments.find({"id": {"$in": ids}, "owner_id": {"$in": [user["id"], current["owner_id"] if current else user["id"]]}, "is_deleted": False},
                                                               {"_id": 0, "id": 1, "sha256": 1}).to_list(100)}
         if len(docs) != len(set(ids)):
             raise HTTPException(status_code=422, detail={"code": "attachments_missing", "message": "Některá příloha ještě nebyla nahrána na server."})
@@ -322,7 +325,7 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
             a["sha256"] = docs[a["id"]].get("sha256", "")
     now = iso_now()
     rev = cur_rev + 1
-    rec.update({"owner_id": user["id"], "owner_name": user["name"], "revision": rev,
+    rec.update({"owner_id": current["owner_id"] if current else user["id"], "owner_name": current["owner_name"] if current else user["name"], "revision": rev,
                 "status": "confirmed" if confirm else "draft", "createdAt": current["createdAt"] if current else (text(payload.get("createdAt"), 40) or now),
                 "updatedAt": now, "serverReceivedAt": now, "deviceSavedAt": text(body.get("deviceSavedAt"), 40),
                 "author_id": user["id"], "author_name": user["name"], "correctionReason": reason or None,
@@ -356,13 +359,13 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
             if stops:
                 from routes_push import notify_users_by_role
                 first = stops[0]
-                await notify_users_by_role(["manager", "owner"], f"STOP závada: {rec.get('machine', '')}",
+                await notify_users_by_role(["manager", "owner", "operations_manager"], f"STOP závada: {rec.get('machine', '')}",
                                            f"{user['name']} · {first.get('description', '')[:160]}",
                                            url=f"/detail/{rid}", tag=f"stop-{rid}", exclude_user_id=user["id"])
         except Exception:
             pass
     rec.pop("_id", None)
-    return {"status": "saved", "record": public_record(rec)}
+    return {"status": "saved", "record": public_record((await hydrate_records([rec]))[0])}
 
 
 @router.delete("/records/{rid}")

@@ -13,7 +13,7 @@ import { http, errText } from "@/lib/api";
 import { ROLE_LABELS, dateTime } from "@/lib/format";
 import { ROLE_INFO, POSITIONS, positionLabel } from "@/lib/roles";
 
-const canManage = (actor, role) => (actor.role === "owner" ? role !== "owner" : actor.role === "admin" ? ["employee", "manager"].includes(role) : false);
+const canManage = (actor, role) => (["owner", "operations_manager"].includes(actor.role) ? role !== "owner" : actor.role === "admin" ? ["employee", "manager"].includes(role) : false);
 
 function Workplaces({ value, onChange, wps }) {
   return <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">{(wps || []).length === 0 && <div className="text-sm text-slate-600">Zatím žádná pracoviště.</div>}

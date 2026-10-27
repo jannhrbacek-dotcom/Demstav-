@@ -24,15 +24,17 @@ function Item({ title, lines, onDecide, testid }) {
 }
 
 export default function Review() {
+  const breaks = useCached("/break-requests");
   const q = useCached("/attendance/review");
   const decide = async (path, decision, note) => {
-    try { await http.post(path, { decision, note }); toast.success(decision === "approve" ? "Schváleno" : "Zamítnuto"); q.reload(); } catch (e) { toast.error(errText(e)); }
+    try { await http.post(path, { decision, note }); toast.success(decision === "approve" ? "Schváleno" : "Zamítnuto"); q.reload(); breaks.reload(); } catch (e) { toast.error(errText(e)); }
   };
   const evs = q.data?.events || [], reqs = q.data?.requests || [];
   return (
     <div className="space-y-5">
       <PageHeader title="Kontrola výjimek" subtitle="Offline, ruční, mimo okruh či bez platného QR – rozhodnutí se ukládá do auditu s vaším jménem a časem." />
-      {!q.loading && evs.length + reqs.length === 0 && <Empty icon={ShieldCheck} title="Nic ke schválení" text="Všechny události docházky jsou ověřené nebo vyřízené." />}
+      {!q.loading && evs.length + reqs.length + (breaks.data || []).length === 0 && <Empty icon={ShieldCheck} title="Nic ke schválení" text="Všechny události docházky jsou ověřené nebo vyřízené." />}
+      {(breaks.data || []).map(r => <Item key={r.id} testid="review-break-item" title={`${r.employee_name} · změna přestávek · ${r.date}`} lines={[r.breaks.length ? r.breaks.map(b => `${b.start}–${b.end}`).join(", ") : "Žádná přestávka neproběhla", `Důvod: ${r.reason}`, "Schválení upraví docházku i šichtovnici za tento den."]} onDecide={(d, n) => decide(`/break-requests/${r.id}/decision`, d, n)} />)}
       {evs.length > 0 && <div><div className="mb-2 font-heading font-semibold">Události docházky ({evs.length})</div><div className="grid gap-3 lg:grid-cols-2">{evs.map((e) => (
         <Item key={e.id} testid="review-event-item" title={`${e.employee_name} · ${KIND_LABELS[e.kind]} · ${e.workplace_name}`}
           lines={[`Čas zařízení: ${dateTime(e.device_at)} · přijato serverem: ${dateTime(e.received_at)}`, `Režim: ${MODE_LABELS[e.mode] || e.mode}${e.offline ? " · zapsáno offline" : ""}`,

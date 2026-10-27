@@ -1,4 +1,5 @@
 // Port of lib/work-time.ts – identical rules to backend worktime.py.
+export const FIXED_BREAKS = [{ start: "12:00", end: "12:30" }, { start: "15:30", end: "16:00" }];
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const m = (v) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3));
 function raw(i) {
@@ -49,7 +50,9 @@ const asIv = (sp) => sp.map(([a, b]) => ({ start: clock(a), end: clock(b) }));
 
 export function timeBreakdown(r) {
   const shift = (r.workTimeMode || "shift") === "shift";
-  const whole = workSpans(r.billing), service = serviceSpans(r.service, whole);
+  const gross = workSpans(r.billing);
+  const cuts = (r.date || "") >= "2026-10-27" ? serviceSpans(r.approvedBreaks ?? FIXED_BREAKS, gross) : [];
+  const breaks = inter(cuts, gross), whole = subtract(gross, breaks), service = serviceSpans(r.service, whole);
   const total = shift ? whole : merge([...whole, ...service]);
   const effService = shift ? inter(service, whole) : service;
   const downAll = serviceSpans(r.downtime || [], whole);
@@ -58,12 +61,12 @@ export function timeBreakdown(r) {
   const travel = shift ? merge(subtract(inter(travelAll, whole), merge([...effService, ...downtime]))) : [];
   const productive = shift ? merge(subtract(whole, merge([...service, ...downtime, ...travel]))) : whole;
   return {
-    totalHours: len(total) / 60, workHours: len(productive) / 60, serviceHours: len(effService) / 60, downtimeHours: len(downtime) / 60,
+    breakHours: len(breaks) / 60, breakIntervals: asIv(breaks), totalHours: len(total) / 60, workHours: len(productive) / 60, serviceHours: len(effService) / 60, downtimeHours: len(downtime) / 60,
     totalIntervals: asIv(total), workIntervals: asIv(productive), serviceIntervals: asIv(effService), downtimeIntervals: asIv(downtime),
     travelHours: len(travel) / 60, travelIntervals: asIv(travel), billableHours: (len(total) - len(travel)) / 60,
-    travelOutsideShift: shift && len(subtract(travelAll, whole)) > 0,
-    serviceOutsideShift: shift && len(subtract(service, whole)) > 0, downtimeOutsideShift: shift && len(subtract(downAll, whole)) > 0,
-    ambiguousDay: total.length > 0 && total[total.length - 1][1] - total[0][0] >= 1440,
+    travelOutsideShift: shift && len(subtract(travelAll, gross)) > 0,
+    serviceOutsideShift: shift && len(subtract(service, gross)) > 0, downtimeOutsideShift: shift && len(subtract(downAll, gross)) > 0,
+    ambiguousDay: gross.length > 0 && gross[gross.length - 1][1] - gross[0][0] >= 1440,
   };
 }
 

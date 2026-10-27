@@ -34,6 +34,7 @@ export default function More() {
     <div className="space-y-4">
       <PageHeader title="Více" subtitle={`${user?.name} · ${user?.role_label}`} />
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <L to="/jak-na-to" icon={Eye} label="Jak na to – průvodce aplikací" testid="more-guide" />
         <L to="/prehledy" icon={BarChart3} label="Moje přehledy (šichtovnice, deník, směny)" testid="more-my-overview" />
         <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
         <L to="/vykazy-vazeni" icon={Files} label="Společný výkaz práce a vážní lístky" testid="more-production" />

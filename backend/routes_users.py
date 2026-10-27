@@ -60,7 +60,7 @@ async def change_password(body: dict, user: dict = Depends(get_current_user)):
 
 # ---------------- users (admin) ----------------
 def _can_manage(actor: dict, target_role: str) -> bool:
-    if actor["role"] == "owner":
+    if actor["role"] in ("owner", "operations_manager"):
         return target_role != "owner"
     if actor["role"] == "admin":
         return target_role in ("employee", "manager")
@@ -87,7 +87,7 @@ async def _clean_username(v, uid):
 
 @router.get("/roles")
 async def roles_info(user: dict = Depends(get_ready_user)):
-    return {"roles": [{"role": r, "label": ROLE_LABELS[r]} for r in ("owner", "admin", "manager", "employee")],
+    return {"roles": [{"role": r, "label": ROLE_LABELS[r]} for r in ("owner", "operations_manager", "admin", "manager", "employee")],
             "positions": [{"value": k, "label": v} for k, v in POSITIONS.items()]}
 
 
@@ -323,3 +323,28 @@ async def seed_owner():
                                        "password_hash": hash_password(d["pw"]), "must_change_password": True,
                                        "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
                                        "username": d["username"], "position": "strojnik" if d["role"] == "employee" else ""})
+
+
+async def ensure_operations_manager():
+    """One-time named account migration. Never reset an existing password on restart."""
+    marker = "operations-manager-jakub-karas-v1"
+    if await db.migrations.find_one({"id": marker}):
+        return
+    matches = await db.users.find({"name": {"$regex": r"^\s*Jakub\s+Karas\s*$", "$options": "i"}}, {"_id": 0}).to_list(3)
+    if len(matches) > 1:
+        raise RuntimeError("Více účtů Jakub Karas: správce musí nejprve ověřit totožnost účtu.")
+    if matches:
+        account = matches[0]
+        if account["role"] != "owner":
+            await db.users.update_one({"id": account["id"]}, {"$set": {"role": "operations_manager"}, "$inc": {"token_version": 1}})
+    else:
+        if await db.users.find_one({"username": "jakub.karas"}):
+            raise RuntimeError("Přihlašovací jméno jakub.karas je už obsazené jiným účtem.")
+        account = {"id": new_id(), "name": "Jakub Karas", "username": "jakub.karas",
+                   "role": "operations_manager",
+                   "password_hash": hash_password(temp_password()), "must_change_password": True,
+                   "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
+                   "created_by": "system"}
+        await db.users.insert_one(account)
+    await audit(None, "operations_manager_provisioned", {"user_id": account["id"], "migration": marker})
+    await db.migrations.update_one({"id": marker}, {"$set": {"at": iso_now()}}, upsert=True)

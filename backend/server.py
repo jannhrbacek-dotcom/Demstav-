@@ -10,7 +10,8 @@ from fastapi.responses import Response  # noqa: E402
 from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 
 from core import db, client, get_ready_user, require_role, is_manager, COMPANY_NAME  # noqa: E402
-from routes_users import router as users_router, seed_owner, machines_with_status  # noqa: E402
+from routes_breaks import router as breaks_router
+from routes_users import router as users_router, seed_owner, ensure_operations_manager, machines_with_status  # noqa: E402
 from routes_records import router as records_router  # noqa: E402
 from routes_stt import router as stt_router  # noqa: E402
 from routes_leave import router as leave_router  # noqa: E402
@@ -22,6 +23,7 @@ from routes_data import router as data_router  # noqa: E402
 from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date  # noqa: E402
 from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
 from storage import init_storage, get_object  # noqa: E402
+from break_policy import hydrate_records, hydrate_events
 from exports import timesheet_pdf, diary_pdf  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -54,7 +56,9 @@ async def overview(date: str = "", days: int = 7, user: dict = Depends(require_r
     start_day = (date_cls.fromisoformat(day) - timedelta(days=days - 1)).isoformat()
     recs = await db.records.find({"date": {"$gte": start_day, "$lte": day}},
                                  {"_id": 0, "operatorSignature": 0, "handoverSignature": 0, "workshopSignature": 0}).to_list(20000)
+    recs = await hydrate_records(recs)
     events_all = await db.attendance_events.find({}, {"_id": 0}).to_list(100000)
+    events_all = await hydrate_events(events_all)
     by_emp_ev = {}
     for e in events_all:
         by_emp_ev.setdefault(e["employee_id"], []).append(e)
@@ -92,8 +96,9 @@ async def overview(date: str = "", days: int = 7, user: dict = Depends(require_r
     faults.sort(key=lambda f: (f["severity"] != "stop", f["date"]), reverse=False)
     pending_events = await db.attendance_events.count_documents({"status": "pending_review"})
     pending_requests = await db.attendance_requests.count_documents({"status": "pending"})
-    leave_q = {"status": {"$in": ["pending_manager"] + (["pending_director"] if user["role"] == "owner" else [])}, "user_id": {"$ne": user["id"]}}
-    pending_leave = await db.leave_requests.count_documents(leave_q) if user["role"] in ("manager", "owner") else 0
+    pending_requests += await db.break_requests.count_documents({"status": "pending"})
+    leave_q = {"status": {"$in": ["pending_manager"] + (["pending_director"] if user["role"] in ("owner", "operations_manager") else [])}, "user_id": {"$ne": user["id"]}}
+    pending_leave = await db.leave_requests.count_documents(leave_q) if user["role"] in ("manager", "owner", "operations_manager") else 0
     today_exceptions = await db.planned_exceptions.find({"date": {"$gte": day, "$lte": (date_cls.fromisoformat(day) + timedelta(days=7)).isoformat()}}, {"_id": 0}).sort("date", 1).to_list(200)
     service_alerts = [m for m in await machines_with_status() if m.get("active", True) and m["service_state"] in ("soon", "due")]
     return {"date": day, "present": present, "comparison": comparison, "missing": missing[:200], "open_drafts": open_drafts,
@@ -120,7 +125,7 @@ async def _export_records(user, employee_id, date_from, date_to, machine, includ
         q["machine"] = machine
     if not include_drafts:
         q["status"] = "confirmed"
-    return await db.records.find(q, {"_id": 0}).sort([("date", 1), ("updatedAt", 1)]).to_list(5000)
+    return await hydrate_records(await db.records.find(q, {"_id": 0}).sort([("date", 1), ("updatedAt", 1)]).to_list(5000))
 
 
 def _range_name(a, b):
@@ -174,6 +179,7 @@ async def export_diary(employee_id: str = "", machine: str = "", date_from: str 
                     headers={"Content-Disposition": f'attachment; filename="DEMSTAV_provozni_denik_{_range_name(date_from, date_to)}.pdf"'})
 
 
+api.include_router(breaks_router)
 api.include_router(users_router)
 api.include_router(records_router)
 api.include_router(att_router)
@@ -203,6 +209,8 @@ async def startup():
     email_indexes = await db.users.index_information()
     if "email_1" in email_indexes and not email_indexes["email_1"].get("partialFilterExpression"):
         await db.users.drop_index("email_1")
+    await db.break_requests.create_index("id", unique=True)
+    await db.break_requests.create_index([("employee_id", 1), ("date", 1)], unique=True, partialFilterExpression={"status": "pending"})
     await db.users.create_index("id", unique=True)
     await db.users.create_index("username", unique=True, partialFilterExpression={"username": {"$type": "string"}})
     await db.leave_requests.create_index("id", unique=True)
@@ -227,6 +235,7 @@ async def startup():
     await db.machines.create_index("id", unique=True)
     await db.login_attempts.create_index("identifier")
     await seed_owner()
+    await ensure_operations_manager()
     try:
         init_storage()
         logger.info("Storage initialized")
