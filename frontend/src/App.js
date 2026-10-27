@@ -9,6 +9,7 @@ import ChangePassword from "@/pages/ChangePassword";
 import Today from "@/pages/Today";
 import RecordForm from "@/pages/RecordForm";
 import Records from "@/pages/Records";
+import RecordImport from "@/pages/RecordImport";
 import RecordDetail from "@/pages/RecordDetail";
 import Attendance from "@/pages/Attendance";
 import Queue from "@/pages/Queue";
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="/zapis/novy" element={<Guard><RecordForm /></Guard>} />
             <Route path="/zapis/:id" element={<Guard><RecordForm /></Guard>} />
             <Route path="/zapisy" element={<Guard><Records /></Guard>} />
+            <Route path="/zapisy/import" element={<Guard><RecordImport /></Guard>} />
             <Route path="/detail/:id" element={<Guard><RecordDetail /></Guard>} />
             <Route path="/dochazka" element={<Guard><Attendance /></Guard>} />
             <Route path="/fronta" element={<Guard><Queue /></Guard>} />
