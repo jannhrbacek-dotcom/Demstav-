@@ -16,6 +16,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AttachmentThumb } from "@/components/AttachmentThumb";
 import { remainingText } from "@/lib/serviceNotify";
+import { prefillMachine } from "@/lib/machinePrefill";
 import { useAuth } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { http } from "@/lib/api";
@@ -159,24 +160,11 @@ export default function RecordForm() {
   // Při výběru stroje předvyplní MTH začátek: konec MTH z posledního zápisu na tento stroj, jinak stav MTH ze seznamu strojů.
   const setMachine = (v) => setRec((r) => {
     if (v === r.machine) return r;
-    const next = { ...r, machine: v };
-    if (id) return next;
-    const label = (v || "").trim().toLocaleLowerCase("cs-CZ");
-    const records = mergedRecords(mine.data, s.records).map(x => x.record)
-      .filter(x => (x.machine || "").trim().toLocaleLowerCase("cs-CZ") === label)
-      .sort((a, b) => (b.date + (b.updatedAt || b.updated_at || "")).localeCompare(a.date + (a.updatedAt || a.updated_at || "")));
-    const prev = records.find(x => x.mthEnd);
-    const m = (machines.data || []).find(x => (x.label || "").trim().toLocaleLowerCase("cs-CZ") === label);
-    const lastMth = prev?.mthEnd || (m && m.operating_hours != null ? String(m.operating_hours).replace(".", ",") : "");
-    next.mthStart = lastMth; // Nikdy neponechávat MTH jiného stroje.
-    next.mthEnd = "";       // Konečné MTH musí strojník přečíst sám.
-    autoMth.current = lastMth;
-    for (const field of ["customer", "site", "job"]) {
-      if (!next[field] && records[0]?.[field]) next[field] = records[0][field];
-    }
+    if (id) return { ...r, machine: v, mthStart: "", mthEnd: "" };
+    const next = prefillMachine(r, v, mergedRecords(mine.data, s.records).map(x => x.record), machines.data || []);
+    autoMth.current = next.mthStart;
     return next;
   });
-
   const setFault = (i, k, v) => set("faults", rec.faults.map((f, j) => (j === i ? { ...f, [k]: v } : f)));
   const recentWork = [...new Set(mergedRecords(mine.data, s.records).map(x => x.record)
     .filter(x => x.machine === rec.machine && x.work?.trim()).map(x => x.work.trim()))].slice(0, 4);
