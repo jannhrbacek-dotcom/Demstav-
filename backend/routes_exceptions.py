@@ -155,6 +155,6 @@ async def team_calendar(date_from: str, date_to: str, user: dict = Depends(get_r
             "title": title, "time_from": r.get("time_from", "") if r.get("type") == "doctor" else "",
             "time_to": r.get("time_to", "") if r.get("type") == "doctor" else "",
             "note": r.get("note", "") if r["user_id"] == user["id"] else "",
-            "kind": r.get("type"), "type": "leave",
+            "kind": (r.get("type") if r["user_id"] == user["id"] or r.get("type") not in ("doctor", "sick") else "absence"), "type": "leave",
         })
     return sorted(result, key=lambda r: (r["date_from"], r["user_name"]))
