@@ -107,8 +107,12 @@ def spans_detail(record: dict):
     eff_service = intersection(service, whole) if shift else service
     down_all = service_spans(record.get("downtime") or [], whole)
     downtime = subtract(intersection(down_all, whole), eff_service) if shift else []
-    productive = subtract(whole, merge(service + downtime)) if shift else whole
-    return {"total": total, "service": eff_service, "downtime": merge(downtime), "productive": merge(productive),
+    # Přejezd mezi zakázkami (A → B): je součástí pracovní doby, ale nefakturuje se zákazníkovi.
+    travel_all = service_spans(record.get("travel") or [], whole)
+    travel = subtract(intersection(travel_all, whole), merge(eff_service + downtime)) if shift else []
+    productive = subtract(whole, merge(service + downtime + travel)) if shift else whole
+    return {"total": total, "service": eff_service, "downtime": merge(downtime), "productive": merge(productive), "travel": merge(travel),
+            "travel_outside": shift and length(subtract(travel_all, whole)) > 0,
             "service_outside": shift and length(subtract(service, whole)) > 0,
             "downtime_outside": shift and length(subtract(down_all, whole)) > 0}
 
@@ -122,6 +126,8 @@ def time_breakdown(record: dict) -> dict:
         "serviceHours": length(d["service"]) / 60, "downtimeHours": length(d["downtime"]) / 60,
         "totalIntervals": as_intervals(total), "workIntervals": as_intervals(d["productive"]),
         "serviceIntervals": as_intervals(d["service"]), "downtimeIntervals": as_intervals(d["downtime"]),
+        "travelHours": length(d["travel"]) / 60, "travelIntervals": as_intervals(d["travel"]),
+        "billableHours": (length(total) - length(d["travel"])) / 60, "travelOutsideShift": d["travel_outside"],
         "serviceOutsideShift": d["service_outside"], "downtimeOutsideShift": d["downtime_outside"],
         "ambiguousDay": ambiguous,
     }
@@ -130,18 +136,20 @@ def time_breakdown(record: dict) -> dict:
 def day_union(records: list) -> dict:
     """Totals for one employee and one date across several records/machines.
     The same minute is never counted twice."""
-    tot, srv, dwn = [], [], []
+    tot, srv, dwn, trv = [], [], [], []
     for r in records:
         d = spans_detail(r)
         tot += d["total"]
         srv += d["service"]
         dwn += d["downtime"]
+        trv += d["travel"]
     tot, srv = merge(tot), merge(srv)
     dwn = merge(subtract(merge(dwn), srv))
-    prod = merge(subtract(tot, merge(srv + dwn)))
+    trv = merge(subtract(merge(trv), merge(srv + dwn)))
+    prod = merge(subtract(tot, merge(srv + dwn + trv)))
     raw_sum = sum(length(spans_detail(r)["total"]) for r in records)
     return {"totalHours": length(tot) / 60, "workHours": length(prod) / 60, "serviceHours": length(srv) / 60,
-            "downtimeHours": length(dwn) / 60, "overlapHours": (raw_sum - length(tot)) / 60}
+            "downtimeHours": length(dwn) / 60, "travelHours": length(trv) / 60, "overlapHours": (raw_sum - length(tot)) / 60}
 
 
 def fmt_hours(h: float) -> str:

@@ -32,6 +32,17 @@ export default function Overview() {
       {o.fromCache && <p className="text-xs font-medium text-amber-800">Offline – poslední stažený stav.</p>}
       {!d ? <p className="text-slate-600">Načítám…</p> : (<>
         {(d.service_alerts || []).length > 0 && <ServiceAlerts alerts={d.service_alerts} />}
+        {d.pending_leave > 0 && <Link to="/nepritomnost" className="flex items-center justify-between rounded-xl border-2 border-[#E6BD00] bg-amber-50 p-4 font-semibold text-amber-950 hover:bg-amber-100" data-testid="manager-pending-leave">Žádosti o dovolenou / nepřítomnost ke schválení: {d.pending_leave}<span className="underline">Otevřít →</span></Link>}
+        {(d.upcoming_exceptions || []).length > 0 && (
+          <Link to="/nepritomnost" className="block rounded-xl border-2 border-slate-300 bg-slate-50 p-4 hover:bg-slate-100" data-testid="manager-upcoming-exceptions">
+            <div className="mb-1 font-heading text-sm font-semibold uppercase tracking-wide text-slate-700">Nahlášené plánované výjimky (nejbližší týden)</div>
+            <ul className="space-y-0.5 text-sm text-slate-900">
+              {d.upcoming_exceptions.slice(0, 8).map((e) => (
+                <li key={e.id}><b>{e.user_name}</b> · {dmy(e.date)} · {e.kind_label}{e.time_from && ` · od ${e.time_from}`}{e.time_to && ` · do ${e.time_to}`} — {e.reason}</li>
+              ))}
+            </ul>
+          </Link>
+        )}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card title="Přítomní teď" icon={Users} value={d.present.length} testid="manager-present-now-card">
             {d.present.length === 0 && <div className="text-slate-600">Nikdo nemá otevřenou směnu.</div>}

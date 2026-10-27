@@ -56,11 +56,13 @@ class Pdf:
         self.c.setAuthor("DEMSTAV OPERATIONS")
         self.h = landscape(A4)[1]
         self.started = False
+        self.count = 0
 
     def page(self, size):
         if self.started:
             self.c.showPage()
         self.started = True
+        self.count += 1
         self.c.setPageSize(size)
         self.h = size[1]
 
@@ -158,8 +160,16 @@ def _week_key(d: str) -> str:
     return date_cls.fromordinal(dt.toordinal() - dt.weekday()).isoformat()
 
 
-def timesheet_pdf(groups: list, attachment_loader) -> bytes:
-    """groups: [{employee_name, records:[...]}]; attachment_loader(att)->bytes|None"""
+def _duplex_pad(pdf, start_count, size):
+    """Oboustranný tisk: každý výkaz (zaměstnanec × týden) začíná na novém listu."""
+    if (pdf.count - start_count) % 2 == 1:
+        pdf.page(size)
+        pdf.txt(25, 30, "(záměrně prázdná strana – oboustranný tisk)", 7, color=MUTED)
+
+
+def timesheet_pdf(groups: list, attachment_loader, duplex: bool = False) -> bytes:
+    """groups: [{employee_name, records:[...]}]; attachment_loader(att)->bytes|None.
+    duplex=True: list 1 = výkaz, rub = popis servisů/závad; každý výkaz začíná na novém listu."""
     pdf = Pdf()
     pdf_atts = []
     if not any(g["records"] for g in groups):
@@ -174,6 +184,7 @@ def timesheet_pdf(groups: list, attachment_loader) -> bytes:
             ws = date_cls.fromisoformat(wk)
             we = date_cls.fromordinal(ws.toordinal() + 6)
             sheets = [recs[i:i + ROWS_PER_SHEET] for i in range(0, len(recs), ROWS_PER_SHEET)]
+            block_start = pdf.count
             supplement = []  # (title, lines)
             for si, sheet in enumerate(sheets, 1):
                 _ts_sheet(pdf, g["employee_name"], ws, we, si, sheet, recs)
@@ -186,7 +197,12 @@ def timesheet_pdf(groups: list, attachment_loader) -> bytes:
                 if bd["downtimeHours"]:
                     lines.append(f"Prostoje (součást pracovní doby): {ivs(bd['downtimeIntervals'])} ({fmt_hours(bd['downtimeHours'])} h)"
                                  + (f" – {r['downtimeReason']}" if r.get("downtimeReason") else ""))
-                lines.append("Servis i prostoje jsou již zahrnuty v celkové pracovní době; časy se nesčítají podruhé.")
+                for t in r.get("travel") or []:
+                    if t.get("start") and t.get("end"):
+                        lines.append(f"Přejezd {t['start']}–{t['end']}: {t.get('from') or '?'} → {t.get('to') or '?'} (pracovní doba, nefakturuje se)")
+                if bd.get("travelHours"):
+                    lines.append(f"Přejezdy celkem {fmt_hours(bd['travelHours'])} h; k fakturaci {fmt_hours(bd['billableHours'])} h.")
+                lines.append("Servis, prostoje i přejezdy jsou již zahrnuty v celkové pracovní době; časy se nesčítají podruhé.")
                 if r.get("work"):
                     lines.append(f"Popis práce: {r['work']}")
                 if r.get("drive"):
@@ -208,6 +224,8 @@ def timesheet_pdf(groups: list, attachment_loader) -> bytes:
                         f"Zápisy tohoto dne se časově překrývají o {fmt_hours(u['overlapHours'])} h (např. střídání strojů).",
                         "V součtech výkazu je každá minuta zaměstnance započtena pouze jednou."]))
             _ts_supplement(pdf, supplement)
+            if duplex:
+                _duplex_pad(pdf, block_start, A4)
             for r in recs:
                 for a in sorted(r.get("attachments") or [], key=lambda a: SECTION_ORDER.get(a.get("section") or "general", 9)):
                     data = attachment_loader(a)
@@ -275,7 +293,7 @@ def _ts_sheet(pdf: Pdf, name, ws, we, list_no, sheet, all_recs):
     by_day = {}
     for r in all_recs:
         by_day.setdefault(r["date"], []).append(r)
-    tot = {"totalHours": 0, "workHours": 0, "serviceHours": 0, "downtimeHours": 0}
+    tot = {"totalHours": 0, "workHours": 0, "serviceHours": 0, "downtimeHours": 0, "travelHours": 0}
     for rs in by_day.values():
         u = day_union(rs)
         for k in tot:
@@ -283,6 +301,8 @@ def _ts_sheet(pdf: Pdf, name, ws, we, list_no, sheet, all_recs):
     foot = f"DEMSTAV | Pracovní doba celkem {fmt_hours(tot['totalHours'])} h | Práce bez servisu{' a prostojů' if tot['downtimeHours'] else ''} {fmt_hours(tot['workHours'])} h | Servis {fmt_hours(tot['serviceHours'])} h (zahrnut v celku)"
     if tot["downtimeHours"]:
         foot += f" | Prostoje {fmt_hours(tot['downtimeHours'])} h (zahrnuty v celku)"
+    if tot["travelHours"]:
+        foot += f" | Přejezdy {fmt_hours(tot['travelHours'])} h (nefakturuje se)"
     foot += f" | týden celkem, export {export_stamp()}"
     pdf.txt(25, 577, foot, 6.3, color=MUTED)
 

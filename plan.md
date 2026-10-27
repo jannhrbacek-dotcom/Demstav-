@@ -1,184 +1,286 @@
-# plan.md — DEMSTAV OPERATIONS (Emergent) — Plan
+# plan.md — DEMSTAV OPERATIONS (Emergent) — Plán
 
-## 1) Objectives
-- Deliver a functional V1 web app (installable PWA) for **DEMSTAV Operations** focused on:
-  - **Provozní deník stroje + šichtovnice** (time intervals, MTH, faults, drafts/confirmations, revisions).
-  - **Docházka s pracovišti** (arrival/departure/breaks, workplace verification via QR/GPS/manual, exception review flow).
-- Implement **email+password auth** with roles: `owner`, `admin` (technický správce), `manager` (vedoucí), `employee`.
-  - Admin creates users with **temporary password + forced change on first login**.
-  - Owner account is protected (cannot be removed/locked by others) and can deactivate admin.
-- Provide **offline-capable core flow** via a persistent per-account local queue (stable IDs, idempotent resend, conflict detection via base revision).
-- Provide **file/media attachments** usable in the field (offline-first queue + later sync) and included in exports.
-- Provide **service interval tracking & reminders**:
-  - Default service interval per machine: **500 mth**; warning threshold: **100 mth**.
-  - Current MTH computed as `max(machine.operating_hours, latest records mthEnd/mthStart)`.
-  - In-app alerts + optional system notifications.
-- Provide **immutability / integrity guarantees** suitable for operational logs:
-  - Every saved revision is stored in `record_versions`.
-  - Revisions are **hash-chained** (SHA-256 prev_hash + canonical snapshot) including attachment SHA-256.
-  - Integrity can be verified via API and shown in UI / printed in diary PDF.
-- Provide a **manager overview** so leadership automatically sees synced records: missing timesheets, attendance exceptions, open “STOP” faults, attendance vs timesheet comparison, and new **service alerts**.
+## 1) Cíle
+- Dodat funkční V1 webovou aplikaci (instalovatelná **PWA**) pro **DEMSTAV Operations / DEMSTAV Group**, se zaměřením na:
+  - **Provozní deník stroje + šichtovnice** (intervaly, MTH, závady, koncept/potvrzení, revize).
+  - **Docházka s pracovišti** (příchod/odchod/pauzy, ověření pracoviště přes QR+GPS, výjimky ke schválení).
+  - **Nepřítomnosti** (dovolená, neplacené volno, lékař, nemoc) včetně schvalování.
+  - **Reporty a exporty** (PDF dle šablon + datové exporty XLSX/CSV s filtry + automatické týdenní exporty).
 
-## 2) Implementation Steps
+- Autentizace: **e-mail/uživatelské jméno + heslo**, role a oprávnění:
+  - `owner` → **Jednatel** (chráněný účet).
+  - `admin` → **Admin**.
+  - `manager` → **Vedoucí výroby**.
+  - `employee` → **Strojník / zaměstnanec** + pracovní zařazení: **strojník, mechanik, řidič, strojník pohonných hmot**.
+  - Přihlášení podporuje **username nebo e-mail** (demo: `jednatel`, `admin`, `vedouci`, `strojnik`, `spravce`).
 
-### Phase 1 — Core POC (hardest workflow first: offline queue + idempotent sync + conflict handling) ✅ DONE
+- Offline-first:
+  - Persistovaná **lokální fronta** na úrovni účtu (stabilní ID, idempotentní resend, detekce konfliktu přes `baseRevision`).
+
+- Média / soubory:
+  - Nahrávání příloh offline → následná synchronizace.
+  - Sekce příloh: `general | service | timesheet` + exporty příloh.
+
+- Servisní intervaly:
+  - Default interval: **500 mth**, varování: **100 mth**.
+  - Aktuální MTH: `max(machine.operating_hours, poslední mthEnd/mthStart ze zápisů)`.
+  - Upozornění v aplikaci + (nově plánováno) **systémové push notifikace**.
+
+- Integrita dat:
+  - Revize v `record_versions`, **hash-chain** (SHA-256), včetně SHA příloh.
+  - Ověření integrity přes API + zobrazení v UI + tisk do PDF deníku.
+
+- UX docházky:
+  - **Pauza bez QR** (tap) — `break_start/break_end` bez QR+GPS.
+  - **Přejezd A→B**: `travel_start` udržuje stav „stále v práci“ (počítá se do odpracovaného času, ale **nefakturuje se**), příjezd na B vyžaduje QR+GPS.
+
+- Konvence názvů strojů:
+  - Primární štítek s číslem stroje: např. **L566/3**, **L576/7**.
+
+- **Nově (Phase 6)**: 
+  - **Plánované výjimky / zkrácené směny** (pozdní příchody / dřívější odchody) – zadává zaměstnanec, **bez schvalování**, viditelné vedení.
+  - **Refaktor RecordForm** pro výrazně čistší UX (dropdown stroje + podmíněné sekce servis/přejezd).
+  - **Push notifikace i při zavřené aplikaci**: nativní Web Push (VAPID) + subscription backend.
+  - **Vizuální ověření** klíčových toků, které automatické testy plně nepokryly.
+
+---
+
+## 2) Implementační kroky
+
+### Phase 1 — Core POC (offline queue + idempotentní sync + konflikty) ✅ HOTOVO
 User stories
-1. As an employee, I can create an offline attendance “arrival” event and see it queued with a clear status.
-2. As an employee, I can create an offline draft diary record with stable ID and see it queued.
-3. As the app, I can resend queued items after reconnect without duplicating data on the server.
-4. As a user, I never lose offline data when my session expires; I’m prompted to re-auth and then sync resumes.
-5. As the server, I reject conflicting diary updates (wrong base revision) and return a conflict payload.
+1. Zaměstnanec vytvoří offline docházkovou událost a vidí ji ve frontě.
+2. Zaměstnanec vytvoří offline koncept zápisu (deník/šichtovnice) se stabilním ID.
+3. Aplikace po návratu online odešle frontu bez duplicit.
+4. Při vypršení session uživatel nepřijde o offline data a po přihlášení sync pokračuje.
+5. Server odmítne konfliktní update (špatná base revize) a vrátí konflikt payload.
 
-Scope / Build
-- Backend (FastAPI + Mongo):
-  - `POST /auth/login`, `POST /auth/change-password` (forced change), `GET /auth/me`
-  - Attendance sync with idempotency
-  - Revisioned record save with conflict detection
-- Frontend POC:
-  - Local persistent queue per user (IndexedDB)
-  - Sync worker
+Exit gate ✅
+- Předvedeno: offline create → reopen → login → sync → bez duplicit → konflikt cesta.
 
-Exit gate (must pass before Phase 2) ✅ DONE
-- Demonstrated: offline create → close/reopen browser → login again → sync → no duplicates → conflict path.
+---
 
-### Phase 2 — V1 App Development (modules + UX), then 1 full E2E test round ✅ DONE
-User stories
-1. As an employee, I can start my day: arrival → create diary draft → confirm diary, even with weak/absent internet.
-2. As an employee, I can enter shift intervals: billing (whole shift), service, downtime, and see totals split correctly.
-3. As an employee, I can report a fault with severity “STOP” and later mark it resolved with resolution text.
-4. As a manager, I can see today’s exceptions in attendance (pending_review) and approve/reject with audit trail.
-5. As a manager, I can see missing timesheets and mismatches (attendance net hours vs timesheet totals).
+### Phase 2 — V1 vývoj modulů + UX, 1× E2E test ✅ HOTOVO
+Backend ✅
+- Auth & role seed, stroje, pracoviště, audit.
+- Zápisy: koncept/potvrzení, revize, konflikt 409.
+- Docházka: QR/GPS + review.
+- Exporty: PDF šichtovnice a deníku.
 
-Backend ✅ DONE
-- Auth & roles, seed `owner`, admin endpoints, workplaces, machines, audit.
-- Records: draft/confirmed, revisions, conflict 409 payload.
-- Attendance: modes `qr/gps/qr_gps/manual`, dynamic QR, manager review.
-- Exports: PDF endpoints for šichtovnice and deník.
+Frontend ✅
+- Login + vynucená změna hesla.
+- Navigace dle rolí.
+- Toky zaměstnance: Docházka + Zápisy + Fronta.
+- Toky vedení: Přehled + Kontrola.
+- PWA manifest + SW cache shell.
 
-Frontend (React PWA) ✅ DONE
-- Login + forced password change.
-- Role-based navigation.
-- Employee flows: Attendance + Records (draft/confirm), Queue UI.
-- Manager flows: Overview + Review.
-- PWA manifest + service worker caching shell.
+Testing ✅
+- E2E `testing_agent_v3`.
 
-Testing (end of Phase 2) ✅ DONE
-- Full E2E run with seeded users via `testing_agent_v3` (backend 100%, frontend >=95% and later 100% on iteration 2).
+---
 
-### Phase 3 — Hardening + usability improvements ✅ DONE
-User stories / work items
-- **Jednoduchý režim (Simple Mode)**: bigger UI controls + hide optional sections.
-- **Smart autocomplete** + remember last entries in record form.
-- **Dictation / voice notes** (Web Speech API cs-CZ) for key text fields.
-- **Real pilot data**: created initial workplaces/machines and a temporary admin.
+### Phase 3 — Hardening + použitelnost ✅ HOTOVO
+- Jednoduchý režim.
+- Smart autocomplete + „Načíst z minula“.
+- Diktování (Whisper přes Emergent).
+- Pilot data.
 
-Deliverables ✅ DONE
-- Simple mode toggle in UI + persisted to localStorage.
-- Smart suggestions (datalist) + “Načíst z minula”.
-- Dictation mic buttons in record fields.
-- Machines extended specs (manufacturer/year/power/weight/operating_hours/note).
-- Temporary admin created:
-  - `spravce@demstav.cz` / `qb8cXSWvRr` (**must change password on first login**)
-- Real pilot objects in DB:
-  - Machines: Liebherr L566, Liebherr L576
-  - Workplace: Struskový odval – Lihovarská (QR mode)
-- Gemini AI: user explicitly declined for now.
-- E2E regression tests via `testing_agent_v3` passed (iteration_2: backend 100%, frontend 100%).
+Testing ✅
+- Regrese prošly (`testing_agent_v3`).
 
-### Phase 4 — Attachments + Service interval notifications + Immutability (in progress) ✅ IMPLEMENTED + TESTED
-> This phase was added based on latest user requirements.
+---
 
-#### 4.1 Attachments by section (general/service/timesheet)
-User stories
-1. As an employee, I can attach photos directly to **servis** section.
-2. As an employee, I can attach photos directly to **šichtovnice** section.
-3. Exports include/label these attachments correctly.
+### Phase 4 — Přílohy + servisní intervaly + integrita ✅ IMPLEMENTOVÁNO + OTESTOVÁNO
+#### 4.1 Přílohy podle sekcí ✅
+- `attachments.section`: `general | service | timesheet`.
+- V RecordForm separátní bloky fotek.
+- Exporty doplňují přílohy podle sekce.
 
-Backend ✅ DONE
-- Attachments metadata now includes `section`: `general | service | timesheet`.
-- Attachments are SHA-256 hashed on upload and persisted.
+#### 4.2 Servisní intervaly a upozornění ✅
+- `service_interval_mth`, `service_warn_mth`, `last_service_mth`.
+- `/api/machines` vrací computed stav (current/next/remaining/state).
+- `/api/service-alerts` vrací stroje `soon/due`.
+- UI upozornění v Today/Overview/Machines/RecordForm.
 
-Frontend ✅ DONE
-- Record form shows:
-  - “Fotky k šichtovnici” uploader (camera capture) → `section=timesheet`.
-  - “Fotky ze servisu” uploader (camera capture) → `section=service`.
-  - Existing “Přílohy” area remains as `section=general`.
+#### 4.3 Imutabilita / integrita ✅
+- Hash-chain revizí + příloh.
+- `GET /api/records/{rid}/integrity`.
+- UI + PDF otisky.
 
-Exports ✅ DONE
-- Šichtovnice export pages label attachment appendix pages based on `section`.
-- Diary export appends **service** attachments pages.
+---
 
+### Phase 4.4 — Emergent STT (Whisper) ✅ IMPLEMENTOVÁNO + OTESTOVÁNO
+- Backend: `POST /api/stt` (Whisper-1, cs).
+- Frontend: Dictation komponenta (offline: drží nahrávku a transkribuje po návratu online).
 
-#### 4.2 Service interval tracking + notifications
-User stories
-1. As an operator/manager, I see warnings like: **„do dalšího servisu zbývá 100 mth“**.
-2. As an operator, I can mark **“Proveden pravidelný servis dle intervalu”** in a confirmed record, which resets the interval from that MTH.
-3. As a user, I can optionally enable system notifications.
+---
 
-Backend ✅ DONE
-- Machines now support:
-  - `service_interval_mth` default 500
-  - `service_warn_mth` default 100
-  - `last_service_mth` (set when interval service recorded)
+### Phase 5 — HR workflow + reporting + role/permissions + travel/pause ✅ IMPLEMENTOVÁNO (vizuální ověření pending)
+> Phase 5 je funkčně hotová a prošla automatickými testy; část UI toků vyžaduje ruční vizuální kontrolu.
+
+#### 5.1 Role model + username login ✅ HOTOVO
+- Backend: `public_user` (username, position, role_group/label), `/auth/login` s `login` (username/email), index unikátnosti username.
+- Frontend: login texty, Users page pro username+position, role labely.
+
+#### 5.2 Nepřítomnosti (žádosti + schvalování) ✅ HOTOVO
+- Backend: `routes_leave.py`.
+- Frontend: `/nepritomnost`.
+- Přehled vedení ukazuje `pending_leave`.
+
+#### 5.3 XLSX/CSV exporty ✅ HOTOVO
+- Backend: `routes_data.py` (`/api/exports/data`).
+- CSV: středník + BOM (Excel kompatibilita).
+
+#### 5.4 Automatické týdenní exporty ✅ HOTOVO
+- PDF duplex + weekly generování + download endpoints + cron.
+
+#### 5.5 Moje přehledy ✅ HOTOVO
+- `/api/my/summary` + `/prehledy`.
+
+#### 5.6 Docházka: pauza bez QR + přejezd A→B ✅ HOTOVO
+- `travel_start` stav + UI tlačítko.
+
+#### 5.7 Šichtovnice: travel intervaly + nefakturovaný čas ✅ HOTOVO
+- `travelHours` + `billableHours` v breakdown + exporty.
+
+#### 5.8 Přejmenování strojů ✅ HOTOVO
+- L566/3, L576/7.
+
+---
+
+### Phase 6 — Úkoly potvrzené uživatelem (Message 332) 🔜 PLÁNOVÁNO
+Priorita byla potvrzena uživatelem v tomto pořadí:
+1) **Plánované výjimky / zkrácené směny**, 2) **RecordForm refaktor**, 3) **Web Push (VAPID)**, 4) **Vizuální ověření**.
+
+#### 6.1 Plánované výjimky / zkrácené směny (P1 → nyní priorita #1) ⏳
+Cíl
+- Zaměstnanec zadá plánovanou výjimku: **pozdní příchod** / **dřívější odchod** (případně obecný důvod: dítě/úřad apod.).
+- **Bez schvalování**: je to oznámení, ale musí být viditelné vedení.
+- Zobrazit v přehledu zaměstnanců (Vedoucí/Jednatel), ideálně i v detailu zaměstnance / denním přehledu.
+
+Návrh datového modelu
+- Kolekce: `planned_exceptions`
+  - `{ id, user_id, user_name, date, kind: late_arrival|early_departure|other, time_from?, time_to?, minutes?, reason, created_at, updated_at }`
+
+Backend
 - Endpoints:
-  - `GET /api/machines` returns computed service status fields: `current_mth`, `next_service_mth`, `remaining_mth`, `service_state`.
-  - `GET /api/service-alerts` returns machines with `service_state in (soon, due)`.
-- Record confirm: if `intervalService=true`, updates machine `last_service_mth` from record `mthEnd`.
-- Manager overview includes `service_alerts`.
+  - `POST /api/exceptions` vytvoření výjimky (idempotentně dle `id`).
+  - `GET /api/exceptions?mine=1|0&date_from&date_to&employee_id` výpis.
+  - (volitelně) `DELETE /api/exceptions/{id}` pro smazání vlastní výjimky v rámci dne.
+- Validace:
+  - datum ISO, čas HH:MM, smysluplnost rozsahu, limit délky textu.
+  - oprávnění: zaměstnanec může CRUD jen svoje; vedení vidí vše.
 
-Frontend ✅ DONE
-- In-app alerts:
-  - **Today**: shows ServiceAlerts component.
-  - **Manager Overview**: shows service alerts.
-  - **Machines list**: shows service status chip.
-  - **Record form**: shows service hint based on selected machine and MTH.
-- System notifications:
-  - Uses Notification API via service worker (notificationclick opens app).
-  - Notifies when permission granted and alerts exist (deduped per machine/term).
+Frontend
+- Nová stránka: např. `/vyjimky` nebo integrace do `/dochazka` (sekce „Plánované výjimky“).
+- Formulář:
+  - Datum, typ (pozdě/předčasně), čas (nebo minuty), důvod.
+  - Seznam „Moje výjimky“ + možnost odstranění.
+- Vedení:
+  - Přehled v `/prehled` (např. count a seznam pro zvolený den/týden), nebo v uživatelském přehledu.
 
+Testy
+- Backend: unit test endpointů + oprávnění.
+- Frontend: základní render + submit (smoke).
 
-#### 4.3 Data immutability / integrity
-User stories
-1. As a company, we can demonstrate that confirmed diary data wasn’t silently changed.
-2. As a manager, I can verify integrity for any record.
+#### 6.2 Refaktor UI/UX formuláře zápisu (RecordForm) (P0, priorita #2) ⏳
+Cíl (konkrétně dle požadavků)
+1. **Stroj jako dropdown** (Select) místo volného inputu (ponechat možnost rychlého psaní vyhledávání).
+2. **Ano/Ne otázka** před zobrazením sekcí:
+   - „Prováděl jsem servis?“ → teprve pak zobrazit servisní část.
+   - „Měl jsem přejezd A→B?“ → teprve pak zobrazit přejezdové intervaly.
+3. **Servis přesunout nahoru** – hned pod otázku (ne jako sekce 6 na konci).
+4. Přidat volbu servis provedl: **„strojník včetně dílny“**.
+5. **Omezení 500 mth (interval) servisu**:
+   - Povolit pouze: role/pozice **mechanik**, nebo servis aktor **externí servis**, nebo konkrétní uživatel **Jan Hrbáček**.
+   - Pozn.: uživatel v odpovědi potvrdil VAPID cestu pro push; u 500 mth se objevily vícenásobné volby – implementace bude podle zadání: **mechanik + externí servis + Jan Hrbáček** (a explicitně to v UI vysvětlit).
 
-Backend ✅ DONE
-- `record_versions` are now **hash-chained**:
-  - `hash = SHA-256(prev_hash + canonical_snapshot)`
-  - snapshot includes `attachment.sha256`
-- API:
-  - `GET /api/records/{rid}/integrity` verifies chain and returns `{ok, broken_at, versions, head}`.
+Implementace (frontend)
+- Úpravy `RecordForm.jsx`:
+  - Předělat výběr stroje na `Select` z `/machines`.
+  - Přidat state `hasService` / `hasTravel` (např. boolean toggles) a podle toho renderovat IntervalEditor pro `service`/`travel`.
+  - Přeskládat sekce (servis blok přesunout výše).
+  - Rozšířit `serviceBy` možnosti (včetně „strojník včetně dílny“).
+  - Vynutit pravidla pro `intervalService` checkbox:
+    - Pokud uživatel nemá oprávnění, checkbox zobrazit disabled + tooltip/text proč.
 
-Frontend ✅ DONE
-- Record detail page shows:
-  - “Integrita ověřena” badge + head SHA-256.
-  - Each revision shows short hash prefix.
+Backend (pokud bude potřeba)
+- Doplnit server-side validaci při confirm:
+  - Pokud `intervalService=true`, ověřit oprávnění (pozice mechanik / serviceBy external / jméno Jan Hrbáček).
+  - Jinak vrátit 403/400 s jasnou hláškou.
 
-Exports ✅ DONE
-- Diary PDF footer prints record hash markers.
+Testy
+- Frontend: komponentové/smoke testy, případně e2e flow „nový zápis“.
 
-Legal/Compliance note (non-legal advice)
-- App provides technical immutability evidence (revision history + hash chain). If strict legal compliance requires qualified timestamps / archival policy, consider adding:
-  - eIDAS-qualified timestamping, WORM storage, retention policies, and export archiving.
+#### 6.3 Push notifikace (P0, priorita #3) ⏳
+Cíl
+- Notifikace fungují **i při zavřené aplikaci** (PWA), minimálně pro servisní upozornění a případně pro management eventy (později).
 
+Technická volba (potvrzeno uživatelem)
+- **Nativní Web Push** s **VAPID klíči** (bez Firebase).
 
-## 3) Next Actions (immediate)
-1. ✅ (Already done) Run `testing_agent_v3` on end-to-end flows including new Phase 4 features.
-2. Deploy/verify pilot data entry:
-   - Admin logs in and enters **full list of machines + workplaces**.
-3. Operationalize notifications:
-   - Decide whether to require user opt-in (recommended) and set org policy.
-4. Optional hardening:
-   - Add periodic server-side verification job (daily) to flag any integrity breaks.
-   - Add export stamp page with integrity head hash list for archival.
+Návrh implementace
+- Backend:
+  - Generace/konfigurace VAPID: env `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
+  - Kolekce `push_subscriptions`: `{id, user_id, endpoint, keys, user_agent, created_at, last_seen_at}`.
+  - Endpoints:
+    - `POST /api/push/subscribe` uloží subscription (idempotentně).
+    - `POST /api/push/unsubscribe` odebere.
+    - (interně) utilita pro odeslání notifikace přes web-push.
+  - Job/triggery:
+    - Na serveru periodicky (nebo při login/overview) kontrola `service-alerts` a odeslání notifikace.
 
-## 4) Success Criteria
-- Core flow works end-to-end: employee records attendance + diary (online/offline) → sync → manager sees them automatically.
-- Offline queue persists across reload and session expiry; no silent data loss.
-- Idempotent resend: repeated sync does not duplicate attendance or diary records.
-- Diary revisions enforce conflict detection and provide a usable conflict resolution UI.
-- Work-time calculations match defined rules (service inside shift counts within total; downtime separate; overnight handled).
-- Attendance verification stores only derived GPS results (no coordinates), supports QR/GPS/manual modes, and exceptions are reviewable with audit.
-- Attachments can be captured in the field and are exported correctly (general/service/timesheet).
-- Service interval reminders show in-app and optionally via system notifications.
-- Immutability: record version history + hash-chain integrity verification works and is visible in UI/PDF.
+- Frontend:
+  - UI ve „Více“ / nastavení: tlačítko „Zapnout upozornění“.
+  - Registrace service workeru + `PushManager.subscribe` s public VAPID key.
+  - Odeslání subscription na backend.
+
+- Service Worker (`/frontend/public/sw.js`):
+  - Přidat `push` handler: `self.addEventListener('push', ...)` → `showNotification`.
+  - `notificationclick` už existuje – zachovat.
+
+Poznámky
+- Vyžaduje HTTPS v produkci.
+- iOS podpora web push je omezená dle verze – otestovat cílová zařízení.
+
+Testy
+- Backend: unit test subscribe endpoint.
+- Manuální: Chrome/Android – subscribe + doručení.
+
+#### 6.4 Vizuální ověření (priorita #4) ⏳
+Cíl
+- Ručně/screenshotově ověřit toky, které automatické testy nemohly plně zvalidovat:
+  - Travel A→B UI flow (docházka).
+  - Pauza bez QR (jen když je uživatel ve stavu „pracuje“).
+  - Vizuální kontrola PDF exportů:
+    - `/api/exports/sichtovnice.pdf`
+    - `/api/exports/denik.pdf`
+
+Výstup
+- Krátký checklist + screenshoty / poznámky, zda odpovídá šablonám.
+
+---
+
+## 3) Další kroky (aktuální)
+1. **Phase 6.1: Plánované výjimky / zkrácené směny** (zaměstnanec bez schvalování) — implementace BE+FE + základní testy.
+2. **Phase 6.2: RecordForm refaktor** (dropdown stroje, Ano/Ne gating, servis sekce nahoru, servis provedl + restrikce 500 mth) + FE testy; doplnit BE validaci pro `intervalService`.
+3. **Phase 6.3: Push notifikace** (Web Push + VAPID) — BE endpoints + SW push handler + UI opt-in.
+4. **Phase 6.4: Vizuální ověření** — ruční průchod a kontrola PDF.
+
+---
+
+## 4) Kritéria úspěchu
+- Core flow end-to-end: docházka + zápisy (online/offline) → sync → vedení vidí data.
+- Offline fronta drží data per účet; idempotentní sync neduplikuje.
+- PDF exporty odpovídají šablonám a podporují duplex per zaměstnanec/týden.
+- Přílohy se dají pořídit offline a exportují se v odpovídajících sekcích.
+- Servisní upozornění fungují a interval servis po potvrzení resetuje odpočet.
+- Integrita: historie revizí + hash-chain ověření viditelné v UI/PDF.
+- Nepřítomnosti: dovolená = 2 kroky (vedoucí → jednatel), ostatní = vedoucí; bez self-approval.
+- Reporty: XLSX/CSV exporty fungují s filtry.
+- Zaměstnanec: má vlastní přehledy a vlastní exporty.
+- Docházka: pauza bez QR, travel A→B se počítá do práce, ale nefakturuje.
+- **Nově**:
+  - Plánované výjimky/zkrácené směny lze zadat a vedení je vidí.
+  - RecordForm je výrazně jednodušší (sekce se zobrazují až po „ANO“).
+  - Push notifikace fungují i při zavřené aplikaci (tam, kde to platforma dovolí).

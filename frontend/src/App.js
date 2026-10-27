@@ -13,6 +13,8 @@ import RecordDetail from "@/pages/RecordDetail";
 import Attendance from "@/pages/Attendance";
 import Queue from "@/pages/Queue";
 import More from "@/pages/More";
+import MyOverview from "@/pages/MyOverview";
+import Absence from "@/pages/Absence";
 import Exports from "@/pages/Exports";
 import Overview from "@/pages/Overview";
 import Review from "@/pages/Review";
@@ -54,6 +56,8 @@ export default function App() {
             <Route path="/fronta" element={<Guard><Queue /></Guard>} />
             <Route path="/vice" element={<Guard><More /></Guard>} />
             <Route path="/exporty" element={<Guard><Exports /></Guard>} />
+            <Route path="/prehledy" element={<Guard><MyOverview /></Guard>} />
+            <Route path="/nepritomnost" element={<Guard><Absence /></Guard>} />
             <Route path="/prehled" element={<Guard role="manager"><Overview /></Guard>} />
             <Route path="/kontrola" element={<Guard role="manager"><Review /></Guard>} />
             <Route path="/vsechny-zapisy" element={<Guard role="manager"><Records all /></Guard>} />

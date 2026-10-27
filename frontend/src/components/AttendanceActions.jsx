@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { LogIn, LogOut, Coffee, Play, QrCode, MapPin } from "lucide-react";
+import { LogIn, LogOut, Coffee, Play, QrCode, MapPin, Route } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,8 +11,9 @@ import { addAttendanceEvent, updateOp, useSync } from "@/lib/sync";
 import { newId, KIND_LABELS, REASON_LABELS, MODE_LABELS } from "@/lib/format";
 
 export function nextState(state, kind) {
-  if (kind === "arrival" && state === "away") return "working";
-  if (kind === "departure" && (state === "working" || state === "break")) return "away";
+  if (kind === "arrival" && (state === "away" || state === "travel")) return "working";
+  if (kind === "departure" && (state === "working" || state === "break" || state === "travel")) return "away";
+  if (kind === "travel_start" && state === "working") return "travel";
   if (kind === "break_start" && state === "working") return "break";
   if (kind === "break_end" && state === "break") return "working";
   return null;
@@ -42,7 +44,10 @@ const BTN = {
   break_start: { icon: Coffee, testid: "today-break-start-button" },
   break_end: { icon: Play, testid: "today-break-end-button" },
   departure: { icon: LogOut, testid: "today-departure-button" },
+  travel_start: { icon: Route, testid: "today-travel-button" },
 };
+// Pauza a přejezd se jen klepnou – bez QR a GPS.
+const TAP = ["break_start", "break_end", "travel_start"];
 
 export function AttendanceActions({ workplaces, serverState, onDone }) {
   const { state } = useShiftState(serverState);
@@ -51,6 +56,8 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
   const [reasonOp, setReasonOp] = useState(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [travelOpen, setTravelOpen] = useState(false);
+  const [travelTo, setTravelTo] = useState("");
   const wp = (workplaces || []).find((w) => w.id === wpId) || (workplaces?.length === 1 ? workplaces[0] : null);
 
   const finish = (op) => {
@@ -60,20 +67,28 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
     toast("Uloženo v telefonu – čeká na odeslání", { description: "Odešle se automaticky po připojení." });
   };
 
-  const send = async (kind, qr) => {
+  const send = async (kind, qr, extra = {}) => {
     if (!wp) { toast.error("Nejprve vyberte pracoviště."); return; }
     setBusy(true);
     try {
       localStorage.setItem("demstav:lastWorkplace", wp.id);
       const deviceAt = new Date().toISOString();
-      const gps = wp.mode === "gps" || wp.mode === "qr_gps" ? await captureGps() : null;
-      const op = await addAttendanceEvent({ id: newId(), workplaceId: wp.id, kind, deviceAt, offline: !navigator.onLine, qr: qr || null, gps, exceptionReason: "" });
+      const tap = TAP.includes(kind);
+      const gps = !tap && (wp.mode === "gps" || wp.mode === "qr_gps") ? await captureGps() : null;
+      const op = await addAttendanceEvent({ id: newId(), workplaceId: wp.id, kind, deviceAt, offline: !navigator.onLine, qr: qr || null, gps, exceptionReason: "", ...extra });
       finish(op);
     } finally { setBusy(false); }
   };
   const start = (kind) => {
     if (!wp) { toast.error("Nejprve vyberte pracoviště."); return; }
+    if (kind === "travel_start") { setTravelOpen(true); return; }
+    if (TAP.includes(kind)) { send(kind); return; }
     if (wp.mode === "qr" || wp.mode === "qr_gps") setQrFor(kind); else send(kind);
+  };
+  const startTravel = () => {
+    setTravelOpen(false);
+    send("travel_start", null, { travelFrom: wp?.name || "", travelTo: travelTo.trim() });
+    setTravelTo("");
   };
   const submitReason = async () => {
     const op = reasonOp; setReasonOp(null);
@@ -83,7 +98,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
     finish(getState().queue.find((o) => o.opId === op.opId) || null);
   };
 
-  const kinds = ["arrival", "break_start", "break_end", "departure"];
+  const kinds = state === "travel" ? ["arrival", "departure"] : ["arrival", "break_start", "break_end", "departure"];
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
@@ -94,19 +109,46 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
         </Select>
         {wp && <div className="flex items-center gap-2 text-xs text-slate-600">{wp.mode.includes("qr") && <><QrCode className="h-3.5 w-3.5" />naskenujte QR na pracovišti</>}{wp.mode.includes("gps") && <><MapPin className="h-3.5 w-3.5" />poloha se ověří jen v okamžiku záznamu a neukládá se</>}{wp.mode === "manual" && "ruční záznam – schvaluje vedoucí"}</div>}
       </div>
+      {state === "travel" && (
+        <div className="rounded-xl border-2 border-[#E6BD00] bg-amber-50 p-3 text-sm text-amber-950" data-testid="attendance-travel-banner">
+          <div className="font-semibold">Přejezd na jinou zakázku – stále v práci</div>
+          <div>Po příjezdu vyberte nové pracoviště (bod B) a dejte <b>Příchod</b> se skenem QR. Čas přejezdu se počítá do pracovní doby, ale nefakturuje se.</div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         {kinds.map((k) => {
           const enabled = !!nextState(state, k) && !busy;
           const primary = k === "arrival" || k === "departure";
           const I = BTN[k].icon;
+          const label = k === "arrival" && state === "travel" ? "Příjezd na bod B" : KIND_LABELS[k];
           return (
             <button key={k} type="button" disabled={!enabled} onClick={() => start(k)} data-testid={BTN[k].testid}
               className={`flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 px-3 text-base font-semibold transition-colors duration-150 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 ${primary ? "border-[#E6BD00] bg-[#FFD200] text-slate-900 hover:bg-[#FFC400]" : "border-slate-300 bg-white text-slate-900 hover:bg-slate-50"}`}>
-              <I className="h-7 w-7" />{KIND_LABELS[k]}
+              <I className="h-7 w-7" />{label}
             </button>
           );
         })}
       </div>
+      {state !== "travel" && (
+        <button type="button" disabled={!nextState(state, "travel_start") || busy} onClick={() => start("travel_start")} data-testid={BTN.travel_start.testid}
+          className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-900 bg-white px-3 text-base font-semibold text-slate-900 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+          <Route className="h-6 w-6" />Přejezd na jinou zakázku (A → B)
+        </button>
+      )}
+      <p className="text-xs text-slate-600">Pauzu i přejezd stačí klepnout – bez QR. Příchod a odchod se ověřují QR + GPS podle pracoviště.</p>
+
+      <Dialog open={travelOpen} onOpenChange={setTravelOpen}>
+        <DialogContent className="max-w-md" data-testid="travel-dialog">
+          <DialogHeader><DialogTitle className="font-heading">Přejezd na jinou zakázku</DialogTitle>
+            <DialogDescription>Odjíždíte z: <b>{wp?.name}</b> (bod A). Zůstáváte v práci – směna se nepřeruší.</DialogDescription></DialogHeader>
+          <div className="space-y-1.5">
+            <div className="text-sm font-semibold">Kam jedete (bod B)</div>
+            <Input list="travel-to-list" value={travelTo} onChange={(e) => setTravelTo(e.target.value)} className="h-12" placeholder="Pracoviště nebo adresa" data-testid="travel-to-input" />
+            <datalist id="travel-to-list">{(workplaces || []).filter((w) => w.id !== wp?.id).map((w) => <option key={w.id} value={w.name} />)}</datalist>
+          </div>
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={startTravel} data-testid="travel-start-confirm">Vyjíždím</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!qrFor} onOpenChange={(o) => !o && setQrFor(null)}>
         <DialogContent className="max-w-md" data-testid="qr-dialog">

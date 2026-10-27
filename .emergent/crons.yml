@@ -1,0 +1,9 @@
+crons:
+  - name: weekly-sichtovnice
+    description: "Každé pondělí v 5:00 připraví týdenní export šichtovnic za minulý týden (PDF oboustranně, XLSX, CSV)"
+    cron: "0 5 * * 1"
+    timezone: "Europe/Prague"
+    endpoint: "{{BASE_URL}}/api/cron/weekly-exports"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true

@@ -10,6 +10,23 @@ from storage import put_object, get_object, APP_PREFIX
 
 router = APIRouter()
 
+INTERVAL_SERVICE_USER_NAMES = {"jan hrbáček", "jan hrbacek"}
+
+
+def can_record_interval_service(user: dict, service_by: str) -> bool:
+    """Pravidelný (interval) servis smí zapsat jen mechanik (pozice/role), externí servisní firma
+    (serviceBy=external), nebo konkrétní pověřený strojník/mechanik Jan Hrbáček."""
+    if not user:
+        return False
+    if (user.get("position") or "") == "mechanik":
+        return True
+    if (user.get("name") or "").strip().lower() in INTERVAL_SERVICE_USER_NAMES:
+        return True
+    if service_by == "external":
+        return True
+    return False
+
+
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DEC_RE = re.compile(r"^\d+(?:[.,]\d{1,3})?$")
@@ -70,8 +87,8 @@ def validate_record(r: dict, confirm: bool):
     acc = r.get("accommodation") or ""
     out["accommodation"] = acc if acc in ("yes", "no", "") else ""
     out["workTimeMode"] = "legacy" if r.get("workTimeMode") == "legacy" else "shift"
-    labels = {"billing": "pracovní doba", "service": "servis", "downtime": "prostoj"}
-    for key in ("billing", "service", "downtime"):
+    labels = {"billing": "pracovní doba", "service": "servis", "downtime": "prostoj", "travel": "přejezd"}
+    for key in ("billing", "service", "downtime", "travel"):
         items = r.get(key) or []
         if not isinstance(items, list) or len(items) > 48:
             errors.append(f"Pole {labels[key]} musí být seznam nejvýše 48 úseků.")
@@ -85,12 +102,18 @@ def validate_record(r: dict, confirm: bool):
                 errors.append(f"Doplňte platný čas od–do ({labels[key]}, řádek {idx + 1}).")
             if s and e and s == e:
                 errors.append(f"Začátek a konec úseku ({labels[key]}, řádek {idx + 1}) nesmí být shodné.")
-            clean.append({"start": s, "end": e})
+            item = {"start": s, "end": e}
+            if key == "travel":
+                item["from"] = str(it.get("from") or "").strip()[:200]
+                item["to"] = str(it.get("to") or "").strip()[:200]
+                if confirm and (not item["from"] or not item["to"]):
+                    errors.append(f"Přejezd, řádek {idx + 1}: doplňte odkud (bod A) a kam (bod B).")
+            clean.append(item)
         out[key] = clean
     for k in ("dailyCheck", "accessoryCheck", "equipmentCheck"):
         out[k] = r.get(k) is True
     out["fit"] = r.get("fit") if r.get("fit") in ("yes", "no", "unknown") else "unknown"
-    out["serviceBy"] = r.get("serviceBy") if r.get("serviceBy") in ("operator", "workshop", "external", "") else ""
+    out["serviceBy"] = r.get("serviceBy") if r.get("serviceBy") in ("operator", "operator_workshop", "workshop", "external", "") else ""
     for k in ("operatorSignature", "handoverSignature", "workshopSignature"):
         s = r.get(k) or ""
         if s and (not isinstance(s, str) or len(s) > 1_200_000 or not SIG_RE.match(s)):
@@ -152,6 +175,8 @@ def validate_record(r: dict, confirm: bool):
             errors.append("Servis musí ležet uvnitř pracovní doby (servis je její součástí).")
         if bd["downtimeOutsideShift"]:
             errors.append("Prostoj musí ležet uvnitř pracovní doby.")
+        if bd.get("travelOutsideShift"):
+            errors.append("Přejezd musí ležet uvnitř pracovní doby (pracovní doba = celá směna včetně přejezdů).")
         if bd["serviceHours"] > 0 and not (out["serviceDescription"] or out["repairDescription"]):
             errors.append("K hodinám servisu doplňte popis provedené práce – bez popisu nelze čas započítat.")
         if bd["serviceHours"] > 0 and not out["serviceBy"]:
@@ -277,6 +302,9 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Záznam byl mezitím změněn na jiném zařízení.",
                                                      "server": public_record(current) if current else None})
     errors, rec = validate_record(payload, confirm)
+    # Autorizace pravidelného (interval) servisu – jen mechanik, externí servis nebo konkrétní strojník/mechanik Jan Hrbáček.
+    if rec and rec.get("intervalService") and confirm and not can_record_interval_service(user, rec.get("serviceBy", "")):
+        errors.append("Pravidelný servis (500 mth) může zapsat jen mechanik, externí servisní firma nebo pověřený pracovník (Jan Hrbáček).")
     reason = text(body.get("correctionReason"), 2000)
     if current and current["status"] == "confirmed" and not reason:
         errors.append("Oprava potvrzeného záznamu vyžaduje důvod opravy.")
@@ -321,6 +349,18 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
             await db.machines.update_one({"id": m["id"]}, {"$set": {"last_service_mth": _num(rec["mthEnd"]), "last_service_date": rec["date"],
                                                                     "last_service_record_id": rid}})
             await audit(user, "interval_service_recorded", {"machine_id": m["id"], "record_id": rid, "mth": rec["mthEnd"]})
+    # Push notifikace vedení při STOP závadě (nová neopravená závada).
+    if confirm:
+        try:
+            stops = [f for f in rec.get("faults", []) if f.get("severity") == "stop" and not f.get("resolved")]
+            if stops:
+                from routes_push import notify_users_by_role
+                first = stops[0]
+                await notify_users_by_role(["manager", "owner"], f"STOP závada: {rec.get('machine', '')}",
+                                           f"{user['name']} · {first.get('description', '')[:160]}",
+                                           url=f"/detail/{rid}", tag=f"stop-{rid}", exclude_user_id=user["id"])
+        except Exception:
+            pass
     rec.pop("_id", None)
     return {"status": "saved", "record": public_record(rec)}
 
