@@ -15,6 +15,8 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DEC_RE = re.compile(r"^\d+(?:[.,]\d{1,3})?$")
 SIG_RE = re.compile(r"^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$")
 MAX_UPLOAD = 15 * 1024 * 1024
+ATT_SECTIONS = ("general", "service", "timesheet")
+CHAIN_GENESIS = "DEMSTAV-GENESIS"
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"}
 
 RECORD_FIELDS_TEXT = {
@@ -124,7 +126,11 @@ def validate_record(r: dict, confirm: bool):
             if isinstance(a, dict) and ID_RE.match(str(a.get("id") or "")):
                 out["attachments"].append({"id": a["id"], "name": str(a.get("name") or "")[:300], "type": str(a.get("type") or "")[:100],
                                            "size": int(a.get("size") or 0), "kind": a.get("kind") if a.get("kind") in ("vehicleFuel", "machineFuel", "invoice", "photo", "other") else "other",
-                                           "km": str(a.get("km") or "")[:30]})
+                                           "km": str(a.get("km") or "")[:30],
+                                           "section": a.get("section") if a.get("section") in ATT_SECTIONS else "general"})
+    out["intervalService"] = r.get("intervalService") is True
+    if confirm and out["intervalService"] and (not out.get("machine") or not str(r.get("mthEnd") or "").strip()):
+        errors.append("Pravidelný servis dle intervalu: vyplňte stroj a konečný stav MTH.")
     for k in ("mthStart", "mthEnd", "diesel", "hydraulic", "oil"):
         if out[k] and _num(out[k]) is None:
             errors.append(f"Pole {k}: zadejte nezáporné číslo (lze desetinnou čárku).")
@@ -153,6 +159,39 @@ def validate_record(r: dict, confirm: bool):
         if out["serviceBy"] == "external" and not out["externalCompany"]:
             errors.append("Uveďte název cizí servisní firmy.")
     return errors, out
+
+
+def canonical(obj) -> bytes:
+    return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode()
+
+
+def chain_hash(prev_hash: str, snapshot: dict) -> str:
+    """Otisk revize = SHA-256(otisk předchozí revize + kanonický obsah revize). Změna kterékoli starší revize rozbije řetěz."""
+    return hashlib.sha256(prev_hash.encode() + b"|" + canonical(snapshot)).hexdigest()
+
+
+async def verify_chain(rid: str) -> dict:
+    vs = await db.record_versions.find({"record_id": rid}, {"_id": 0}).sort("revision", 1).to_list(1000)
+    prev = CHAIN_GENESIS
+    checked = 0
+    legacy = 0
+    for v in vs:
+        if v.get("chain") != 1:
+            legacy += 1
+            ok = v.get("hash") == hashlib.sha256(json.dumps(v["payload"], sort_keys=True, default=str).encode()).hexdigest()
+            if not ok:
+                return {"ok": False, "broken_at": v["revision"], "versions": len(vs), "checked": checked, "legacy": legacy, "head": None}
+            prev = v["hash"]
+            checked += 1
+            continue
+        if v.get("prev_hash") != prev or chain_hash(prev, v["payload"]) != v.get("hash"):
+            return {"ok": False, "broken_at": v["revision"], "versions": len(vs), "checked": checked, "legacy": legacy, "head": None}
+        prev = v["hash"]
+        checked += 1
+    cur = await db.records.find_one({"id": rid}, {"_id": 0, "integrity_hash": 1, "revision": 1})
+    head_ok = not cur or not cur.get("integrity_hash") or cur["integrity_hash"] == prev
+    return {"ok": head_ok, "broken_at": None if head_ok else (cur or {}).get("revision"), "versions": len(vs),
+            "checked": checked, "legacy": legacy, "head": prev if vs else None}
 
 
 def public_record(doc: dict) -> dict:
@@ -209,6 +248,14 @@ async def record_versions(rid: str, user: dict = Depends(get_ready_user)):
     return vs
 
 
+@router.get("/records/{rid}/integrity")
+async def record_integrity(rid: str, user: dict = Depends(get_ready_user)):
+    rec = await db.records.find_one({"id": rid}, {"_id": 0, "owner_id": 1})
+    if not rec or not await _can_view(user, rec):
+        raise HTTPException(status_code=404, detail="Záznam nenalezen.")
+    return await verify_chain(rid)
+
+
 @router.put("/records/{rid}")
 async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)):
     """Idempotent, revisioned save. body: {opId, baseRevision, confirm, correctionReason, record, deviceSavedAt}"""
@@ -239,9 +286,12 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
         raise HTTPException(status_code=422, detail={"code": "invalid", "message": errors[0], "errors": errors})
     if rec["attachments"]:
         ids = [a["id"] for a in rec["attachments"]]
-        found = await db.attachments.count_documents({"id": {"$in": ids}, "owner_id": user["id"], "is_deleted": False})
-        if found != len(set(ids)):
+        docs = {d["id"]: d for d in await db.attachments.find({"id": {"$in": ids}, "owner_id": user["id"], "is_deleted": False},
+                                                              {"_id": 0, "id": 1, "sha256": 1}).to_list(100)}
+        if len(docs) != len(set(ids)):
             raise HTTPException(status_code=422, detail={"code": "attachments_missing", "message": "Některá příloha ještě nebyla nahrána na server."})
+        for a in rec["attachments"]:  # otisk souboru se stává součástí otisku revize
+            a["sha256"] = docs[a["id"]].get("sha256", "")
     now = iso_now()
     rev = cur_rev + 1
     rec.update({"owner_id": user["id"], "owner_name": user["name"], "revision": rev,
@@ -250,14 +300,27 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
                 "author_id": user["id"], "author_name": user["name"], "correctionReason": reason or None,
                 "confirmedAt": now if confirm else None, "confirmedBy": user["id"] if confirm else None,
                 "last_op_id": op_id})
+    snapshot = {k: v for k, v in rec.items() if k not in ("_id", "integrity_hash", "prev_hash")}
+    last_v = await db.record_versions.find_one({"record_id": rid}, {"_id": 0, "hash": 1}, sort=[("revision", -1)])
+    prev_hash = (last_v or {}).get("hash") or CHAIN_GENESIS
+    h = chain_hash(prev_hash, snapshot)
+    rec["integrity_hash"] = h
+    rec["prev_hash"] = prev_hash
     await db.records.replace_one({"id": rid}, rec, upsert=True)
-    snapshot = {k: v for k, v in rec.items() if k not in ("_id",)}
     await db.record_versions.insert_one({"record_id": rid, "revision": rev, "op_id": op_id, "payload": snapshot,
                                          "author_id": user["id"], "author_name": user["name"], "at": now,
                                          "status": rec["status"], "correction_reason": reason or None,
-                                         "hash": hashlib.sha256(json.dumps(snapshot, sort_keys=True, default=str).encode()).hexdigest()})
+                                         "chain": 1, "prev_hash": prev_hash, "hash": h})
     if current and current["status"] == "confirmed":
-        await audit(user, "record_corrected", {"record_id": rid, "revision": rev, "reason": reason})
+        await audit(user, "record_corrected", {"record_id": rid, "revision": rev, "reason": reason, "hash": h})
+    elif confirm:
+        await audit(user, "record_confirmed", {"record_id": rid, "revision": rev, "hash": h})
+    if confirm and rec.get("intervalService") and rec.get("machine") and _num(rec.get("mthEnd", "")) is not None:
+        m = await db.machines.find_one({"label": rec["machine"]}, {"_id": 0, "id": 1})
+        if m:
+            await db.machines.update_one({"id": m["id"]}, {"$set": {"last_service_mth": _num(rec["mthEnd"]), "last_service_date": rec["date"],
+                                                                    "last_service_record_id": rid}})
+            await audit(user, "interval_service_recorded", {"machine_id": m["id"], "record_id": rid, "mth": rec["mthEnd"]})
     rec.pop("_id", None)
     return {"status": "saved", "record": public_record(rec)}
 
@@ -278,7 +341,8 @@ async def delete_draft(rid: str, user: dict = Depends(get_ready_user)):
 # ---------------- attachments ----------------
 @router.post("/attachments")
 async def upload_attachment(file: UploadFile = File(...), id: str = Form(...), kind: str = Form("other"),
-                            km: str = Form(""), record_id: str = Form(""), user: dict = Depends(get_ready_user)):
+                            km: str = Form(""), record_id: str = Form(""), section: str = Form("general"),
+                            user: dict = Depends(get_ready_user)):
     if not ID_RE.match(id):
         raise HTTPException(status_code=400, detail="Neplatný identifikátor přílohy.")
     existing = await db.attachments.find_one({"id": id}, {"_id": 0})
@@ -302,7 +366,7 @@ async def upload_attachment(file: UploadFile = File(...), id: str = Form(...), k
         raise HTTPException(status_code=503, detail=f"Úložiště souborů je dočasně nedostupné. Zkuste odeslat znovu. ({type(e).__name__})")
     doc = {"id": id, "owner_id": user["id"], "record_id": record_id[:100], "name": (file.filename or "soubor")[:300],
            "type": ctype, "size": len(data), "kind": kind if kind in ("vehicleFuel", "machineFuel", "invoice", "photo", "other") else "other",
-           "km": km[:30], "storage_path": result["path"], "sha256": hashlib.sha256(data).hexdigest(), "is_deleted": False, "at": iso_now()}
+           "km": km[:30], "section": section if section in ATT_SECTIONS else "general", "storage_path": result["path"], "sha256": hashlib.sha256(data).hexdigest(), "is_deleted": False, "at": iso_now()}
     await db.attachments.insert_one(doc)
     doc.pop("_id", None)
     return doc

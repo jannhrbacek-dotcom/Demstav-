@@ -1,6 +1,6 @@
 /* DEMSTAV OPERATIONS service worker: keeps the app shell available offline.
    API calls are never cached here; offline data lives in the per-account IndexedDB queue. */
-const CACHE = 'demstav-shell-v1';
+const CACHE = 'demstav-shell-v2';
 const SHELL = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -26,4 +26,14 @@ self.addEventListener('fetch', (e) => {
     if (res && (res.ok || res.type === 'opaque')) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
     return res;
   }).catch(() => caches.match(req)));
+});
+
+// Klepnutí na upozornění (např. blížící se servis) otevře aplikaci.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+    for (const c of list) { if ("focus" in c) { c.navigate(url).catch(() => {}); return c.focus(); } }
+    return self.clients.openWindow ? self.clients.openWindow(url) : undefined;
+  }));
 });

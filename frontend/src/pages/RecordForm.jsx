@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2, Camera, OctagonAlert, History, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Camera, OctagonAlert, History, ArrowLeft, Wrench } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DictateTextarea } from "@/components/DictateTextarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +14,7 @@ import { IntervalEditor } from "@/components/IntervalEditor";
 import { SignaturePad } from "@/components/SignaturePad";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AttachmentThumb } from "@/components/AttachmentThumb";
+import { remainingText } from "@/lib/serviceNotify";
 import { useAuth } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { http } from "@/lib/api";
@@ -27,12 +29,13 @@ const blank = (user, last, date) => ({
   billing: [{ start: "", end: "" }], service: [], downtime: [], downtimeReason: "", workTimeMode: "shift", work: "", mthStart: last?.mthEnd || "", mthEnd: "",
   dailyCheck: false, accessoryCheck: false, equipmentCheck: false, fit: "unknown", notes: "", handover: "", handoverName: "", handoverSignature: "", operatorSignature: "",
   diesel: "", hydraulic: "", oil: "", otherFluid: "", serviceDescription: "", repairDescription: "", serviceBy: "", externalCompany: "", workshopSignature: "",
-  faults: [], attachments: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+  faults: [], attachments: [], intervalService: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
 });
 
 const num = (v) => (v && /^\d+(?:[.,]\d{1,3})?$/.test(v) ? Number(v.replace(",", ".")) : null);
 function validate(r, confirm) {
   const e = [];
+  if (confirm && r.intervalService && (!r.machine || !r.mthEnd)) e.push("Pravidelný servis dle intervalu: vyplňte stroj a konečný stav MTH.");
   const b = timeBreakdown(r);
   if (r.drive && !/^\d{1,3}$/.test(r.drive)) e.push("Jízda *: zadejte celé číslo.");
   for (const k of ["mthStart", "mthEnd", "diesel", "hydraulic", "oil"]) if (r[k] && num(r[k]) === null) e.push(`Pole ${k === "mthStart" ? "MTH začátek" : k === "mthEnd" ? "MTH konec" : k}: zadejte číslo.`);
@@ -106,9 +109,21 @@ export default function RecordForm() {
   const local = rec ? s.records[rec.id] : null;
   const serverConfirmed = (server?.status || local?.record?.status) === "confirmed" && (local?.serverRevision || server?.revision || 0) > 0;
   const status = local ? local.localState : server ? (server.status === "confirmed" ? "confirmed" : "draft") : "local";
+  const autoMth = useRef(null);
   if (!rec) return <div className="py-10 text-center text-slate-600" data-testid="record-loading">{mine.loading ? "Načítám…" : "Zápis nenalezen."}</div>;
 
   const set = (k, v) => setRec((r) => ({ ...r, [k]: v }));
+  // Při výběru stroje předvyplní MTH začátek: konec MTH z posledního zápisu na tento stroj, jinak stav MTH ze seznamu strojů.
+  const setMachine = (v) => setRec((r) => {
+    const next = { ...r, machine: v };
+    if (id) return next;
+    const label = (v || "").trim().toLowerCase();
+    const prev = mergedRecords(mine.data, s.records).map((x) => x.record).find((x) => (x?.machine || "").trim().toLowerCase() === label && x?.mthEnd);
+    const m = (machines.data || []).find((x) => (x.label || "").trim().toLowerCase() === label);
+    const sug = prev?.mthEnd || (m && m.operating_hours != null && m.operating_hours !== "" ? String(m.operating_hours).replace(".", ",") : "");
+    if (sug && (!r.mthStart || r.mthStart === autoMth.current)) { next.mthStart = sug; autoMth.current = sug; }
+    return next;
+  });
   const setFault = (i, k, v) => set("faults", rec.faults.map((f, j) => (j === i ? { ...f, [k]: v } : f)));
   const mthDiff = num(rec.mthStart) !== null && num(rec.mthEnd) !== null ? Math.round((num(rec.mthEnd) - num(rec.mthStart)) * 1000) / 1000 : null;
 
@@ -122,16 +137,44 @@ export default function RecordForm() {
     nav("/zapisy");
   };
   const onConfirm = () => (serverConfirmed ? setReasonOpen(true) : doSave(true));
-  const onFile = async (ev) => {
+  const onFile = async (ev, section = "general") => {
     const files = [...(ev.target.files || [])];
     ev.target.value = "";
     for (const f of files) {
       if (f.size > 15 * 1024 * 1024) { toast.error(`${f.name}: soubor je větší než 15 MB.`); continue; }
-      const att = await addAttachment(f, { kind: attKind, km: attKm, recordId: rec.id });
+      const att = await addAttachment(f, section === "general" ? { kind: attKind, km: attKm, recordId: rec.id, section } : { kind: "photo", km: "", recordId: rec.id, section });
       setRec((r) => ({ ...r, attachments: [...r.attachments, att] }));
     }
-    setAttKm("");
+    if (section === "general") setAttKm("");
   };
+  const removeAtt = (aid) => set("attachments", rec.attachments.filter((x) => x.id !== aid));
+  const renderPhotos = (section, label) => {
+    const list = rec.attachments.filter((a) => (a.section || "general") === section);
+    return (
+      <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3" data-testid={`photos-${section}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold">{label} {list.length > 0 && <span className="text-slate-600" data-testid={`photos-${section}-count`}>({list.length})</span>}</div>
+          <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-slate-900 bg-white px-4 font-semibold hover:bg-slate-50 focus-within:ring-2 focus-within:ring-slate-900" data-testid={`photos-${section}-add`}>
+            <Camera className="h-5 w-5" />Vyfotit
+            <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => onFile(e, section)} data-testid={`photos-${section}-input`} />
+          </label>
+        </div>
+        {list.length > 0 && <div className="space-y-2">{list.map((a) => <AttachmentThumb key={a.id} att={a} onRemove={() => removeAtt(a.id)} />)}</div>}
+      </div>
+    );
+  };
+  const selMachine = (machines.data || []).find((m) => (m.label || "").trim().toLowerCase() === (rec.machine || "").trim().toLowerCase());
+  const svc = (() => {
+    if (!selMachine || !selMachine.service_interval_mth) return null;
+    const cur = Math.max(num(rec.mthEnd) ?? -1, num(rec.mthStart) ?? -1, selMachine.current_mth ?? -1);
+    if (cur < 0) return null;
+    const interval = selMachine.service_interval_mth;
+    const warn = selMachine.service_warn_mth ?? 100;
+    const last = selMachine.last_service_mth;
+    const next = last !== null && last !== undefined ? Math.max(Math.round(last / interval), 1) * interval + interval : Math.max(Math.ceil(cur / interval), 1) * interval;
+    const remaining = Math.round((next - cur) * 10) / 10;
+    return { label: selMachine.label, next_service_mth: next, remaining_mth: remaining, service_interval_mth: interval, service_state: remaining <= 0 ? "due" : remaining <= warn ? "soon" : "ok" };
+  })();
   const wpOptions = wps.data || [];
 
   return (
@@ -167,7 +210,7 @@ export default function RecordForm() {
           <Field label="Datum"><Input type="date" value={rec.date} onChange={(e) => set("date", e.target.value)} className="h-12" data-testid="record-date-input" /></Field>
           <Field label="Směna"><Select value={rec.shift || "Denní"} onValueChange={(v) => set("shift", v)}><SelectTrigger className="h-12" data-testid="record-shift-select"><SelectValue /></SelectTrigger><SelectContent>{["Denní", "Odpolední", "Noční"].map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select></Field>
           <Field label="Stroj" hint="Vyberte ze seznamu nebo napište.">
-            <Input list="machine-list" value={rec.machine} onChange={(e) => set("machine", e.target.value)} className="h-12" placeholder="např. Liebherr L566/3" data-testid="record-machine-input" />
+            <Input list="machine-list" value={rec.machine} onChange={(e) => setMachine(e.target.value)} className="h-12" placeholder="např. Liebherr L566/3" data-testid="record-machine-input" />
             <datalist id="machine-list">{(machines.data || []).filter((m) => m.active).map((m) => <option key={m.id} value={m.label}>{m.internal_number ? `č. ${m.internal_number}` : ""}</option>)}</datalist>
           </Field>
           <Field label="Obsluha (jméno)">
@@ -215,7 +258,8 @@ export default function RecordForm() {
           <div><div className="text-xs text-slate-300">Prostoje</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-downtime">{fmtH(bd.downtimeHours)} h</div></div>
           <div className="col-span-2 text-xs text-slate-300 sm:col-span-4">Celkem = ostatní práce + servis + prostoje. {bd.serviceOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část servisu leží mimo pracovní dobu.</span>} {bd.downtimeOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část prostoje leží mimo pracovní dobu.</span>}</div>
         </div>
-        <Field label="Provedená práce"><Textarea value={rec.work} onChange={(e) => set("work", e.target.value)} placeholder="např. Třídění, nakládka…" data-testid="record-work-input" /></Field>
+        <Field label="Provedená práce"><DictateTextarea value={rec.work} onChange={(v) => set("work", v)} placeholder="např. Třídění, nakládka… (nebo klepněte na mikrofon)" testid="record-work-input" /></Field>
+        {renderPhotos("timesheet", "Fotky k šichtovnici (výkaz, dodací list, stav pracoviště)")}
       </Section>
 
       <Section title="3. Motohodiny (MTH)" subtitle="Povinnost psát začátek a konec MTH" testid="section-mth">
@@ -225,6 +269,12 @@ export default function RecordForm() {
           <Field label="Rozdíl"><div className={`flex h-12 items-center rounded-md border px-3 text-lg font-semibold ${mthDiff !== null && mthDiff < 0 ? "border-red-300 bg-red-50 text-red-800" : "border-slate-200 bg-slate-50"}`} data-testid="record-mth-diff">{mthDiff === null ? "—" : String(mthDiff).replace(".", ",")}</div></Field>
         </div>
         <p className="text-xs text-slate-600">MTH je údaj měřidla stroje a počítá se nezávisle na pracovních hodinách.</p>
+        {svc && (
+          <div className={`flex items-start gap-3 rounded-lg px-3 py-2 text-sm ${svc.service_state === "due" ? "bg-black text-[#FFD200]" : svc.service_state === "soon" ? "bg-amber-100 text-amber-950" : "bg-slate-100 text-slate-800"}`} data-testid="record-service-hint">
+            <Wrench className="mt-0.5 h-4 w-4 shrink-0" />
+            <span><b>{svc.label}:</b> {remainingText(svc)} (pravidelný servis při {svc.next_service_mth} mth, interval {svc.service_interval_mth} mth).</span>
+          </div>
+        )}
       </Section>
 
       <Section title="4. Kontroly stroje" subtitle="Zaškrtnutí nepotvrzuje bezpečnost ani odborné odstranění závady" testid="section-checks" defaultOpen={!id}>
@@ -245,23 +295,28 @@ export default function RecordForm() {
               <button type="button" onClick={() => setFault(i, "severity", "stop")} className={`flex h-12 items-center justify-center gap-2 rounded-lg border-2 font-bold ${f.severity === "stop" ? "border-black bg-black text-[#FFD200]" : "border-slate-300"}`} data-testid={`fault-severity-stop-${i}`}><OctagonAlert className="h-5 w-5" />STOP – vážná</button>
             </div>
             <div className="grid grid-cols-2 gap-3"><Field label="Datum"><Input type="date" value={f.date} onChange={(e) => setFault(i, "date", e.target.value)} className="h-12" /></Field><Field label="Čas zjištění"><Input type="time" value={f.time} onChange={(e) => setFault(i, "time", e.target.value)} className="h-12" data-testid={`fault-time-${i}`} /></Field></div>
-            <Field label="Popis závady"><Textarea value={f.description} onChange={(e) => setFault(i, "description", e.target.value)} data-testid={`fault-description-${i}`} /></Field>
+            <Field label="Popis závady"><DictateTextarea value={f.description} onChange={(v) => setFault(i, "description", v)} testid={`fault-description-${i}`} /></Field>
             <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.reportedToWorkshop} onCheckedChange={(v) => setFault(i, "reportedToWorkshop", v === true)} className="h-6 w-6" data-testid={`fault-reported-${i}`} />Nahlášeno vedoucímu servisu / dílně</label>
             <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.acknowledged} onCheckedChange={(v) => setFault(i, "acknowledged", v === true)} className="h-6 w-6" data-testid={`fault-acknowledged-${i}`} />Střídající obsluha byla seznámena</label>
             <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.resolved} onCheckedChange={(v) => setFault(i, "resolved", v === true)} className="h-6 w-6" data-testid={`fault-resolved-${i}`} />Závada odstraněna</label>
-            {f.resolved && <Field label="Způsob odstranění"><Textarea value={f.resolution} onChange={(e) => setFault(i, "resolution", e.target.value)} data-testid={`fault-resolution-${i}`} /></Field>}
+            {f.resolved && <Field label="Způsob odstranění"><DictateTextarea value={f.resolution} onChange={(v) => setFault(i, "resolution", v)} testid={`fault-resolution-${i}`} /></Field>}
           </div>))}
         <Button type="button" variant="outline" className="h-12" onClick={() => set("faults", [...rec.faults, { id: newId(), date: rec.date, time: new Date().toTimeString().slice(0, 5), description: "", severity: "normal", resolved: false, resolution: "", acknowledged: false, reportedToWorkshop: false }])} data-testid="fault-add-button"><Plus className="mr-1 h-4 w-4" />Přidat závadu</Button>
       </Section>
 
       <Section title="6. Servis a oprava" subtitle="Bez popisu nelze servisní čas započítat" testid="section-service" defaultOpen={rec.service.length > 0 || !!rec.serviceDescription}>
-        <Field label="Popis servisu"><Textarea value={rec.serviceDescription} onChange={(e) => set("serviceDescription", e.target.value)} data-testid="record-service-description-input" /></Field>
-        <Field label="Popis opravy"><Textarea value={rec.repairDescription} onChange={(e) => set("repairDescription", e.target.value)} data-testid="record-repair-description-input" /></Field>
+        <Field label="Popis servisu"><DictateTextarea value={rec.serviceDescription} onChange={(v) => set("serviceDescription", v)} testid="record-service-description-input" /></Field>
+        <Field label="Popis opravy"><DictateTextarea value={rec.repairDescription} onChange={(v) => set("repairDescription", v)} testid="record-repair-description-input" /></Field>
         <Field label="Servis provedl">
           <div className="grid gap-2 sm:grid-cols-3">{[["operator", "Strojník"], ["workshop", "Dílna – výjezd"], ["external", "Cizí firma"]].map(([v, l]) => (
             <button key={v} type="button" onClick={() => set("serviceBy", rec.serviceBy === v ? "" : v)} className={`h-12 rounded-lg border-2 font-semibold ${rec.serviceBy === v ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300 bg-white"}`} data-testid={`record-service-by-${v}`}>{l}</button>))}</div>
         </Field>
         {rec.serviceBy === "external" && <Field label="Název cizí firmy"><Input value={rec.externalCompany} onChange={(e) => set("externalCompany", e.target.value)} className="h-12" data-testid="record-external-company-input" /></Field>}
+        <label className="flex min-h-[52px] items-center gap-3 rounded-lg border-2 border-slate-200 px-3" data-testid="record-interval-service-row">
+          <Checkbox checked={!!rec.intervalService} onCheckedChange={(v) => set("intervalService", v === true)} className="h-6 w-6" data-testid="record-interval-service-checkbox" />
+          <span className="font-medium">Proveden pravidelný servis dle intervalu ({selMachine?.service_interval_mth || 500} mth) – po potvrzení zápisu začne nový odpočet</span>
+        </label>
+        {renderPhotos("service", "Fotky ze servisu (štítky, vyměněné díly, stav po opravě)")}
       </Section>
 
       <Section title="7. Provozní kapaliny" testid="section-fluids" defaultOpen={false}>
@@ -274,8 +329,8 @@ export default function RecordForm() {
       </Section>
 
       <Section title="8. Poznámky a předání" testid="section-handover" defaultOpen={false}>
-        <Field label="Poznámky"><Textarea value={rec.notes} onChange={(e) => set("notes", e.target.value)} data-testid="record-notes-input" /></Field>
-        <Field label="Pracoviště / stroj předal (popis)"><Textarea value={rec.handover} onChange={(e) => set("handover", e.target.value)} data-testid="record-handover-input" /></Field>
+        <Field label="Poznámky"><DictateTextarea value={rec.notes} onChange={(v) => set("notes", v)} placeholder="Poznámky – můžete nadiktovat" testid="record-notes-input" /></Field>
+        <Field label="Pracoviště / stroj předal (popis)"><DictateTextarea value={rec.handover} onChange={(v) => set("handover", v)} testid="record-handover-input" /></Field>
         <Field label="Jméno předávajícího (hůlkovým písmem)"><Input value={rec.handoverName} onChange={(e) => set("handoverName", e.target.value.toUpperCase())} className="h-12" data-testid="record-handover-name-input" /></Field>
         <SignaturePad label="Podpis předávajícího" value={rec.handoverSignature} onChange={(v) => set("handoverSignature", v)} testid="handover-signature" />
         <SignaturePad label="Podpis obsluhy" value={rec.operatorSignature} onChange={(v) => set("operatorSignature", v)} testid="operator-signature" />
@@ -288,7 +343,7 @@ export default function RecordForm() {
           <Field label="Stav km (u tankování)"><Input inputMode="numeric" value={attKm} onChange={(e) => setAttKm(e.target.value)} className="h-12" data-testid="attachment-km-input" /></Field>
           <div className="flex items-end"><label className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-slate-900 bg-white font-semibold hover:bg-slate-50" data-testid="record-add-attachment-button"><Camera className="h-5 w-5" />Vyfotit / přidat<input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={onFile} data-testid="record-attachment-input" /></label></div>
         </div>
-        <div className="space-y-2">{rec.attachments.map((a) => <AttachmentThumb key={a.id} att={a} onRemove={() => set("attachments", rec.attachments.filter((x) => x.id !== a.id))} />)}</div>
+        <div className="space-y-2">{rec.attachments.filter((a) => (a.section || "general") === "general").map((a) => <AttachmentThumb key={a.id} att={a} onRemove={() => removeAtt(a.id)} />)}</div>
         <p className="text-xs text-slate-600">Max. 15 MB na soubor. Bez připojení se soubor uloží v telefonu a nahraje se později.</p>
         </div>
       </Section>

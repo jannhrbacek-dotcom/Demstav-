@@ -10,7 +10,7 @@ from fastapi.responses import Response  # noqa: E402
 from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 
 from core import db, client, get_ready_user, require_role, is_manager, COMPANY_NAME  # noqa: E402
-from routes_users import router as users_router, seed_owner  # noqa: E402
+from routes_users import router as users_router, seed_owner, machines_with_status  # noqa: E402
 from routes_records import router as records_router  # noqa: E402
 from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date  # noqa: E402
 from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
@@ -85,8 +85,9 @@ async def overview(date: str = "", days: int = 7, user: dict = Depends(require_r
     faults.sort(key=lambda f: (f["severity"] != "stop", f["date"]), reverse=False)
     pending_events = await db.attendance_events.count_documents({"status": "pending_review"})
     pending_requests = await db.attendance_requests.count_documents({"status": "pending"})
+    service_alerts = [m for m in await machines_with_status() if m.get("active", True) and m["service_state"] in ("soon", "due")]
     return {"date": day, "present": present, "comparison": comparison, "missing": missing[:200], "open_drafts": open_drafts,
-            "faults": faults, "pending_events": pending_events, "pending_requests": pending_requests,
+            "faults": faults, "pending_events": pending_events, "pending_requests": pending_requests, "service_alerts": service_alerts,
             "chart": [{**v, "attendance": round(v["attendance"], 2), "timesheet": round(v["timesheet"], 2)} for v in chart.values()],
             "employees": len(users)}
 
@@ -146,7 +147,18 @@ async def export_timesheet(employee_id: str = "", date_from: str = "", date_to: 
 async def export_diary(employee_id: str = "", machine: str = "", date_from: str = "", date_to: str = "", include_drafts: int = 1,
                        user: dict = Depends(get_ready_user)):
     recs = await _export_records(user, employee_id, date_from, date_to, machine, bool(include_drafts))
-    data = diary_pdf(recs)
+    att_ids = [a["id"] for r in recs for a in (r.get("attachments") or []) if a.get("section") == "service"]
+    atts = {a["id"]: a for a in await db.attachments.find({"id": {"$in": att_ids}, "is_deleted": False}, {"_id": 0}).to_list(5000)}
+
+    def loader(a):
+        doc = atts.get(a["id"])
+        if not doc:
+            return None
+        try:
+            return get_object(doc["storage_path"])[0]
+        except Exception:
+            return None
+    data = diary_pdf(recs, loader)
     return Response(content=data, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="DEMSTAV_provozni_denik_{_range_name(date_from, date_to)}.pdf"'})
 

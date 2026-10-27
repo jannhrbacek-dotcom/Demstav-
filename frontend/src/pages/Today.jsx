@@ -6,6 +6,7 @@ import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
 import { AttendanceActions, useShiftState } from "@/components/AttendanceActions";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ServiceAlerts } from "@/components/ServiceAlerts";
 import { pragueDate, STATE_LABELS, timeOf, KIND_LABELS } from "@/lib/format";
 import { timeBreakdown, fmtHM, fmtH } from "@/lib/worktime";
 
@@ -39,6 +40,8 @@ export default function Today() {
           <ChevronRight className="h-5 w-5 text-amber-800" />
         </Link>
       )}
+
+      <ServiceAlerts />
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-3">

@@ -30,6 +30,8 @@ SERVICE_BY = {"operator": "servis - strojník", "workshop": "servis - dílna vý
 KIND_LABEL = {"vehicleFuel": "Doklad o tankování vozidla", "machineFuel": "Doklad o tankování stroje", "invoice": "Podklad pro fakturaci",
               "photo": "Fotografie", "other": "Ostatní"}
 ROWS_PER_SHEET = 9
+SECTION_TITLE = {"timesheet": "PŘÍLOHA - FOTO K ŠICHTOVNICI", "service": "PŘÍLOHA - FOTO ZE SERVISU", "general": "PŘÍLOHA - DOKLAD"}
+SECTION_ORDER = {"timesheet": 0, "general": 1, "service": 2}
 
 
 def dmy(d: str, year=True) -> str:
@@ -207,10 +209,10 @@ def timesheet_pdf(groups: list, attachment_loader) -> bytes:
                         "V součtech výkazu je každá minuta zaměstnance započtena pouze jednou."]))
             _ts_supplement(pdf, supplement)
             for r in recs:
-                for a in r.get("attachments") or []:
+                for a in sorted(r.get("attachments") or [], key=lambda a: SECTION_ORDER.get(a.get("section") or "general", 9)):
                     data = attachment_loader(a)
                     pdf.page(A4)
-                    pdf.txt(25, 30, "PŘÍLOHA - DOKLAD", 14, True)
+                    pdf.txt(25, 30, SECTION_TITLE.get(a.get("section") or "general", "PŘÍLOHA - DOKLAD"), 14, True)
                     pdf.txt(25, 52, f"{dmy(r['date'])} | {r.get('machine', '')} | {KIND_LABEL.get(a.get('kind'), 'Ostatní')} | {a.get('name', '')}"
                             + (f" | stav km {a['km']}" if a.get("km") else ""), 8)
                     ok = False
@@ -222,7 +224,7 @@ def timesheet_pdf(groups: list, attachment_loader) -> bytes:
                         ok = True
                     if not ok:
                         pdf.txt(25, 80, "Soubor nelze zobrazit v PDF (formát nebo dostupnost); je uložen v aplikaci.", 9, color=RED)
-                    pdf.txt(25, 790, f"Doklad přiložen k zápisu {r['id']}", 7, color=MUTED)
+                    pdf.txt(25, 790, f"Doklad přiložen k zápisu {r['id']}" + (f" | SHA-256 souboru {a['sha256'][:16]}…" if a.get("sha256") else ""), 7, color=MUTED)
     return _append_pdf_attachments(pdf.bytes(), pdf_atts)
 
 
@@ -395,7 +397,7 @@ def _ts_supplement(pdf: Pdf, items):
 
 
 # ============================== PROVOZNÍ DENÍK ==============================
-def diary_pdf(records: list) -> bytes:
+def diary_pdf(records: list, attachment_loader=None) -> bytes:
     pdf = Pdf()
     recs = sorted(records, key=lambda r: (r.get("machine", ""), r["date"], r.get("updatedAt", "")))
     if not recs:
@@ -411,7 +413,8 @@ def diary_pdf(records: list) -> bytes:
         if i + 1 < len(recs):
             _diary_block(pdf, recs[i + 1], 405, overflow)
         pdf.txt(25, 778, "Mth - motohodiny: provozní hodiny stroje, údaj o době běhu motoru pro stanovení pravidelné údržby.", 6.3)
-        pdf.txt(25, 822, f"DEMSTAV | Provozní deník | list {sheet} | datum exportu {export_stamp()}", 6.3, color=MUTED)
+        marks = " / ".join(f"{x['id'][:8]} r{x.get('revision', '')} {x['integrity_hash'][:12]}" for x in recs[i:i + 2] if x.get("integrity_hash"))
+        pdf.txt(25, 822, f"DEMSTAV | Provozní deník | list {sheet} | datum exportu {export_stamp()}" + (f" | otisk SHA-256: {marks}" if marks else ""), 6.3, color=MUTED)
     if overflow:
         pdf.page(A4)
         pdf.txt(25, 28, "DOPLNĚNÍ PROVOZNÍHO DENÍKU", 14, True)
@@ -424,7 +427,25 @@ def diary_pdf(records: list) -> bytes:
             for ln in lines:
                 y += pdf.para(35, y, 530, ln, 8, lead=10)
             y += 8
-    return pdf.bytes()
+    pdf_atts = []
+    if attachment_loader:
+        for r in recs:
+            for a in [a for a in (r.get("attachments") or []) if a.get("section") == "service"]:
+                data = attachment_loader(a)
+                pdf.page(A4)
+                pdf.txt(25, 30, "PŘÍLOHA - FOTO ZE SERVISU", 14, True)
+                pdf.txt(25, 52, f"{dmy(r['date'])} | {r.get('machine', '')} | {r.get('operator', '')} | {a.get('name', '')}", 8)
+                ok = False
+                if data and a.get("type", "").startswith("image/"):
+                    ok = pdf.image(data, 25, 70, 545, 700)
+                if data and a.get("type") == "application/pdf":
+                    pdf_atts.append(data)
+                    pdf.txt(25, 80, "Dokument PDF je připojen na konec tohoto exportu.", 9)
+                    ok = True
+                if not ok:
+                    pdf.txt(25, 80, "Soubor nelze zobrazit v PDF (formát nebo dostupnost); je uložen v aplikaci.", 9, color=RED)
+                pdf.txt(25, 790, f"Příloha k zápisu {r['id']}" + (f" | SHA-256 souboru {a['sha256'][:16]}…" if a.get("sha256") else ""), 7, color=MUTED)
+    return _append_pdf_attachments(pdf.bytes(), pdf_atts)
 
 
 def _check(pdf, x, y, on):
@@ -478,6 +499,8 @@ def _diary_block(pdf: Pdf, r: dict, top: float, overflow: list):
         lines.append("Práce: " + r["work"])
     if r.get("serviceDescription"):
         lines.append("Servis: " + r["serviceDescription"] + (f" ({SERVICE_BY.get(r.get('serviceBy'), '')})" if r.get("serviceBy") else ""))
+    if r.get("intervalService"):
+        lines.append(f"Proveden pravidelný servis dle intervalu při stavu {r.get('mthEnd', '')} mth.")
     if r.get("repairDescription"):
         lines.append("Oprava: " + r["repairDescription"])
     for f in r.get("faults") or []:

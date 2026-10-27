@@ -5,6 +5,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Cart
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/Section";
+import { ServiceAlerts } from "@/components/ServiceAlerts";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useCached } from "@/lib/data";
 import { pragueDate, dmy, STATE_LABELS, timeOf } from "@/lib/format";
@@ -30,6 +31,7 @@ export default function Overview() {
         actions={<Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="h-11 w-44" data-testid="overview-date-input" />} />
       {o.fromCache && <p className="text-xs font-medium text-amber-800">Offline – poslední stažený stav.</p>}
       {!d ? <p className="text-slate-600">Načítám…</p> : (<>
+        {(d.service_alerts || []).length > 0 && <ServiceAlerts alerts={d.service_alerts} />}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Card title="Přítomní teď" icon={Users} value={d.present.length} testid="manager-present-now-card">
             {d.present.length === 0 && <div className="text-slate-600">Nikdo nemá otevřenou směnu.</div>}

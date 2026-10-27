@@ -1,3 +1,4 @@
+import math
 import os
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -140,17 +141,81 @@ async def reset_password(uid: str, actor: dict = Depends(require_role("admin")))
 
 
 # ---------------- machines ----------------
+def _mth(v):
+    try:
+        return float(str(v).replace(",", ".")) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def service_status(m: dict, current) -> dict:
+    """Pravidelný servis každých N mth (výchozí 500). Varování X mth předem (výchozí 100)."""
+    interval = m.get("service_interval_mth") or 500
+    warn = m.get("service_warn_mth") if m.get("service_warn_mth") is not None else 100
+    if current is None:
+        return {"current_mth": None, "next_service_mth": None, "remaining_mth": None, "service_state": "unknown",
+                "service_interval_mth": interval, "service_warn_mth": warn}
+    last = m.get("last_service_mth")
+    if last is not None:
+        covered = max(round(last / interval), 1) * interval
+        nxt = covered + interval
+    else:
+        nxt = max(math.ceil(current / interval), 1) * interval
+    remaining = round(nxt - current, 1)
+    state = "due" if remaining <= 0 else "soon" if remaining <= warn else "ok"
+    return {"current_mth": round(current, 1), "next_service_mth": nxt, "remaining_mth": remaining, "service_state": state,
+            "service_interval_mth": interval, "service_warn_mth": warn}
+
+
+async def machines_with_status() -> list:
+    ms = await db.machines.find({}, {"_id": 0}).sort("label", 1).to_list(1000)
+    best = {}
+    async for r in db.records.find({"machine": {"$in": [m["label"] for m in ms]}}, {"_id": 0, "machine": 1, "mthEnd": 1, "mthStart": 1, "date": 1}):
+        v = _mth(r.get("mthEnd")) or _mth(r.get("mthStart"))
+        if v is not None and v > best.get(r["machine"], (-1, ""))[0]:
+            best[r["machine"]] = (v, r.get("date", ""))
+    out = []
+    for m in ms:
+        cands = [x for x in (_mth(m.get("operating_hours")), best.get(m["label"], (None,))[0]) if x is not None]
+        st = service_status(m, max(cands) if cands else None)
+        out.append({**m, **st, "mth_updated": best.get(m["label"], (None, None))[1]})
+    return out
+
+
 @router.get("/machines")
 async def list_machines(user: dict = Depends(get_ready_user)):
-    return await db.machines.find({}, {"_id": 0}).sort("label", 1).to_list(1000)
+    return await machines_with_status()
+
+
+@router.get("/service-alerts")
+async def service_alerts(user: dict = Depends(get_ready_user)):
+    return [m for m in await machines_with_status() if m.get("active", True) and m["service_state"] in ("soon", "due")]
 
 
 def _machine_body(body: dict) -> dict:
     label = text(body.get("label"), 200)
     if not label:
         raise HTTPException(status_code=400, detail="Doplňte název stroje (např. Liebherr L566/3).")
+    def num(k, lo, hi, cast=float):
+        v = body.get(k)
+        if v in (None, ""):
+            return None
+        try:
+            v = cast(str(v).replace(",", "."))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Zkontrolujte číselné údaje stroje (rok, výkon, hmotnost, motohodiny).")
+        if not lo <= v <= hi:
+            raise HTTPException(status_code=400, detail="Zkontrolujte číselné údaje stroje (rok, výkon, hmotnost, motohodiny).")
+        return v
     return {"label": label, "type": text(body.get("type"), 200), "internal_number": text(body.get("internal_number"), 100),
             "serial_number": text(body.get("serial_number"), 200), "plate": text(body.get("plate"), 50),
+            "manufacturer": text(body.get("manufacturer"), 120),
+            "year": num("year", 1950, 2100, int), "power_kw": num("power_kw", 0, 5000),
+            "weight_kg": num("weight_kg", 0, 500000), "operating_hours": num("operating_hours", 0, 1000000),
+            "note": text(body.get("note"), 500),
+            "service_interval_mth": num("service_interval_mth", 10, 100000) or 500,
+            "service_warn_mth": num("service_warn_mth", 0, 10000) if body.get("service_warn_mth") not in (None, "") else 100,
+            "last_service_mth": num("last_service_mth", 0, 1000000),
             "active": body.get("active", True) is not False}
 
 
@@ -167,7 +232,7 @@ async def create_machine(body: dict, actor: dict = Depends(require_role("manager
 
 @router.put("/machines/{mid}")
 async def update_machine(mid: str, body: dict, actor: dict = Depends(require_role("manager"))):
-    upd = _machine_body(body)
+    upd = {k: v for k, v in _machine_body(body).items() if k in body or k == "label"}
     res = await db.machines.update_one({"id": mid}, {"$set": upd})
     if not res.matched_count:
         raise HTTPException(status_code=404, detail="Stroj nenalezen.")

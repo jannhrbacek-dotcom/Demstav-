@@ -80,7 +80,7 @@ export async function resolveConflict(id, choice, correctionReason = "") {
 export async function addAttachment(file, meta) {
   const id = newId();
   await set(k("blob:" + id), file);
-  const att = { id, name: file.name, type: file.type || "application/octet-stream", size: file.size, kind: meta.kind || "other", km: meta.km || "" };
+  const att = { id, name: file.name, type: file.type || "application/octet-stream", size: file.size, kind: meta.kind || "other", km: meta.km || "", section: meta.section || "general" };
   const now = new Date().toISOString();
   patch({ queue: [...state.queue, { opId: newId(), type: "attachment", refId: id, createdAt: now, attempts: 0, state: "queued", error: null, payload: { ...att, recordId: meta.recordId } }] });
   await persist();
@@ -127,7 +127,7 @@ async function sendOp(op) {
     if (!blob) throw Object.assign(new Error("Soubor p\u0159\u00edlohy u\u017e v telefonu nen\u00ed."), { permanent: true });
     const fd = new FormData();
     fd.append("file", blob, op.payload.name);
-    fd.append("id", op.refId); fd.append("kind", op.payload.kind); fd.append("km", op.payload.km || ""); fd.append("record_id", op.payload.recordId || "");
+    fd.append("id", op.refId); fd.append("kind", op.payload.kind); fd.append("km", op.payload.km || ""); fd.append("record_id", op.payload.recordId || ""); fd.append("section", op.payload.section || "general");
     await http.post("/attachments", fd, { timeout: 120000 });
     await del(k("blob:" + op.refId));
     return;
