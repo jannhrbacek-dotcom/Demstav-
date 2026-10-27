@@ -82,3 +82,9 @@ Soukromý port je explicitně 10000 a WiredTiger cache je pro pilot 0,25 GB.
 Odkazy: https://www.mongodb.com/docs/v7.0/release-notes/7.0/ a
 https://jira.mongodb.org/browse/SERVER-121912 . Existující MongoDB 8 data se nesmějí
 připojit přímo k serveru 7.0; případný převod vyžaduje samostatný ověřený export/import.
+
+Render při `dockerCommand` přepisuje i ENTRYPOINT obrazu. Startovací skript
+`deploy/mongo-start.sh` proto nejprve lokálně s `--auth` ověří přístup a případně
+založí prvního administrátora přes localhost exception. Potom spustí oficiální
+entrypoint s `--auth` na soukromém portu 10000. Existující účty, hesla ani data
+nepřepisuje. Při nesprávném hesle již založeného administrátora start selže.

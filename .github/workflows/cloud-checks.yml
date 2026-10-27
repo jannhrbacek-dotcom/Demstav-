@@ -21,13 +21,22 @@ jobs:
       - name: Start with real MongoDB and verify persistence after restart
         run: |
           docker network create demstav-check
-          docker run -d --name demstav-mongo-check --network demstav-check -e MONGO_INITDB_ROOT_USERNAME=demstavci -e MONGO_INITDB_ROOT_PASSWORD=IsolatedCIMongo456 mongo:7.0.45 mongod --port 10000 --bind_ip_all --wiredTigerCacheSizeGB 0.25
+          docker volume create demstav-mongo-data
+          docker run -d --name demstav-mongo-seed --network demstav-check -v demstav-mongo-data:/data/db --entrypoint mongod mongo:7.0.45 --port 10000 --bind_ip_all --wiredTigerCacheSizeGB 0.25
+          for attempt in $(seq 1 30); do
+            if docker exec demstav-mongo-seed mongosh --quiet --port 10000 --eval 'db.getSiblingDB("ci_seed").sentinel.updateOne({_id:"keep"},{$set:{preserved:true}},{upsert:true})'; then break; fi
+            sleep 1
+          done
+          docker stop demstav-mongo-seed
+          docker run -d --name demstav-mongo-check --network demstav-check -v demstav-mongo-data:/data/db -e MONGO_INITDB_ROOT_USERNAME=demstavci -e MONGO_INITDB_ROOT_PASSWORD=IsolatedCIMongo456 --entrypoint /bin/bash mongo:7.0.45 -ec "$(cat deploy/mongo-start.sh)"
           docker run -d --name demstav-app-check --network demstav-check -p 127.0.0.1:10000:10000 \
             -e MONGO_URL=mongodb://demstavci:IsolatedCIMongo456@demstav-mongo-check:10000/?authSource=admin -e DB_NAME=demstav_ci \
             -e JWT_SECRET=isolated-ci-signing-secret-not-production \
             -e OWNER_EMAIL=owner@example.test -e OWNER_PASSWORD=IsolatedCIBootstrap123 \
             demstav-cloud-check
           /tmp/demstav-venv/bin/python tests/cloud_smoke.py
+          docker exec demstav-mongo-check mongosh --norc --quiet --port 10000 --eval 'db.getSiblingDB("admin").auth(process.env.MONGO_INITDB_ROOT_USERNAME,process.env.MONGO_INITDB_ROOT_PASSWORD); if(!db.getSiblingDB("ci_seed").sentinel.findOne({_id:"keep",preserved:true}))throw new Error("Existing data was lost")'
+          docker restart demstav-mongo-check
           docker restart demstav-app-check
           /tmp/demstav-venv/bin/python tests/cloud_smoke.py
       - name: Container diagnostics on failure
