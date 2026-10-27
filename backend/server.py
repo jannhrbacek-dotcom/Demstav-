@@ -20,7 +20,7 @@ from routes_push import router as push_router  # noqa: E402
 from routes_admin import router as admin_router  # noqa: E402
 from routes_production import router as production_router  # noqa: E402
 from routes_data import router as data_router  # noqa: E402
-from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date  # noqa: E402
+from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date, seed_attendance_workplace  # noqa: E402
 from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
 from storage import init_storage, get_object  # noqa: E402
 from break_policy import hydrate_records, hydrate_events
@@ -235,6 +235,7 @@ async def startup():
     await db.machines.create_index("id", unique=True)
     await db.login_attempts.create_index("identifier")
     await seed_owner()
+    await seed_attendance_workplace()
     await ensure_operations_manager()
     try:
         init_storage()

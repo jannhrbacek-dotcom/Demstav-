@@ -18,7 +18,7 @@ export const REASON_LABELS = {
   gps_boundary: "na hranici okruhu", gps_stale: "stará poloha", manual: "ruční záznam", out_of_order: "nenavazuje na předchozí událost",
   correction: "opraveno na žádost",
 };
-export const MODE_LABELS = { manual: "Ručně se schválením", qr: "QR kód", gps: "GPS okruh", qr_gps: "QR + GPS" };
+export const MODE_LABELS = { gps_or_qr: "GPS nebo QR kód", manual: "Ručně se schválením", qr: "QR kód", gps: "GPS okruh", qr_gps: "QR + GPS" };
 export const ROLE_LABELS = { employee: "Strojník / zaměstnanec", manager: "Vedoucí výroby", operations_manager: "Vedoucí provozu", admin: "Admin", owner: "Jednatel" };
 export const SERVICE_BY = { operator: "servis - strojník", workshop: "servis - dílna výjezd", external: "servis - cizí firma" };
 export const ATT_KINDS = { vehicleFuel: "Tankování vozidla", machineFuel: "Tankování stroje", invoice: "Podklad pro fakturaci", photo: "Fotografie", other: "Ostatní" };

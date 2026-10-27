@@ -64,7 +64,7 @@ export default function Attendance() {
           <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-3" data-testid="attendance-history-item">
             <div className="min-w-0">
               <div className="font-semibold">{KIND_LABELS[e.kind]} · {dateTime(e.effective_at)} · {e.workplace_name}</div>
-              <div className="text-xs text-slate-600">zařízení {dateTime(e.device_at)} · server {dateTime(e.received_at)}{e.reasons?.length ? ` · ${e.reasons.map((r) => REASON_LABELS[r] || r).join(", ")}` : ""}{e.decision?.note ? ` · vedoucí: ${e.decision.note}` : ""}</div>
+              <div className="text-xs text-slate-600">{e.verification_method === "gps" ? "Ověření GPS · " : e.verification_method === "qr" ? "Ověření QR · " : ""}zařízení {dateTime(e.device_at)} · server {dateTime(e.received_at)}{e.reasons?.length ? ` · ${e.reasons.map((r) => REASON_LABELS[r] || r).join(", ")}` : ""}{e.decision?.note ? ` · vedoucí: ${e.decision.note}` : ""}</div>
             </div>
             <div className="flex items-center gap-2"><StatusBadge status={e.status} /><Button variant="ghost" size="sm" onClick={() => openFix(e)} data-testid="attendance-fix-event">Oprava</Button></div>
           </div>))}
