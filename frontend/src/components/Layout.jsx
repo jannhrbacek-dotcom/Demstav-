@@ -102,6 +102,7 @@ export default function Layout({ children }) {
           {item({ to: "/jak-na-to", label: "Jak na to", icon: Eye, testid: "nav-guide" })}
           {item({ to: "/prehledy", label: "Moje přehledy", icon: BarChart3, testid: "nav-my-overview" })}
           {item({ to: "/nepritomnost", label: "Dovolená a absence", icon: CalendarDays, testid: "nav-absence" })}
+          {item({ to: "/kalendar", label: "Kalendář týmu", icon: CalendarDays, testid: "nav-team-calendar" })}
           {item({ to: "/exporty", label: "Exporty a reporty", icon: FileDown, testid: "nav-exports" })}
         </div>
         {isMgr && <div className="mt-6 space-y-1"><div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Vedení</div>{managerNav.map(item)}</div>}
