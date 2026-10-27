@@ -1,0 +1,13 @@
+# Runtime only; the managed Emergent integration is optional and imported on use.
+fastapi==0.110.1
+uvicorn==0.25.0
+motor==3.7.1
+bcrypt==4.1.3
+PyJWT==2.10.1
+python-dotenv==1.0.1
+python-multipart==0.0.20
+requests==2.32.5
+pywebpush==2.0.3
+openpyxl==3.1.5
+reportlab==4.4.4
+PyMuPDF==1.26.5

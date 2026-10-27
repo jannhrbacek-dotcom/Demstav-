@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+export const API = `${(process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "")}/api`;
 const TOKEN_KEY = "demstav:token";
 const USER_KEY = "demstav:user";
 

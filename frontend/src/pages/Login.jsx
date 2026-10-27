@@ -40,19 +40,7 @@ export default function Login() {
         {err && <Alert variant="destructive" data-testid="login-error-alert"><AlertDescription>{err}</AlertDescription></Alert>}
         <Button type="submit" disabled={busy} className="btn-primary h-16 w-full text-lg font-semibold" data-testid="login-submit-button">{busy ? "Přihlašuji…" : "Přihlásit"}</Button>
         <p className="text-xs text-slate-600">Účet vám založí správce a předá dočasné heslo. Při prvním přihlášení si ho změníte.</p>
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" data-testid="login-demo-hint">
-          <div className="font-semibold">Demo účty (pilot)</div>
-          <div className="mt-1 space-y-0.5">
-            <div><b>strojnik</b> · heslo <span className="font-mono">Demstav2026!</span> – strojník</div>
-            <div><b>vedouci</b> · heslo <span className="font-mono">Demstav2026!</span> – vedoucí výroby</div>
-            <div><b>admin</b> · heslo <span className="font-mono">Demstav2026!</span> – admin</div>
-            <div><b>jednatel</b> · heslo <span className="font-mono">Demstav2026!</span> – jednatel</div>
-          </div>
-          <button type="button" className="mt-2 font-semibold underline" data-testid="login-fill-demo"
-            onClick={() => { setEmail("strojnik"); setPassword("Demstav2026!"); }}>
-            Předvyplnit strojníka
-          </button>
-        </div>
+
       </form>
     </div>
   );
