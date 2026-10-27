@@ -143,9 +143,9 @@ export default function RecordForm() {
   const breakApprovals = useCached("/break-requests?mine=1");
   const effectiveRec = useMemo(() => {
     if (!rec) return null;
-    const approved = (breakApprovals.data || []).filter(r => r.status === "approved" && r.date === rec.date).sort((a, b) => (b.decision?.at || "").localeCompare(a.decision?.at || ""))[0];
+    const approved = (breakApprovals.data || []).filter(r => (!rec.owner_id || rec.owner_id === user.id) && r.status === "approved" && r.date === rec.date).sort((a, b) => (b.decision?.at || "").localeCompare(a.decision?.at || ""))[0];
     return approved ? { ...rec, approvedBreaks: approved.breaks } : rec;
-  }, [rec, breakApprovals.data]);
+  }, [rec, breakApprovals.data, user.id]);
   const bd = useMemo(() => (effectiveRec ? timeBreakdown(effectiveRec) : null), [effectiveRec]);
   const local = rec ? s.records[rec.id] : null;
   const serverConfirmed = (server?.status || local?.record?.status) === "confirmed" && (local?.serverRevision || server?.revision || 0) > 0;
