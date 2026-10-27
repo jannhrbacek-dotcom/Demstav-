@@ -36,6 +36,7 @@ export default function More() {
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <L to="/prehledy" icon={BarChart3} label="Moje přehledy (šichtovnice, deník, směny)" testid="more-my-overview" />
         <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
+        <L to="/vykazy-vazeni" icon={Files} label="Společný výkaz práce a vážní lístky" testid="more-production" />
         <L to="/exporty" icon={FileDown} label="Exporty a reporty (PDF, XLSX, CSV)" testid="more-exports" />
         <L to="/zmena-hesla" icon={KeyRound} label="Změnit heslo" testid="more-change-password" />
         <div className="flex min-h-[60px] items-center gap-3 px-4" data-testid="more-simple-mode-row">

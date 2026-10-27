@@ -63,6 +63,7 @@ export default function Today() {
       <WeatherWidget workplaces={wps.data} preferredWorkplaceId={currentWorkplaceId} />
 
       <ServiceAlerts />
+      <Link to="/vykazy-vazeni" className="block rounded-xl border bg-white p-4 hover:bg-slate-50"><div className="font-semibold">Vedete dnes společný výkaz práce a tonáže?</div><div className="text-sm text-slate-600">Pouze pověřený člen posádky: vyplnit výkaz a přiložit vážní lístky →</div></Link>
 
       {simpleMode ? (
         /* Jednoduchý režim – velké dlaždice, minimum textu. */

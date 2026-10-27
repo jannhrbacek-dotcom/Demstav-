@@ -8,11 +8,12 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useSync, syncNow, removeOp, updateOp, resolveConflict } from "@/lib/sync";
 import { dateTime, dmy, KIND_LABELS, REASON_LABELS } from "@/lib/format";
 
-const TYPE = { record: "Denní zápis", event: "Docházka", attachment: "Příloha", request: "Žádost o opravu" };
+const TYPE = { production: "Výkaz práce a tonáže", record: "Denní zápis", event: "Docházka", attachment: "Příloha", request: "Žádost o opravu" };
 
 function OpRow({ op, rec }) {
   const [reason, setReason] = useState("");
   const desc = op.type === "record" ? `${rec?.record?.machine || "—"} · ${dmy(rec?.record?.date)}${op.payload.confirm ? " · k potvrzení" : " · koncept"}`
+    : op.type === "production" ? `${op.payload.report.date} · ${op.payload.report.site || "Výkaz posádky"}`
     : op.type === "event" ? `${KIND_LABELS[op.payload.kind]} · čas zařízení ${dateTime(op.payload.deviceAt)}`
     : op.type === "attachment" ? `${op.payload.name} · ${Math.round(op.payload.size / 1024)} kB` : `${KIND_LABELS[op.payload.kind]} · ${dateTime(op.payload.at)}`;
   const serverConfirmed = rec?.serverRecord?.status === "confirmed";
