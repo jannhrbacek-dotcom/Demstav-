@@ -36,9 +36,9 @@ def _can_decide(user: dict, r: dict) -> bool:
     if r["user_id"] == user["id"]:
         return False  # nikdo neschvaluje sám sobě
     if r["status"] == "pending_manager":
-        return user["role"] in ("manager", "owner")
+        return user["role"] in ("manager", "owner", "operations_manager")
     if r["status"] == "pending_director":
-        return user["role"] == "owner"
+        return user["role"] in ("owner", "operations_manager")
     return False
 
 
@@ -78,7 +78,7 @@ async def create_leave(b: dict, user: dict = Depends(get_ready_user)):
         from routes_push import notify_users_by_role
         label = TYPES[t]
         when = df if df == dt else f"{df} – {dt}"
-        await notify_users_by_role(["manager", "owner"], f"Nová žádost: {label}",
+        await notify_users_by_role(["manager", "owner", "operations_manager"], f"Nová žádost: {label}",
                                    f"{user['name']} · {when}", url="/nepritomnost", tag=f"leave-{rid}",
                                    exclude_user_id=user["id"])
     except Exception:
@@ -95,7 +95,7 @@ async def list_leave(mine: int = 0, status: str = "", type: str = "", employee_i
     elif employee_id:
         q["user_id"] = employee_id
     if status == "to_decide":
-        q["status"] = {"$in": ["pending_manager"] + (["pending_director"] if user["role"] == "owner" else [])}
+        q["status"] = {"$in": ["pending_manager"] + (["pending_director"] if user["role"] in ("owner", "operations_manager") else [])}
         q["user_id"] = {"$ne": user["id"]} if "user_id" not in q else q["user_id"]
     elif status:
         q["status"] = status
@@ -125,13 +125,13 @@ async def decide(rid: str, b: dict, user: dict = Depends(get_ready_user)):
         raise HTTPException(status_code=400, detail="Při zamítnutí uveďte důvod.")
     if action == "reject":
         new = "rejected"
-    elif r["type"] == "vacation" and r["status"] == "pending_manager" and user["role"] != "owner":
+    elif r["type"] == "vacation" and r["status"] == "pending_manager" and user["role"] not in ("owner", "operations_manager"):
         new = "pending_director"
     else:
         new = "approved"
     now = iso_now()
     step = {"action": action, "by_id": user["id"], "by_name": user["name"], "role": ROLE_LABELS.get(user["role"]), "at": now, "note": note,
-            "step": "director" if r["status"] == "pending_director" or user["role"] == "owner" else "manager"}
+            "step": "director" if r["status"] == "pending_director" or user["role"] in ("owner", "operations_manager") else "manager"}
     await db.leave_requests.update_one({"id": rid, "status": r["status"]}, {"$set": {"status": new, "updated_at": now}, "$push": {"history": step}})
     await audit(user, "leave_" + action, {"leave_id": rid, "from_status": r["status"], "to_status": new})
     try:

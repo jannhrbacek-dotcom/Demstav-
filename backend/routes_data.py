@@ -16,6 +16,7 @@ from core import db, get_ready_user, is_manager, require_role, iso_now, ROLE_LAB
 from routes_attendance import projection, day_bounds_ms, prague_date, KIND_LABELS, PRAGUE
 from routes_leave import leaves_in_range, TYPES as LEAVE_TYPES, STATUS_LABELS as LEAVE_STATUS
 from storage import put_object, get_object
+from break_policy import hydrate_records, hydrate_events
 from worktime import time_breakdown, fmt_hours, day_union
 
 log = logging.getLogger("data")
@@ -73,6 +74,7 @@ async def timesheet_rows(user, f: dict):
     if f.get("workplace"):
         q["site"] = {"$regex": f["workplace"], "$options": "i"}
     recs = await db.records.find(q, {"_id": 0}).sort([("date", 1), ("owner_name", 1)]).to_list(20000)
+    recs = await hydrate_records(recs)
     rows = []
     for r in recs:
         bd = time_breakdown(r)
@@ -108,6 +110,7 @@ async def attendance_rows(user, f: dict):
     rows = []
     for u in sorted(users, key=lambda x: x.get("name", "")):
         evs = await db.attendance_events.find({"employee_id": u["id"]}, {"_id": 0}).sort("sequence", 1).to_list(50000)
+        evs = await hydrate_events(evs, u["id"])
         my_leaves = [lv for lv in leaves if lv["user_id"] == u["id"]]
         for d in _dates(df, dt):
             fr, to = day_bounds_ms(d)

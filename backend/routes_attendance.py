@@ -10,6 +10,9 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
 from core import db, iso_now, new_id, get_ready_user, require_role, is_manager, audit, text, parse_iso, now_utc
 
+from break_policy import attendance_break_spans, hydrate_events
+from worktime import merge, length, intersection
+
 router = APIRouter()
 PRAGUE = ZoneInfo("Europe/Prague")
 KINDS = ("arrival", "departure", "break_start", "break_end", "travel_start")
@@ -80,6 +83,12 @@ def projection(events, now_ms=None, frm=-math.inf, to=math.inf, confirmed_only=F
         except ValueError:
             issues.append("Návaznost událostí vyžaduje opravu: " + KIND_LABELS.get(e["kind"], e["kind"]))
     add(min(now_ms, to))
+    # Union prevents a manual break and the fixed break being deducted twice.
+    fixed = attendance_break_spans(segments, events[0].get("_break_overrides", {}) if events else {})
+    manual = [[s["from"], s["to"]] for s in segments if s["kind"] == "break"]
+    break_spans = merge(fixed + manual)
+    brk = length(break_spans)
+    trv -= length(intersection([[s["from"], s["to"]] for s in segments if s["kind"] == "travel"], break_spans))
     return {"state": state, "presenceHours": presence / 3.6e6, "breakHours": brk / 3.6e6, "travelHours": trv / 3.6e6,
             "netHours": (presence - brk) / 3.6e6, "issues": issues, "segments": segments, "open": state != "away",
             "workplace_id": wp if state != "away" else None}
@@ -254,7 +263,7 @@ async def get_dynamic_qr(wid: str, actor: dict = Depends(require_role("manager")
 # ---------------- events ----------------
 async def _employee_events(emp_id: str, frm: str = None):
     q = {"employee_id": emp_id}
-    return await db.attendance_events.find(q, {"_id": 0}).sort("sequence", 1).to_list(20000)
+    return await hydrate_events(await db.attendance_events.find(q, {"_id": 0}).sort("sequence", 1).to_list(20000), emp_id)
 
 
 @router.post("/attendance/events")

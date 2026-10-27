@@ -33,7 +33,7 @@ export default function RecordDetail() {
   if (err) return <p className="text-red-700">{err}</p>;
   if (!r) return <p className="text-slate-600">Načítám…</p>;
   const b = timeBreakdown(r);
-  const own = r.owner_id === user.id || !r.owner_id;
+  const own = r.owner_id === user.id || !r.owner_id || user.role === "operations_manager";
   const exp = async () => { try { await downloadFile(`/exports/denik.pdf?date_from=${r.date}&date_to=${r.date}&machine=${encodeURIComponent(r.machine)}${r.owner_id ? `&employee_id=${r.owner_id}` : ""}`, `DEMSTAV_provozni_denik_${r.date}.pdf`); } catch (e) { toast.error(errText(e)); } };
   return (
     <div className="space-y-4">

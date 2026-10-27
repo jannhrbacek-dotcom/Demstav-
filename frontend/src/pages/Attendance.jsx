@@ -1,3 +1,4 @@
+import BreakRequests from "@/components/BreakRequests";
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { History, PencilLine } from "lucide-react";
@@ -34,6 +35,7 @@ export default function Attendance() {
     <div className="space-y-5">
       <PageHeader title="Docházka" subtitle="Příchod, přestávky a odchod. Příchod do práce není automatickým spuštěním stroje."
         actions={<Button variant="outline" className="h-12" onClick={() => openFix(null)} data-testid="attendance-manual-entry-button"><PencilLine className="mr-1 h-4 w-4" />Požádat o opravu</Button>} />
+      <BreakRequests />
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <AttendanceActions workplaces={wps.data} serverState={att.data?.projection?.state} onDone={() => att.reload()} />

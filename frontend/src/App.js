@@ -22,6 +22,7 @@ import Workplaces from "@/pages/Workplaces";
 import QrDisplay from "@/pages/QrDisplay";
 import UsersPage from "@/pages/Users";
 import Production from "@/pages/Production";
+import Guide, { guideKey } from "@/pages/Guide";
 import Machines from "@/pages/Machines";
 
 function Guard({ children, role, bare }) {
@@ -29,6 +30,7 @@ function Guard({ children, role, bare }) {
   const loc = useLocation();
   if (!user) return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
   if (user.must_change_password && loc.pathname !== "/zmena-hesla") return <Navigate to="/zmena-hesla" replace />;
+  if (!user.must_change_password && loc.pathname !== "/jak-na-to" && !localStorage.getItem(guideKey(user.id))) return <Navigate to="/jak-na-to" replace state={{ returnTo: loc.pathname }} />;
   if (role && !atLeast(user, role)) return <Navigate to="/dnes" replace />;
   return bare ? children : <Layout>{children}</Layout>;
 }
@@ -48,6 +50,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/zmena-hesla" element={<Guard bare><ChangePassword /></Guard>} />
+            <Route path="/jak-na-to" element={<Guard><Guide /></Guard>} />
             <Route path="/dnes" element={<Guard><Today /></Guard>} />
             <Route path="/zapis/novy" element={<Guard><RecordForm /></Guard>} />
             <Route path="/zapis/:id" element={<Guard><RecordForm /></Guard>} />

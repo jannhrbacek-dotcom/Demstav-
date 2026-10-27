@@ -98,7 +98,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
     finish(getState().queue.find((o) => o.opId === op.opId) || null);
   };
 
-  const kinds = state === "travel" ? ["arrival", "departure"] : ["arrival", "break_start", "break_end", "departure"];
+  const kinds = state === "travel" ? ["arrival", "departure"] : (state === "break" ? ["break_end", "departure"] : ["arrival", "departure"]);
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
@@ -135,7 +135,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
           <Route className="h-6 w-6" />Přejezd na jinou zakázku (A → B)
         </button>
       )}
-      <p className="text-xs text-slate-600">Pauzu i přejezd stačí klepnout – bez QR. Příchod a odchod se ověřují QR + GPS podle pracoviště.</p>
+      <p className="text-xs text-slate-600">Přestávky 12:00–12:30 a 15:30–16:00 se odečítají automaticky. Změnu žádejte v Docházce. Přejezd stačí klepnout – bez QR. Příchod a odchod se ověřují QR + GPS podle pracoviště.</p>
 
       <Dialog open={travelOpen} onOpenChange={setTravelOpen}>
         <DialogContent className="max-w-md" data-testid="travel-dialog">
