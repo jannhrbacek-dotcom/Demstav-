@@ -108,4 +108,27 @@ def test_request_approval_and_provisioning(monkeypatch):
         karas=await db.users.find_one({"username":"jakub.karas"})
         assert karas["role"]=="operations_manager" and not karas["active"] and karas["must_change_password"]
         assert await db.audit.count_documents({})>=3
+        # Exercise actual dependency-based authorization and request-scoped policy loading.
+        from fastapi import FastAPI, Depends
+        import httpx
+        app=FastAPI()
+        app.include_router(routes_breaks.router)
+        who={"value":employee}
+        async def current(): return who["value"]
+        app.dependency_overrides[core.get_current_user]=current
+        @app.get("/probe")
+        async def probe(user=Depends(core.get_ready_user)):
+            return time_breakdown(record())
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url="http://test") as client:
+            response=await client.post("/breaks",json={"date":"2026-10-27","intervals":[{"start":"12:30","end":"13:00"}],"reason":"Oběd posunut"})
+            assert response.status_code==200
+            rid=response.json()["id"]
+            assert (await client.get("/probe")).json()["totalHours"]==10
+            denied=await client.post(f"/breaks/{rid}/decision",json={"decision":"approve"})
+            assert denied.status_code==403
+            who["value"]=manager
+            assert (await client.post(f"/breaks/{rid}/decision",json={"decision":"approve"})).status_code==200
+            who["value"]=employee
+            assert (await client.get("/probe")).json()["totalHours"]==9.5
+
     asyncio.run(run())

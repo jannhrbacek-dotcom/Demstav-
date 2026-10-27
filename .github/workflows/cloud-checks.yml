@@ -15,7 +15,7 @@ jobs:
         run: |
           python3 -m venv /tmp/demstav-venv
           /tmp/demstav-venv/bin/pip install -r backend/requirements-cloud.txt httpx==0.28.1 pytest==8.4.2 pytest-asyncio==1.2.0 mongomock-motor==0.0.36
-          /tmp/demstav-venv/bin/python -m pytest tests/test_cloud_deployment.py tests/test_push_config.py -q
+          /tmp/demstav-venv/bin/python -m pytest tests/test_cloud_deployment.py tests/test_push_config.py tests/test_operations_breaks.py -q
       - name: Build production container
         run: docker build -t demstav-cloud-check .
       - name: Start with real MongoDB and verify persistence after restart
