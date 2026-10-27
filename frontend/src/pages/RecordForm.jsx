@@ -475,7 +475,7 @@ export default function RecordForm() {
         {!id && <label className="mx-auto mb-2 flex max-w-6xl items-center gap-2 text-sm font-semibold text-slate-800" data-testid="record-next-machine-label">
           <input type="checkbox" className="h-5 w-5" checked={continueMachine} onChange={e => setContinueMachine(e.target.checked)} />
           Po uložení pokračovat druhým strojem (samostatné časy a motohodiny)
-        </label>
+        </label>}
         <div className="mx-auto flex max-w-6xl gap-3">
           {!serverConfirmed && <Button type="button" variant="outline" className="h-14 flex-1 border-slate-300 text-base font-semibold" onClick={() => doSave(false)} data-testid="record-save-draft-button">Uložit koncept</Button>}
           <Button type="button" className="btn-primary h-14 flex-[2] text-base font-semibold" onClick={onConfirm} data-testid="record-confirm-button">{serverConfirmed ? "Uložit opravu (nová revize)" : "Uložit a potvrdit"}</Button>
