@@ -144,6 +144,12 @@ async def update_user(uid: str, body: dict, actor: dict = Depends(require_role("
         upd["role"] = body["role"]
     if "workplace_ids" in body:
         upd["workplace_ids"] = [w for w in (body.get("workplace_ids") or []) if isinstance(w, str)][:200]
+    if "is_test" in body:
+        if actor["role"] not in ("admin", "owner") or target["role"] != "employee" or body.get("role", "employee") != "employee":
+            raise HTTPException(status_code=403, detail="Za testovací lze označit pouze zaměstnanecký účet.")
+        if not isinstance(body["is_test"], bool):
+            raise HTTPException(status_code=400, detail="Neplatný příznak testovacího účtu.")
+        upd["is_test"] = body["is_test"]
     if "active" in body:
         if target["id"] == actor["id"]:
             raise HTTPException(status_code=400, detail="Vlastní účet nelze deaktivovat.")
@@ -309,4 +315,5 @@ async def seed_owner():
             await db.users.insert_one({"id": new_id(), "email": d["email"], "name": d["name"], "role": d["role"],
                                        "password_hash": hash_password(d["pw"]), "must_change_password": False,
                                        "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
-                                       "username": d["username"], "position": "strojnik" if d["role"] == "employee" else ""})
+                                       "username": d["username"], "position": "strojnik" if d["role"] == "employee" else "",
+                                        "is_test": d["role"] == "employee"})
