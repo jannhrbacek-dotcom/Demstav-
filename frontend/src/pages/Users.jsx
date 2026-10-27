@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
-import { UserPlus, KeyRound, ShieldCheck, Ban, RotateCcw, Copy } from "lucide-react";
+import { UserPlus, KeyRound, ShieldCheck, Ban, RotateCcw, Copy, Trash2, Download, AlertTriangle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,6 +27,13 @@ export default function UsersPage() {
   const [create, setCreate] = useState(null);
   const [edit, setEdit] = useState(null);
   const [secret, setSecret] = useState(null);
+  const [selectedTestIds, setSelectedTestIds] = useState([]);
+  const [cleanupPreview, setCleanupPreview] = useState(null);
+  const [backupInfo, setBackupInfo] = useState(null);
+  const [backupSaved, setBackupSaved] = useState(false);
+  const [cleanupPassword, setCleanupPassword] = useState("");
+  const [cleanupPhrase, setCleanupPhrase] = useState("");
+  const [cleanupBusy, setCleanupBusy] = useState(false);
   const admin = atLeast(me, "admin");
   const roles = Object.keys(ROLE_LABELS).filter((r) => canManage(me, r));
 
@@ -35,6 +42,50 @@ export default function UsersPage() {
   };
   const patch = async (u, body, msg) => { try { await http.patch(`/users/${u.id}`, body); toast.success(msg); q.reload(); setEdit(null); } catch (e) { toast.error(errText(e)); } };
   const reset = async (u) => { if (!window.confirm(`Vygenerovat nové dočasné heslo pro ${u.name}? Současné přihlášení bude zneplatněno.`)) return; try { const { data } = await http.post(`/users/${u.id}/reset-password`); setSecret({ name: u.name, email: u.email, pw: data.temporary_password }); } catch (e) { toast.error(errText(e)); } };
+
+  const clearCleanup = () => { setCleanupPreview(null); setBackupInfo(null); setBackupSaved(false); setCleanupPassword(""); setCleanupPhrase(""); };
+  const markTest = async (u) => {
+    if (!u.is_test && !window.confirm(`Označit účet ${u.name} jako TESTOVACÍ? Jen takto označené zaměstnance lze později smazat. Označujte pouze skutečně testovací účty.`)) return;
+    try { await http.patch(`/users/${u.id}`, { is_test: !u.is_test });
+      setSelectedTestIds((prev) => prev.filter((id) => id !== u.id)); clearCleanup(); q.reload();
+      toast.success(u.is_test ? "Testovací označení odebráno." : "Účet označen jako testovací.");
+    } catch (e) { toast.error(errText(e)); }
+  };
+  const previewCleanup = async () => {
+    clearCleanup(); setCleanupBusy(true);
+    try { const { data } = await http.post("/admin/test-cleanup/preview", { user_ids: selectedTestIds }); setCleanupPreview(data); }
+    catch (e) { toast.error(errText(e)); } finally { setCleanupBusy(false); }
+  };
+  const backupCleanup = async () => {
+    if (!cleanupPreview || cleanupPreview.blockers?.length) return;
+    setCleanupBusy(true);
+    try {
+      const res = await http.post("/admin/test-cleanup/backup", { user_ids: selectedTestIds, fingerprint: cleanupPreview.fingerprint }, { responseType: "blob", timeout: 120000 });
+      const token = res.headers["x-backup-token"], hash = res.headers["x-backup-sha256"];
+      if (!token || !hash) throw new Error("Server nevrátil potvrzení zálohy. Nic nebylo smazáno.");
+      const url = URL.createObjectURL(res.data);
+      const link = document.createElement("a"); link.href = url; link.download = "DEMSTAV_testovaci_ucty_zaloha.zip"; document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+      setBackupInfo({ token, hash }); setBackupSaved(false);
+      toast.success("Záloha byla připravena ke stažení. Ověřte, že ZIP opravdu máte uložený.");
+    } catch (e) { toast.error(e?.message || errText(e)); }
+    finally { setCleanupBusy(false); }
+  };
+  const deleteTestAccounts = async () => {
+    if (!cleanupPreview || !backupInfo || !backupSaved || cleanupPhrase !== "SMAZAT TESTOVACÍ ÚČTY") return;
+    if (!window.confirm(`NEVRATNĚ odstranit ${cleanupPreview.users.length} vybraných testovacích účtů a jejich záznamy? Pouze po ověřené externí záloze databáze.`)) return;
+    setCleanupBusy(true);
+    try {
+      const { data } = await http.post("/admin/test-cleanup/delete", {
+        user_ids: selectedTestIds, backup_token: backupInfo.token, backup_sha256: backupInfo.hash,
+        backup_saved: true, password: cleanupPassword, confirm: cleanupPhrase
+      }, { timeout: 120000 });
+      toast.success(`Odstraněno ${data.deleted?.users || 0} testovacích účtů.`);
+      if (data.orphaned_file_count) toast.warning(`Některé soubory zůstaly v úložišti (${data.orphaned_file_count}).`);
+      setSelectedTestIds([]); clearCleanup(); q.reload();
+    } catch (e) { toast.error(errText(e)); }
+    finally { setCleanupBusy(false); }
+  };
 
   return (
     <div className="space-y-4">
@@ -57,11 +108,39 @@ export default function UsersPage() {
             <div className="flex flex-wrap gap-2">
               {(manageable || (me.role === "manager" && u.role === "employee")) && <Button variant="outline" className="h-10" onClick={() => setEdit({ ...u })} data-testid="user-edit-button">Upravit</Button>}
               {manageable && admin && <Button variant="outline" className="h-10" onClick={() => reset(u)} data-testid="user-reset-button"><KeyRound className="mr-1 h-4 w-4" />Reset hesla</Button>}
+              {admin && u.role === "employee" && manageable && <Button variant="outline" className="h-10" onClick={() => markTest(u)} data-testid="user-mark-test-button">{u.is_test ? "✓ Testovací (odebrat)" : "Označit jako test"}</Button>}
               {manageable && admin && (u.active ? <Button variant="outline" className="h-10 text-red-700" onClick={() => window.confirm(`Deaktivovat ${u.name}? Přihlášení okamžitě přestane platit, historie zůstane.`) && patch(u, { active: false }, "Účet deaktivován")} data-testid="user-deactivate-button"><Ban className="mr-1 h-4 w-4" />Deaktivovat</Button>
                 : <Button variant="outline" className="h-10" onClick={() => patch(u, { active: true }, "Účet aktivován")} data-testid="user-activate-button"><RotateCcw className="mr-1 h-4 w-4" />Aktivovat</Button>)}
             </div>
           </div>);
       })}</div>
+      {admin && <details className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 shadow-sm" data-testid="test-cleanup-panel">
+        <summary className="cursor-pointer font-heading font-semibold text-amber-950">Správa testovacích účtů (nevratné odstranění)</summary>
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-slate-800">Vyberte pouze účty, které jste výslovně označili jako testovací. Účty jednatele, admina a vedoucích jsou chráněné. Stroje, MTH, servisy, pracoviště a audit se nemažou.</p>
+          <p className="text-sm font-semibold text-red-800"><AlertTriangle className="mr-1 inline h-4 w-4" />Před mazáním ověřte také úplnou externí zálohu MongoDB a příloh. Interní ZIP sám nenahrazuje obnovu celé databáze.</p>
+          {(q.data || []).filter((u) => u.role === "employee" && u.is_test).map((u) => <label key={u.id} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-amber-300 bg-white p-3">
+            <Checkbox checked={selectedTestIds.includes(u.id)} onCheckedChange={(v) => { setSelectedTestIds((p) => v ? [...p, u.id] : p.filter((id) => id !== u.id)); clearCleanup(); }} />
+            <span className="text-sm"><strong>{u.name}</strong> · {u.username || u.email}</span>
+          </label>)}
+          {!(q.data || []).some((u) => u.role === "employee" && u.is_test) && <p className="text-sm text-slate-700">Žádné označené testovací účty. U zaměstnance nejprve použijte „Označit jako test“.</p>}
+          <Button variant="outline" className="h-12" disabled={!selectedTestIds.length || cleanupBusy} onClick={previewCleanup} data-testid="test-cleanup-preview"><Eye className="mr-2 h-4 w-4" />1. Zobrazit náhled mazání</Button>
+          {cleanupPreview && <div className="space-y-3 rounded-lg border border-slate-300 bg-white p-4" data-testid="test-cleanup-preview-details">
+            <p className="font-semibold">Náhled: {cleanupPreview.users.map((u) => u.name).join(", ")}</p>
+            <div className="grid gap-1 text-sm">{Object.entries(cleanupPreview.counts || {}).map(([key, count]) => <div key={key}>{key}: <strong>{count}</strong></div>)}</div>
+            {!!cleanupPreview.affected_weeks?.length && <p className="text-sm text-amber-900">Týdenní exporty v dotčených týdnech budou označeny jako zastaralé a je nutné je vygenerovat znovu.</p>}
+            {!!cleanupPreview.blockers?.length && <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-900"><strong>MAZÁNÍ ZABLOKOVÁNO:</strong> {cleanupPreview.blockers.join(" ")}</div>}
+            <Button variant="outline" className="h-12" disabled={!!cleanupPreview.blockers?.length || cleanupBusy} onClick={backupCleanup} data-testid="test-cleanup-backup"><Download className="mr-2 h-4 w-4" />2. Stáhnout ZIP zálohu</Button>
+            {backupInfo && <div className="space-y-3 rounded-lg border border-red-300 p-3">
+              <p className="text-sm">Záloha připravena. Kontrolní otisk SHA-256: <code className="break-all text-xs">{backupInfo.hash}</code></p>
+              <label className="flex items-start gap-2 text-sm"><Checkbox checked={backupSaved} onCheckedChange={(v) => setBackupSaved(!!v)} /><span>Potvrzuji, že jsem stáhl a ověřil ZIP a mám také obnovitelnou externí zálohu databáze a souborů.</span></label>
+              <Field label="Heslo přihlášeného administrátora"><Input type="password" autoComplete="current-password" value={cleanupPassword} onChange={(e) => setCleanupPassword(e.target.value)} /></Field>
+              <Field label="Pro potvrzení opište přesně: SMAZAT TESTOVACÍ ÚČTY"><Input value={cleanupPhrase} onChange={(e) => setCleanupPhrase(e.target.value)} /></Field>
+              <Button variant="destructive" className="h-12 w-full" disabled={!backupSaved || !cleanupPassword || cleanupPhrase !== "SMAZAT TESTOVACÍ ÚČTY" || cleanupBusy} onClick={deleteTestAccounts} data-testid="test-cleanup-delete"><Trash2 className="mr-2 h-4 w-4" />3. Nevratně smazat vybrané testovací účty</Button>
+            </div>}
+          </div>}
+        </div>
+      </details>}
       <p className="text-xs text-slate-600">Ochrana účtu vlastníka platí v aplikaci; nechrání proti osobě s přímým přístupem k serveru či databázi.</p>
 
       <Dialog open={!!create} onOpenChange={(o) => !o && setCreate(null)}>

@@ -17,6 +17,7 @@ from routes_leave import router as leave_router  # noqa: E402
 from routes_exceptions import router as exceptions_router  # noqa: E402
 from routes_push import router as push_router  # noqa: E402
 from routes_admin import router as admin_router  # noqa: E402
+from routes_test_cleanup import router as cleanup_router  # noqa: E402
 from routes_data import router as data_router  # noqa: E402
 from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date  # noqa: E402
 from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
@@ -181,6 +182,7 @@ api.include_router(leave_router)
 api.include_router(exceptions_router)
 api.include_router(push_router)
 api.include_router(admin_router)
+api.include_router(cleanup_router)
 api.include_router(data_router)
 app.include_router(api)
 
@@ -190,6 +192,7 @@ app.add_middleware(
     allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Backup-Token", "X-Backup-SHA256", "Content-Disposition"],
 )
 
 

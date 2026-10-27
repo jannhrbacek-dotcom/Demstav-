@@ -1,0 +1,51 @@
+name: DEMSTAV cleanup safety checks
+on:
+  push:
+    branches:
+      - feature/bezpecne-mazani-testovacich-uctu-20261027
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/src/pages/Users.jsx'
+      - '.github/workflows/demstav-cleanup-check.yml'
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax
+        run: python3 -m compileall -q backend
+      - name: Check unsafe global wipe is disabled and management accounts are protected
+        run: |
+          python3 - <<'PY'
+          import ast, pathlib
+          admin = ast.parse(pathlib.Path("backend/routes_admin.py").read_text())
+          cleanup = ast.parse(pathlib.Path("backend/routes_test_cleanup.py").read_text())
+          names = {n.name for n in cleanup.body if isinstance(n, ast.AsyncFunctionDef)}
+          assert {"test_cleanup_preview", "test_cleanup_backup", "test_cleanup_delete"} <= names
+          wipe = next(n for n in admin.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "wipe_data_disabled")
+          assert isinstance(wipe.body[0], ast.Raise), "Global wipe must raise unconditionally"
+          code = pathlib.Path("backend/routes_test_cleanup.py").read_text()
+          assert 'u.get("role") != "employee"' in code
+          assert 'u.get("is_test") is not True' in code
+          assert "last_service_record_id" in code and "intervalService" in code
+          assert "backup_sha256" in code and "password" in code
+          assert 'delete_many({})' not in code
+          print("Cleanup safety syntax and invariants OK")
+          PY
+      - name: Run isolated cleanup guardrail unit tests
+        run: python3 -m unittest discover -s backend/tests -p 'test_cleanup_guardrails.py' -v
+      - name: Parse changed JSX
+        run: |
+          mkdir -p /tmp/demstav-jsx-parse
+          cd /tmp/demstav-jsx-parse
+          npm init -y >/dev/null
+          npm install --ignore-scripts --no-audit --no-fund @babel/parser@7.28.5
+          node - <<'JS'
+          const fs = require("fs");
+          const parser = require("@babel/parser");
+          const source = fs.readFileSync(process.env.GITHUB_WORKSPACE + "/frontend/src/pages/Users.jsx", "utf8");
+          parser.parse(source, {sourceType: "module", plugins: ["jsx"]});
+          console.log("Users.jsx parses successfully");
+          JS

@@ -453,7 +453,7 @@ async def generate_week(week_start: str, actor_name: str = "automaticky"):
         res = put_object(f"demstav/weekly/{key}/DEMSTAV_sichtovnice_tyden_{key}.{fmt}", data, ct)
         files[fmt] = {"path": res["path"], "size": len(data)}
     doc = {"week": key, "week_end": we.isoformat(), "files": files, "records": len(recs), "employees": len(groups),
-           "generated_at": iso_now(), "generated_by": actor_name}
+           "generated_at": iso_now(), "generated_by": actor_name, "stale": False, "stale_reason": ""}
     await db.weekly_exports.update_one({"week": key}, {"$set": doc}, upsert=True)
     return doc
 
@@ -480,6 +480,8 @@ async def get_weekly(week: str, fmt: str, user: dict = Depends(require_role("man
     doc = await db.weekly_exports.find_one({"week": week}, {"_id": 0})
     if not doc or fmt not in doc["files"]:
         raise HTTPException(status_code=404, detail="Export nenalezen.")
+    if doc.get("stale"):
+        raise HTTPException(status_code=409, detail="Tento export obsahuje již odstraněná testovací data. Vygenerujte ho znovu.")
     data, ct = get_object(doc["files"][fmt]["path"])
     mt = {"pdf": "application/pdf", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "text/csv; charset=utf-8"}[fmt]
     return Response(content=data, media_type=mt, headers={"Content-Disposition": f'attachment; filename="DEMSTAV_sichtovnice_tyden_{week}.{fmt}"'})
