@@ -50,6 +50,10 @@ export default function MyOverview() {
           <Stat label="Motohodiny" value={`${n(d.totals.mth)} mth`} testid="stat-mth" />
         </div>
         {d.leaves.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950" data-testid="overview-leaves">{d.leaves.map((l) => <div key={l.id}><b>{l.type_label}</b> {dmy(l.date_from)}{l.date_to !== l.date_from && ` – ${dmy(l.date_to)}`} {l.time_from && `${l.time_from}–${l.time_to}`} · {l.status_label}</div>)}</div>}
+        {(d.exceptions || []).length > 0 && <div className="rounded-xl border border-blue-200 bg-blue-50 p-4" data-testid="employee-planned-exceptions">
+          <h2 className="font-semibold">Nahlášené zkrácené směny a výjimky</h2>
+          {d.exceptions.map((e) => <div key={e.id} className="mt-2 text-sm"><b>{dmy(e.date)} · {e.kind_label}</b> {e.time_from}{e.time_to && ` ${e.time_to}`}<div>{e.reason}</div></div>)}
+        </div>}
         <Tabs defaultValue="sicht">
           <TabsList className="h-12"><TabsTrigger value="sicht" className="h-10 px-4" data-testid="tab-timesheet">Šichtovnice</TabsTrigger><TabsTrigger value="denik" className="h-10 px-4" data-testid="tab-diary">Deník stroje</TabsTrigger><TabsTrigger value="smeny" className="h-10 px-4" data-testid="tab-shifts">Směny</TabsTrigger></TabsList>
           <TabsContent value="sicht" className="space-y-2">
@@ -72,3 +76,4 @@ export default function MyOverview() {
     </div>
   );
 }
+

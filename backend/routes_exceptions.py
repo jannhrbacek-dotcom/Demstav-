@@ -33,7 +33,10 @@ async def create_exception(b: dict, user: dict = Depends(get_ready_user)):
     date = str(b.get("date") or "")
     if not DATE.match(date):
         raise HTTPException(status_code=400, detail="Zadejte platné datum.")
-    d_obj = date_cls.fromisoformat(date)
+    try:
+        d_obj = date_cls.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Zadejte platné datum.")
     today = date_cls.fromisoformat(iso_now()[:10])
     if d_obj > today + timedelta(days=180):
         raise HTTPException(status_code=400, detail="Datum může být nejvýše půl roku dopředu.")
@@ -111,3 +114,4 @@ async def exceptions_in_range(date_from: str, date_to: str, user_ids=None):
     if user_ids is not None:
         q["user_id"] = {"$in": list(user_ids)}
     return await db.planned_exceptions.find(q, {"_id": 0}).to_list(5000)
+

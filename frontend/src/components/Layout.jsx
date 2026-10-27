@@ -73,12 +73,13 @@ export default function Layout({ children }) {
           {item({ to: "/prehledy", label: "Moje přehledy", icon: BarChart3, testid: "nav-my-overview" })}
           {item({ to: "/nepritomnost", label: "Dovolená a absence", icon: CalendarDays, testid: "nav-absence" })}
           {item({ to: "/exporty", label: "Exporty a reporty", icon: FileDown, testid: "nav-exports" })}
+          {item({ to: "/vice", label: "Nastavení a upozornění", icon: Menu, testid: "nav-settings" })}
         </div>
         {isMgr && <div className="mt-6 space-y-1"><div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Vedení</div>{managerNav.map(item)}</div>}
         <div className="mt-auto space-y-3 border-t border-white/10 pt-4">
           <div className="px-1"><div className="truncate text-sm font-semibold text-white" data-testid="sidebar-user-name">{user?.name}</div><div className="text-xs text-slate-400" data-testid="sidebar-user-role">{user?.role_label}{user?.username && ` · ${user.username}`}</div></div>
           <SimpleModeToggle className="w-full justify-center" />
-          <Button variant="ghost" className="w-full justify-start text-slate-200 hover:bg-white/10 hover:text-white" onClick={() => { logout(); nav("/login"); }} data-testid="logout-button"><LogOut className="mr-2 h-4 w-4" />Odhlásit</Button>
+          <Button variant="ghost" className="w-full justify-start text-slate-200 hover:bg-white/10 hover:text-white" onClick={async () => { if (await logout()) nav("/login"); }} data-testid="logout-button"><LogOut className="mr-2 h-4 w-4" />Odhlásit</Button>
         </div>
       </aside>
 
@@ -105,3 +106,4 @@ export default function Layout({ children }) {
     </div>
   );
 }
+

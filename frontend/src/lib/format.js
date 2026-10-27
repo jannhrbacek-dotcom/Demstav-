@@ -20,5 +20,6 @@ export const REASON_LABELS = {
 };
 export const MODE_LABELS = { manual: "Ručně se schválením", qr: "QR kód", gps: "GPS okruh", qr_gps: "QR + GPS" };
 export const ROLE_LABELS = { employee: "Strojník / zaměstnanec", manager: "Vedoucí výroby", admin: "Admin", owner: "Jednatel" };
-export const SERVICE_BY = { operator: "servis - strojník", workshop: "servis - dílna výjezd", external: "servis - cizí firma" };
+export const SERVICE_BY = { operator: "servis - strojník", operator_workshop: "servis - strojník včetně dílny", workshop: "servis - dílna výjezd", external: "servis - cizí firma" };
 export const ATT_KINDS = { vehicleFuel: "Tankování vozidla", machineFuel: "Tankování stroje", invoice: "Podklad pro fakturaci", photo: "Fotografie", other: "Ostatní" };
+

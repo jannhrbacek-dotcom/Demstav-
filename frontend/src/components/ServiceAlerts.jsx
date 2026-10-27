@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Wrench, BellRing, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { useCached } from "@/lib/data";
-import { notifyPermission, requestNotify, notifyServiceAlerts, remainingText } from "@/lib/serviceNotify";
+import { notifyPermission, notifyServiceAlerts, remainingText } from "@/lib/serviceNotify";
 
 const fmt = (v) => (v === null || v === undefined ? "—" : String(v).replace(".", ","));
 
@@ -10,7 +11,7 @@ const fmt = (v) => (v === null || v === undefined ? "—" : String(v).replace(".
 export function ServiceAlerts({ compact = false, alerts: given }) {
   const q = useCached("/service-alerts", { enabled: !given });
   const alerts = given || q.data || [];
-  const [perm, setPerm] = useState(notifyPermission());
+  const [perm] = useState(notifyPermission());
 
   useEffect(() => { if (alerts.length) notifyServiceAlerts(alerts); }, [alerts]);
 
@@ -20,9 +21,9 @@ export function ServiceAlerts({ compact = false, alerts: given }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 font-heading text-lg font-semibold"><Wrench className="h-5 w-5" />Servisní intervaly</div>
         {perm === "default" && (
-          <Button type="button" variant="outline" className="h-10" onClick={async () => setPerm(await requestNotify())} data-testid="service-alerts-enable-notify">
-            <BellRing className="mr-1 h-4 w-4" />Zapnout upozornění v telefonu
-          </Button>
+          <Link to="/vice"><Button type="button" variant="outline" className="h-10" data-testid="service-alerts-enable-notify">
+            <BellRing className="mr-1 h-4 w-4" />Nastavit upozornění v telefonu
+          </Button></Link>
         )}
         {perm === "denied" && <span className="flex items-center gap-1 text-xs text-slate-600"><BellOff className="h-4 w-4" />Upozornění jsou v prohlížeči zakázaná</span>}
       </div>
@@ -38,3 +39,4 @@ export function ServiceAlerts({ compact = false, alerts: given }) {
     </div>
   );
 }
+

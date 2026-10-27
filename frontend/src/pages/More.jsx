@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/Section";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useSync } from "@/lib/sync";
+import { PushSettings } from "@/components/PushSettings";
 
 const L = ({ to, icon: I, label, testid }) => (<Link to={to} className="flex min-h-[60px] items-center gap-3 border-b border-slate-100 px-4 font-semibold last:border-0 hover:bg-slate-50" data-testid={testid}><I className="h-5 w-5" /><span className="flex-1">{label}</span><ChevronRight className="h-5 w-5 text-slate-400" /></Link>);
 
@@ -16,13 +17,13 @@ export default function More() {
   const [prompt, setPrompt] = useState(null);
   const standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone;
   useEffect(() => { const h = (e) => { e.preventDefault(); setPrompt(e); }; window.addEventListener("beforeinstallprompt", h); return () => window.removeEventListener("beforeinstallprompt", h); }, []);
-  const out = () => { if (s.queue.length && !window.confirm(`V telefonu je ${s.queue.length} neodeslaných položek. Zůstanou uloženy a odešlou se po dalším přihlášení stejného účtu. Odhlásit?`)) return; logout(); nav("/login"); };
+  const out = async () => { if (s.queue.length && !window.confirm(`V telefonu je ${s.queue.length} neodeslaných položek. Zůstanou uloženy a odešlou se po dalším přihlášení stejného účtu. Odhlásit?`)) return; if (await logout()) nav("/login"); };
   return (
     <div className="space-y-4">
       <PageHeader title="Více" subtitle={`${user?.name} · ${user?.role_label}`} />
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <L to="/prehledy" icon={BarChart3} label="Moje přehledy (šichtovnice, deník, směny)" testid="more-my-overview" />
-        <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
+        <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, absence a zkrácené směny" testid="more-absence" />
         <L to="/exporty" icon={FileDown} label="Exporty a reporty (PDF, XLSX, CSV)" testid="more-exports" />
         <L to="/zmena-hesla" icon={KeyRound} label="Změnit heslo" testid="more-change-password" />
         <div className="flex min-h-[60px] items-center gap-3 px-4" data-testid="more-simple-mode-row">
@@ -49,7 +50,9 @@ export default function More() {
           : <p className="mt-1 text-sm text-slate-700">iPhone: v Safari klepněte na Sdílet → Přidat na plochu. Android: v Chrome nabídka ⋮ → Instalovat aplikaci.</p>}
         <p className="mt-2 text-xs text-slate-600">Po prvním načtení se aplikace otevře i bez internetu; zápisy se ukládají do fronty v telefonu. Ikona na ploše sama o sobě neznamená ověřený offline provoz na vašem zařízení.</p>
       </div>
+      <PushSettings />
       <Button variant="outline" className="h-14 w-full text-base font-semibold text-red-700" onClick={out} data-testid="more-logout-button"><LogOut className="mr-2 h-5 w-5" />Odhlásit</Button>
     </div>
   );
 }
+

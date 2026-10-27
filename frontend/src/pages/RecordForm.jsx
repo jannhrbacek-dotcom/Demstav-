@@ -32,7 +32,7 @@ const INTERVAL_SERVICE_ALLOWED_NAMES = ["jan hrbáček", "jan hrbacek"];
 
 function canUserDoIntervalService(user) {
   if (!user) return false;
-  if ((user.position || "") === "mechanik") return true;
+  if (["mechanik", "strojnik_mechanik", "externi_servis"].includes(user.position)) return true;
   if (INTERVAL_SERVICE_ALLOWED_NAMES.includes((user.name || "").trim().toLowerCase())) return true;
   return false;
 }
@@ -53,8 +53,7 @@ function validate(r, confirm, user) {
   if (confirm && r.intervalService && (!r.machine || !r.mthEnd)) e.push("Pravidelný servis dle intervalu: vyplňte stroj a konečný stav MTH.");
   if (confirm && r.intervalService) {
     const okUser = canUserDoIntervalService(user);
-    const okServiceBy = r.serviceBy === "external";
-    if (!okUser && !okServiceBy) e.push("Pravidelný servis (500 mth) může zapsat jen mechanik, externí servisní firma nebo pověřený pracovník (Jan Hrbáček).");
+    if (!okUser) e.push("Pravidelný servis (500 mth) může zapsat jen mechanik, externí servisní firma nebo pověřený pracovník (Jan Hrbáček).");
   }
   const b = timeBreakdown(r);
   if (r.drive && !/^\d{1,3}$/.test(r.drive)) e.push("Jízda *: zadejte celé číslo.");
@@ -224,8 +223,7 @@ export default function RecordForm() {
   const wpOptions = wps.data || [];
   // Oprávnění pro pravidelný (500 mth) servis.
   const canIntervalServiceByUser = canUserDoIntervalService(user);
-  const canIntervalServiceByActor = rec.serviceBy === "external";
-  const canIntervalService = canIntervalServiceByUser || canIntervalServiceByActor;
+  const canIntervalService = canIntervalServiceByUser;
 
   const YesNo = ({ value, onChange, labelYes = "Ano", labelNo = "Ne", testid }) => (
     <div className="grid grid-cols-2 gap-2" data-testid={testid}>
@@ -327,7 +325,7 @@ export default function RecordForm() {
               <span className="font-medium">
                 Proveden pravidelný servis dle intervalu ({selMachine?.service_interval_mth || 500} mth) – po potvrzení zápisu začne nový odpočet.
                 {!canIntervalService && (
-                  <span className="mt-1 flex items-start gap-1 text-xs font-normal text-slate-600"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />Pravidelný (500 mth) servis může zapsat jen <b>mechanik</b>, <b>externí servisní firma</b> (vyberte výše „Externí servis“) nebo pověřený pracovník <b>Jan Hrbáček</b>.</span>
+                  <span className="mt-1 flex items-start gap-1 text-xs font-normal text-slate-600"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />Pravidelný (500 mth) servis může zapsat jen <b>mechanik</b>, <b>externí servisní firma</b> nebo pověřený pracovník <b>Jan Hrbáček</b>.</span>
                 )}
               </span>
             </label>
@@ -453,3 +451,4 @@ export default function RecordForm() {
     </div>
   );
 }
+

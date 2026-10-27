@@ -28,12 +28,33 @@ self.addEventListener('fetch', (e) => {
   }).catch(() => caches.match(req)));
 });
 
+// Push can start this worker even when no application window is open.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { /* show a generic notification */ }
+  const message = data && typeof data === "object" ? data : {};
+  event.waitUntil(self.registration.showNotification(message.title || "DEMSTAV OPERATIONS", {
+    body: message.body || "V aplikaci máte nové upozornění.",
+    icon: "/icon-192.png", badge: "/icon-192.png",
+    tag: message.tag || "demstav", data: { url: safeNotificationUrl(message.url) },
+  }));
+});
+
+function safeNotificationUrl(value) {
+  try {
+    const url = new URL(value || "/dnes", self.location.origin);
+    if (url.origin === self.location.origin && url.protocol === "https:") return url.href;
+  } catch { /* invalid payload */ }
+  return new URL("/dnes", self.location.origin).href;
+}
+
 // Klepnutí na upozornění (např. blížící se servis) otevře aplikaci.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/";
+  const url = safeNotificationUrl(event.notification.data?.url);
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
     for (const c of list) { if ("focus" in c) { c.navigate(url).catch(() => {}); return c.focus(); } }
     return self.clients.openWindow ? self.clients.openWindow(url) : undefined;
   }));
 });
+

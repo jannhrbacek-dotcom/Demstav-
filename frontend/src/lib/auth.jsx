@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { http, setSession, clearSession, cachedUser, getToken, clearToken, setUnauthorizedHandler, errText } from "./api";
 import { initSync, resetSync, setNeedsLogin, syncNow } from "./sync";
+import { disablePush, refreshPush } from "./push";
+import { toast } from "sonner";
 
 const Ctx = createContext(null);
 export const useAuth = () => useContext(Ctx);
@@ -36,6 +38,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const { data } = await http.post("/auth/login", { login: email, password });
     const prev = cachedUser();
+    if (prev && prev.id !== data.user.id) await disablePush();
     if (prev && prev.id !== data.user.id) resetSync();
     setSession(data.access_token, data.user);
     setUser(data.user);
@@ -53,8 +56,14 @@ export function AuthProvider({ children }) {
     return data.user;
   }, []);
 
-  const logout = useCallback(() => { clearSession(); resetSync(); setUser(null); setExpired(false); }, []);
+  const logout = useCallback(async () => {
+    try { await disablePush(); }
+    catch (e) { toast.error(e.message || "Upozornění se nepodařilo odpojit. Zkuste odhlášení znovu."); return false; }
+    clearSession(); resetSync(); setUser(null); setExpired(false); return true;
+  }, []);
+  useEffect(() => { if (user?.id && !user.must_change_password) refreshPush(user.id).catch(() => {}); }, [user?.id, user?.must_change_password]);
   const expireNow = useCallback(() => { clearToken(); setExpired(true); }, []);
 
   return <Ctx.Provider value={{ user, login, logout, changePassword, expired, setExpired, expireNow, errText, simpleMode, setSimpleMode }}>{children}</Ctx.Provider>;
 }
+
