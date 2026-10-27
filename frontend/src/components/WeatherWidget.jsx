@@ -163,7 +163,7 @@ export function WeatherWidget({ workplaces = [], preferredWorkplaceId = "" }) {
       .finally(() => setLoading(false));
   }, [location]);
 
-  const days = data?.daily?.time || [];
+  const days = useMemo(() => data?.daily?.time || [], [data]);
   const hours = useMemo(() => hourlyForDay(data, days[selectedDay]), [data, days, selectedDay]);
   const nowHour = new Date().getHours();
 
