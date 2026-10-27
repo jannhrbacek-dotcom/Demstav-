@@ -13,7 +13,7 @@ import { useCached } from "@/lib/data";
 import { http, errText } from "@/lib/api";
 import { MODE_LABELS } from "@/lib/format";
 
-const EMPTY = { name: "", address: "", mode: "manual", qr_mode: "dynamic", latitude: "", longitude: "", radius: 150, max_accuracy: 100, active: true };
+const EMPTY = { name: "", address: "", mode: "gps_or_qr", qr_mode: "dynamic", latitude: "", longitude: "", radius: 150, max_accuracy: 50, active: true };
 
 export default function Workplaces() {
   const q = useCached("/workplaces?all=1");

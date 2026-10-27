@@ -171,11 +171,11 @@ def public_wp(w, full=False):
 def parse_workplace(b: dict, prev: dict = None):
     name, address = text(b.get("name"), 160), text(b.get("address"), 300)
     mode, qr_mode = b.get("mode"), b.get("qr_mode") or "dynamic"
-    if not name or not address or mode not in ("qr", "gps", "qr_gps", "manual") or qr_mode not in ("static", "dynamic"):
+    if not name or not address or mode not in ("qr", "gps", "qr_gps", "gps_or_qr", "manual") or qr_mode not in ("static", "dynamic"):
         raise HTTPException(status_code=400, detail="Doplňte název, adresu a způsob ověření.")
     lat, lng = b.get("latitude"), b.get("longitude")
     has_loc = lat not in (None, "") and lng not in (None, "")
-    if not has_loc and mode in ("gps", "qr_gps"):
+    if not has_loc and mode in ("gps", "qr_gps", "gps_or_qr"):
         raise HTTPException(status_code=400, detail="Pro GPS ověření nejprve zadejte skutečné souřadnice pracoviště.")
     try:
         lat = float(lat) if has_loc else 0.0
@@ -184,18 +184,29 @@ def parse_workplace(b: dict, prev: dict = None):
         max_acc = int(b.get("max_accuracy") or 100)
     except (TypeError, ValueError):
         raise HTTPException(status_code=400, detail="Zkontrolujte GPS souřadnice, poloměr a přesnost.")
-    if abs(lat) > 90 or abs(lng) > 180 or not 10 <= radius <= 10000 or not 1 <= max_acc <= 1000:
+    if not math.isfinite(lat) or not math.isfinite(lng) or abs(lat) > 90 or abs(lng) > 180 or not 10 <= radius <= 10000 or not 1 <= max_acc <= 1000:
         raise HTTPException(status_code=400, detail="Zkontrolujte GPS souřadnice, poloměr (10–10000 m) a přesnost (1–1000 m).")
     prev = prev or {}
     return {"id": prev.get("id") or new_id(), "name": name, "address": address, "latitude": lat, "longitude": lng,
             "has_location": has_loc, "radius": radius, "max_accuracy": max_acc, "mode": mode, "qr_mode": qr_mode,
             "active": b.get("active", True) is not False, "version": prev.get("version", 0) + 1,
-            "qr_version": prev.get("qr_version", 1), "qr_active": prev.get("qr_active", mode in ("qr", "qr_gps")),
+            "qr_version": prev.get("qr_version", 1), "qr_active": prev.get("qr_active", mode in ("qr", "qr_gps", "gps_or_qr")),
             "secret": prev.get("secret") or secrets.token_urlsafe(32), "static_hash": prev.get("static_hash"),
             "created_at": prev.get("created_at") or iso_now(), "updated_at": iso_now()}
 
 
 # ---------------- workplaces ----------------
+async def seed_attendance_workplace():
+    """Add the user-supplied map point once; never reset later manager edits."""
+    wid = "slezska-ostrava-498136097-183151526"
+    w = parse_workplace({"name": "Slezská Ostrava – pracoviště", "address": "Slezská Ostrava · bod z mapy",
+                         "latitude": 49.8136097, "longitude": 18.3151526, "radius": 150,
+                         "max_accuracy": 50, "mode": "gps_or_qr", "qr_mode": "dynamic"})
+    w["id"] = wid
+    w["map_url"] = "https://maps.app.goo.gl/tZLgYsDthHLWHf2u7"
+    await db.workplaces.update_one({"id": wid}, {"$setOnInsert": w}, upsert=True)
+
+
 @router.get("/workplaces")
 async def list_workplaces(all: int = 0, user: dict = Depends(get_ready_user)):
     if is_manager(user):
@@ -221,7 +232,7 @@ async def update_workplace(wid: str, body: dict, actor: dict = Depends(require_r
     if not prev:
         raise HTTPException(status_code=404, detail="Pracoviště nenalezeno.")
     w = parse_workplace(body, prev)
-    if w["mode"] in ("qr", "qr_gps"):
+    if w["mode"] in ("qr", "qr_gps", "gps_or_qr"):
         w["qr_active"] = True
     await db.workplaces.replace_one({"id": wid}, w)
     await audit(actor, "workplace_updated", {"workplace_id": wid, "version": w["version"]})
@@ -300,6 +311,13 @@ async def create_event(b: dict, user: dict = Depends(get_ready_user)):
     qr_res, gps_res = None, None
     if tap:
         pass
+    elif w["mode"] == "gps_or_qr":
+        qr_res = verify_qr(w, b.get("qr"), at_ms if offline else received.timestamp() * 1000)
+        # Only inspect supplied GPS; a valid QR never requires location permission.
+        gps_res = check_gps(w, b.get("gps"), at_ms) if b.get("gps") else None
+        if not qr_res and (not gps_res or gps_res["result"] != "inside"):
+            reasons.append("qr_invalid" if b.get("qr") else "qr_missing")
+            reasons.append("gps_" + (gps_res["result"] if gps_res else "unavailable"))
     elif w["mode"] in ("qr", "qr_gps"):
         qr_res = verify_qr(w, b.get("qr"), at_ms if offline else received.timestamp() * 1000)
         if not qr_res:
@@ -327,7 +345,8 @@ async def create_event(b: dict, user: dict = Depends(get_ready_user)):
           "kind": b["kind"], "device_at": device_at.isoformat().replace("+00:00", "Z"), "received_at": received.isoformat().replace("+00:00", "Z"),
           "effective_at": device_at.isoformat().replace("+00:00", "Z"), "offline": offline,
           "status": "pending_review" if reasons else "verified", "reasons": reasons, "sequence": seq,
-          "gps": gps_res, "qr": qr_res, "exception_reason": exc_reason, "mode": "tap" if tap else w["mode"], "request_hash": req_hash,
+          "gps": gps_res, "qr": qr_res, "verification_method": "qr" if qr_res else "gps" if gps_res and gps_res["result"] == "inside" else None,
+          "exception_reason": exc_reason, "mode": "tap" if tap else w["mode"], "request_hash": req_hash,
           "decision": None, "travel_from": text(b.get("travelFrom"), 300) if b["kind"] == "travel_start" else "",
           "travel_to": text(b.get("travelTo"), 300) if b["kind"] == "travel_start" else ""}
     try:

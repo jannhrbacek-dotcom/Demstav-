@@ -4,7 +4,7 @@ COPY frontend/package*.json ./
 RUN npm ci --legacy-peer-deps --no-audit --no-fund
 COPY frontend/ ./
 ENV REACT_APP_BACKEND_URL="" GENERATE_SOURCEMAP=false
-RUN npm run build
+RUN CI=true DISABLE_EMERGENT_OVERLAY=true npm test -- --watchAll=false --runInBand && npm run build
 
 FROM python:3.12-slim-bookworm
 WORKDIR /app/backend
