@@ -302,11 +302,14 @@ async def seed_owner():
     # Explicitně povolit jen v izolovaném testovacím prostředí.
     if os.environ.get("SEED_DEMO_ACCOUNTS", "").lower() not in ("1", "true", "yes"):
         return
-    # Demo accounts for pilot – only created if missing; passwords never reset once user logs in and changes them.
+    # Demo accounts for pilot – only created if explicitly enabled in isolated test env.
+    demo_pw = os.environ.get("SEED_DEMO_PASSWORD") or ""
+    if len(demo_pw) < 12:
+        raise RuntimeError("SEED_DEMO_PASSWORD musí mít alespoň 12 znaků, pokud jsou demo účty povoleny.")
     demo = [
-        {"email": "admin@demstav.cz", "name": "Správce DEMSTAV", "role": "admin", "pw": "Demstav2026!", "username": "admin"},
-        {"email": "vedouci@demstav.cz", "name": "Vedoucí výroby", "role": "manager", "pw": "Demstav2026!", "username": "vedouci"},
-        {"email": "strojnik@demstav.cz", "name": "Jan Strojník", "role": "employee", "pw": "Demstav2026!", "username": "strojnik"},
+        {"email": "admin@demstav.cz", "name": "Správce DEMSTAV", "role": "admin", "pw": demo_pw, "username": "admin"},
+        {"email": "vedouci@demstav.cz", "name": "Vedoucí výroby", "role": "manager", "pw": demo_pw, "username": "vedouci"},
+        {"email": "strojnik@demstav.cz", "name": "Jan Strojník", "role": "employee", "pw": demo_pw, "username": "strojnik"},
     ]
     if email and await db.users.find_one({"email": email, "role": "owner", "username": {"$exists": False}}):
         if not await db.users.find_one({"username": "jednatel"}):
@@ -317,7 +320,7 @@ async def seed_owner():
             await db.users.update_one({"email": d["email"]}, {"$set": {"username": d["username"]}})
         if ex is None:
             await db.users.insert_one({"id": new_id(), "email": d["email"], "name": d["name"], "role": d["role"],
-                                       "password_hash": hash_password(d["pw"]), "must_change_password": False,
+                                       "password_hash": hash_password(d["pw"]), "must_change_password": True,
                                        "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
                                        "username": d["username"], "position": "strojnik" if d["role"] == "employee" else "",
                                         "is_test": d["role"] == "employee"})
