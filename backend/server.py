@@ -195,7 +195,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    await db.users.create_index("email", unique=True)
+    # Retain uniqueness for real email addresses, while allowing many username-only users.
+    # Create the replacement index FIRST; only then remove the legacy index which treats all missing emails as duplicate null.
+    await db.users.create_index("email", unique=True, name="email_present_unique", partialFilterExpression={"email": {"$type": "string"}})
+    email_indexes = await db.users.index_information()
+    if "email_1" in email_indexes and not email_indexes["email_1"].get("partialFilterExpression"):
+        await db.users.drop_index("email_1")
     await db.users.create_index("id", unique=True)
     await db.users.create_index("username", unique=True, partialFilterExpression={"username": {"$type": "string"}})
     await db.leave_requests.create_index("id", unique=True)
