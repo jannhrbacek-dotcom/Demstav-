@@ -81,7 +81,7 @@ export default function Layout({ children }) {
   const nav = useNavigate();
   const loc = useLocation();
   const help = <Link to="/jak-na-to" state={{ returnTo: loc.pathname, context: loc.pathname }} data-testid="header-guide"
-    className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 text-xs font-semibold text-white" title="Jak na to">
+    className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 text-xs font-semibold text-white" aria-label="Jak na to" title="Jak na to">
     <CircleHelp className="h-5 w-5" /><span className="hidden min-[390px]:inline">Jak na to</span>
   </Link>;
   const isMgr = atLeast(user, "manager");
@@ -95,7 +95,7 @@ export default function Layout({ children }) {
   return (
     <div className="min-h-screen bg-[#F5F7FA]">
       <aside className="dark fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-[#0B0F14] px-4 py-5 lg:flex" data-testid="desktop-sidebar">
-        <Logo />
+        <div className="flex items-center justify-between gap-2"><Logo />{help}</div>
         <div className="mt-6 space-y-1">
           <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Můj den</div>
           {employeeNav.filter((n) => n.to !== "/vice" && (n.to !== "/fronta" || s.queue.length > 0)).map(item)}
@@ -119,7 +119,7 @@ export default function Layout({ children }) {
       </header>
 
       <main className="lg:pl-64">
-        <div className="hidden items-center justify-end gap-3 border-b border-slate-200 bg-[#0B0F14] px-8 py-2 lg:flex">{help}<SimpleModeToggle /><SyncPill /></div>
+        <div className="hidden items-center justify-end gap-3 border-b border-slate-200 bg-[#0B0F14] px-8 py-2 lg:flex"><SimpleModeToggle /><SyncPill /></div>
         {!s.online && <div className="hazard-stripe h-1.5" />}
         <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">{children}</div>
       </main>
