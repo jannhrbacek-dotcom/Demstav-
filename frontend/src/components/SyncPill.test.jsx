@@ -1,7 +1,12 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
 import { SyncPill } from "./Layout";
+jest.mock("react-router-dom", () => ({
+  Link: ({ children, to }) => <a href={to}>{children}</a>,
+  NavLink: ({ children, to }) => <a href={to}>{children}</a>,
+  useNavigate: () => () => {},
+  useLocation: () => ({ pathname: "/dnes" }),
+}));
 
 let mockSync = {};
 jest.mock("@/lib/sync", () => ({
@@ -22,7 +27,7 @@ afterEach(() => {
 });
 const renderStatus = (partial) => {
   mockSync = { queue: [], online: true, syncing: false, lastVerifiedAt: new Date().toISOString(), lastError: null, ...partial };
-  act(() => root.render(<MemoryRouter><SyncPill /></MemoryRouter>));
+  act(() => root.render(<SyncPill />));
   return host.querySelector('[data-testid="sync-indicator"] button');
 };
 test("cloud indicator distinguishes verified, pending, failed and offline states", () => {
