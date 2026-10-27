@@ -6,7 +6,7 @@ import { newId } from "./format";
 
 const PRIORITY = { attachment: 0, record: 1, event: 2, request: 3, production: 1 };
 let uid = null;
-let state = { queue: [], records: {}, serverRecords: [], online: typeof navigator !== "undefined" ? navigator.onLine : true, syncing: false, needsLogin: false, lastSync: null, lastError: null, ready: false };
+let state = { queue: [], records: {}, serverRecords: [], online: typeof navigator !== "undefined" ? navigator.onLine : true, syncing: false, needsLogin: false, lastSync: null, lastVerifiedAt: null, lastError: null, ready: false };
 const listeners = new Set();
 const emit = () => listeners.forEach((l) => l(state));
 const k = (name) => `u:${uid}:${name}`;
@@ -164,7 +164,7 @@ export function syncNow() {
   running = (async () => {
     if (!uid) return;
     if (!getToken()) { patch({ needsLogin: true }); return; }
-    patch({ syncing: true, lastError: null });
+    patch({ syncing: true });
     const order = [...state.queue].filter((o) => o.state === "queued" || o.state === "retry").sort((a, b) => PRIORITY[a.type] - PRIORITY[b.type] || a.createdAt.localeCompare(b.createdAt));
     let accepted = 0;
     for (const op0 of order) {
@@ -206,7 +206,13 @@ export function syncNow() {
         if (st >= 500) break;
       }
     }
-    patch({ syncing: false, lastSync: new Date().toISOString(), online: navigator.onLine && state.online !== false ? true : state.online });
+    // Zelený indikátor jen po skutečné odpovědi serveru, nikoliv podle navigator.onLine.
+    let verified = false;
+    if (navigator.onLine && !state.needsLogin) {
+      try { await http.get("/health", { timeout: 8000 }); verified = true; } catch { verified = false; }
+    }
+    patch({ syncing: false, lastSync: new Date().toISOString(), lastVerifiedAt: verified ? new Date().toISOString() : null, online: verified });
+
     if (accepted) listenersAccepted.forEach((fn) => fn());
   })().finally(() => { running = null; });
   return running;
@@ -214,7 +220,7 @@ export function syncNow() {
 
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => { patch({ online: true }); syncNow(); });
-  window.addEventListener("offline", () => patch({ online: false }));
+  window.addEventListener("offline", () => patch({ online: false, lastVerifiedAt: null }));
   setInterval(() => { if (uid && state.queue.some((o) => o.state === "queued" || o.state === "retry")) { patch({ online: true }); syncNow(); } }, 30000);
 }
 
