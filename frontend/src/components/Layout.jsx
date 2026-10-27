@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Sun, ClipboardList, Clock3, CloudUpload, Menu, LayoutDashboard, ShieldCheck, Files, MapPin, Users, Truck, FileDown, LogOut, WifiOff, RefreshCw, Eye } from "lucide-react";
+import { Sun, ClipboardList, Clock3, CloudUpload, Menu, LayoutDashboard, ShieldCheck, Files, MapPin, Users, Truck, FileDown, LogOut, WifiOff, RefreshCw, Eye, CalendarDays, BarChart3 } from "lucide-react";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useSync, syncNow } from "@/lib/sync";
 import { Button } from "@/components/ui/button";
@@ -70,11 +70,13 @@ export default function Layout({ children }) {
         <div className="mt-6 space-y-1">
           <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Můj den</div>
           {employeeNav.filter((n) => n.to !== "/vice").map(item)}
-          {item({ to: "/exporty", label: "Exporty PDF", icon: FileDown, testid: "nav-exports" })}
+          {item({ to: "/prehledy", label: "Moje přehledy", icon: BarChart3, testid: "nav-my-overview" })}
+          {item({ to: "/nepritomnost", label: "Dovolená a absence", icon: CalendarDays, testid: "nav-absence" })}
+          {item({ to: "/exporty", label: "Exporty a reporty", icon: FileDown, testid: "nav-exports" })}
         </div>
         {isMgr && <div className="mt-6 space-y-1"><div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Vedení</div>{managerNav.map(item)}</div>}
         <div className="mt-auto space-y-3 border-t border-white/10 pt-4">
-          <div className="px-1"><div className="truncate text-sm font-semibold text-white" data-testid="sidebar-user-name">{user?.name}</div><div className="text-xs text-slate-400">{user?.role_label}</div></div>
+          <div className="px-1"><div className="truncate text-sm font-semibold text-white" data-testid="sidebar-user-name">{user?.name}</div><div className="text-xs text-slate-400" data-testid="sidebar-user-role">{user?.role_label}{user?.username && ` · ${user.username}`}</div></div>
           <SimpleModeToggle className="w-full justify-center" />
           <Button variant="ghost" className="w-full justify-start text-slate-200 hover:bg-white/10 hover:text-white" onClick={() => { logout(); nav("/login"); }} data-testid="logout-button"><LogOut className="mr-2 h-4 w-4" />Odhlásit</Button>
         </div>

@@ -21,7 +21,16 @@ ACCESS_HOURS = 12
 COMPANY_NAME = os.environ.get("COMPANY_NAME", "DEMSTAV GROUP")
 
 ROLE_RANK = {"employee": 1, "manager": 2, "admin": 3, "owner": 4}
-ROLE_LABELS = {"employee": "Zaměstnanec / strojník", "manager": "Vedoucí", "admin": "Technický správce", "owner": "Vlastník firmy"}
+ROLE_LABELS = {"employee": "Strojník", "manager": "Vedoucí výroby", "admin": "Admin", "owner": "Jednatel"}
+# Pracovní zařazení zaměstnanců (role "employee" – vidí jen svá data).
+POSITIONS = {"strojnik": "Strojník", "mechanik": "Mechanik", "ridic": "Řidič", "strojnik_phm": "Strojník pohonných hmot"}
+USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,29}$")
+
+
+def role_label(u: dict) -> str:
+    if u.get("role") == "employee":
+        return POSITIONS.get(u.get("position") or "strojnik", "Strojník")
+    return ROLE_LABELS.get(u.get("role"), u.get("role"))
 
 
 def now_utc() -> datetime:
@@ -82,8 +91,9 @@ def create_access_token(user: dict) -> str:
 
 def public_user(u: dict) -> dict:
     return {
-        "id": u["id"], "email": u["email"], "name": u.get("name", ""), "role": u["role"],
-        "role_label": ROLE_LABELS.get(u["role"], u["role"]), "active": u.get("active", True),
+        "id": u["id"], "email": u["email"], "username": u.get("username", ""), "name": u.get("name", ""), "role": u["role"],
+        "role_label": role_label(u), "role_group": ROLE_LABELS.get(u["role"], u["role"]),
+        "position": (u.get("position") or "strojnik") if u["role"] == "employee" else "", "active": u.get("active", True),
         "must_change_password": u.get("must_change_password", False),
         "workplace_ids": u.get("workplace_ids", []), "created_at": u.get("created_at"),
         "protected": u["role"] == "owner", "deactivated_at": u.get("deactivated_at"),

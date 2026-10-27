@@ -33,8 +33,8 @@ export default function Login() {
       </div>
       <form onSubmit={submit} className="mx-auto -mt-4 max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-md" data-testid="login-form">
         <h1 className="font-heading text-2xl font-semibold text-slate-900">Přihlášení</h1>
-        <label className="block space-y-1.5"><span className="text-sm font-semibold">E-mail</span>
-          <Input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className="h-14 text-base" data-testid="login-email-input" required /></label>
+        <label className="block space-y-1.5"><span className="text-sm font-semibold">Přihlašovací jméno nebo e-mail</span>
+          <Input type="text" autoCapitalize="none" autoCorrect="off" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} className="h-14 text-base" data-testid="login-email-input" required /></label>
         <label className="block space-y-1.5"><span className="text-sm font-semibold">Heslo</span>
           <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-14 text-base" data-testid="login-password-input" required /></label>
         {err && <Alert variant="destructive" data-testid="login-error-alert"><AlertDescription>{err}</AlertDescription></Alert>}
@@ -43,12 +43,13 @@ export default function Login() {
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950" data-testid="login-demo-hint">
           <div className="font-semibold">Demo účty (pilot)</div>
           <div className="mt-1 space-y-0.5">
-            <div>strojnik@demstav.cz · heslo <span className="font-mono">Demstav2026!</span> – strojník</div>
-            <div>vedouci@demstav.cz · heslo <span className="font-mono">Demstav2026!</span> – vedoucí</div>
-            <div>admin@demstav.cz · heslo <span className="font-mono">Demstav2026!</span> – správce</div>
+            <div><b>strojnik</b> · heslo <span className="font-mono">Demstav2026!</span> – strojník</div>
+            <div><b>vedouci</b> · heslo <span className="font-mono">Demstav2026!</span> – vedoucí výroby</div>
+            <div><b>admin</b> · heslo <span className="font-mono">Demstav2026!</span> – admin</div>
+            <div><b>jednatel</b> · heslo <span className="font-mono">Demstav2026!</span> – jednatel</div>
           </div>
           <button type="button" className="mt-2 font-semibold underline" data-testid="login-fill-demo"
-            onClick={() => { setEmail("strojnik@demstav.cz"); setPassword("Demstav2026!"); }}>
+            onClick={() => { setEmail("strojnik"); setPassword("Demstav2026!"); }}>
             Předvyplnit strojníka
           </button>
         </div>

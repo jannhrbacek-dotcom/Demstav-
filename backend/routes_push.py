@@ -1,0 +1,127 @@
+"""Web Push notifikace (VAPID).
+
+- `POST /api/push/public-key` → vrací veřejný VAPID klíč pro frontend.
+- `POST /api/push/subscribe` → uloží push subscription uživatele.
+- `POST /api/push/unsubscribe` → odebere subscription.
+- `POST /api/push/test` → pošle testovací notifikaci přihlášenému uživateli.
+
+Notifikace se posílají interně helperem `send_push_to_users(user_ids, title, body, url)`.
+"""
+import json
+import logging
+import os
+from typing import Iterable, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pywebpush import webpush, WebPushException
+
+from core import db, get_ready_user, iso_now, new_id, text, require_role
+
+log = logging.getLogger("push")
+router = APIRouter()
+
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY_FILE = os.path.join(os.path.dirname(__file__), "vapid_private.pem")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:admin@demstav.cz")
+
+
+def _load_private_key() -> Optional[str]:
+    try:
+        with open(VAPID_PRIVATE_KEY_FILE, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+
+@router.get("/push/public-key")
+async def public_key(user: dict = Depends(get_ready_user)):
+    if not VAPID_PUBLIC_KEY:
+        raise HTTPException(status_code=501, detail="Push notifikace nejsou nakonfigurované (chybí VAPID klíč).")
+    return {"public_key": VAPID_PUBLIC_KEY}
+
+
+@router.post("/push/subscribe")
+async def subscribe(body: dict, user: dict = Depends(get_ready_user)):
+    sub = body.get("subscription") or {}
+    endpoint = str(sub.get("endpoint") or "")[:1024]
+    keys = sub.get("keys") or {}
+    p256dh = str(keys.get("p256dh") or "")[:200]
+    auth = str(keys.get("auth") or "")[:200]
+    if not endpoint or not p256dh or not auth:
+        raise HTTPException(status_code=400, detail="Nekompletní subscription (endpoint/keys).")
+    ua = text(body.get("user_agent"), 500)
+    now = iso_now()
+    doc = {"user_id": user["id"], "endpoint": endpoint, "p256dh": p256dh, "auth": auth,
+           "user_agent": ua, "updated_at": now, "last_seen_at": now, "failed_count": 0}
+    existing = await db.push_subscriptions.find_one({"endpoint": endpoint}, {"_id": 0, "id": 1})
+    if existing:
+        await db.push_subscriptions.update_one({"endpoint": endpoint}, {"$set": doc})
+        return {"status": "updated"}
+    doc.update({"id": new_id(), "created_at": now})
+    await db.push_subscriptions.insert_one(doc)
+    return {"status": "created"}
+
+
+@router.post("/push/unsubscribe")
+async def unsubscribe(body: dict, user: dict = Depends(get_ready_user)):
+    endpoint = str(body.get("endpoint") or "")[:1024]
+    if not endpoint:
+        raise HTTPException(status_code=400, detail="Chybí endpoint.")
+    res = await db.push_subscriptions.delete_one({"endpoint": endpoint, "user_id": user["id"]})
+    return {"status": "deleted", "deleted": res.deleted_count}
+
+
+async def send_push_to_users(user_ids: Iterable[str], title: str, body: str, url: str = "/", tag: str = "demstav"):
+    """Odešle web push notifikaci na všechny subscription daných uživatelů.
+
+    Smaže expirované subscription (410) a loguje selhání.
+    """
+    priv = _load_private_key()
+    if not priv or not VAPID_PUBLIC_KEY:
+        log.warning("Push notifications disabled – missing VAPID keys")
+        return 0
+    user_ids = list(user_ids or [])
+    if not user_ids:
+        return 0
+    subs = await db.push_subscriptions.find({"user_id": {"$in": user_ids}}, {"_id": 0}).to_list(2000)
+    if not subs:
+        return 0
+    payload = json.dumps({"title": title[:120], "body": body[:300], "url": url[:200], "tag": tag[:60]})
+    sent = 0
+    for s in subs:
+        try:
+            webpush(
+                subscription_info={"endpoint": s["endpoint"], "keys": {"p256dh": s["p256dh"], "auth": s["auth"]}},
+                data=payload,
+                vapid_private_key=priv,
+                vapid_claims={"sub": VAPID_SUBJECT},
+                ttl=3600,
+            )
+            sent += 1
+            await db.push_subscriptions.update_one({"endpoint": s["endpoint"]},
+                                                   {"$set": {"last_seen_at": iso_now(), "failed_count": 0}})
+        except WebPushException as e:
+            status = getattr(e.response, "status_code", 0) if getattr(e, "response", None) is not None else 0
+            if status in (404, 410):
+                await db.push_subscriptions.delete_one({"endpoint": s["endpoint"]})
+            else:
+                await db.push_subscriptions.update_one({"endpoint": s["endpoint"]},
+                                                       {"$inc": {"failed_count": 1}, "$set": {"last_error": str(e)[:300]}})
+                log.warning("push failed status=%s err=%s", status, str(e)[:200])
+        except Exception as e:  # noqa: BLE001
+            log.exception("push exception: %s", e)
+    return sent
+
+
+@router.post("/push/test")
+async def push_test(user: dict = Depends(get_ready_user)):
+    n = await send_push_to_users([user["id"]], "DEMSTAV OPERATIONS", "Zkouška notifikace – vše funguje.", "/dnes", tag="test")
+    return {"sent": n}
+
+
+async def notify_users_by_role(roles: Iterable[str], title: str, body: str, url: str = "/", tag: str = "demstav", exclude_user_id: Optional[str] = None) -> int:
+    q = {"role": {"$in": list(roles)}, "active": True}
+    if exclude_user_id:
+        q["id"] = {"$ne": exclude_user_id}
+    users = await db.users.find(q, {"_id": 0, "id": 1}).to_list(1000)
+    return await send_push_to_users([u["id"] for u in users], title, body, url, tag)

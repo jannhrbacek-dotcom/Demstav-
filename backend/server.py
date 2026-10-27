@@ -12,6 +12,11 @@ from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 from core import db, client, get_ready_user, require_role, is_manager, COMPANY_NAME  # noqa: E402
 from routes_users import router as users_router, seed_owner, machines_with_status  # noqa: E402
 from routes_records import router as records_router  # noqa: E402
+from routes_stt import router as stt_router  # noqa: E402
+from routes_leave import router as leave_router  # noqa: E402
+from routes_exceptions import router as exceptions_router  # noqa: E402
+from routes_push import router as push_router  # noqa: E402
+from routes_data import router as data_router  # noqa: E402
 from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date  # noqa: E402
 from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
 from storage import init_storage, get_object  # noqa: E402
@@ -85,9 +90,13 @@ async def overview(date: str = "", days: int = 7, user: dict = Depends(require_r
     faults.sort(key=lambda f: (f["severity"] != "stop", f["date"]), reverse=False)
     pending_events = await db.attendance_events.count_documents({"status": "pending_review"})
     pending_requests = await db.attendance_requests.count_documents({"status": "pending"})
+    leave_q = {"status": {"$in": ["pending_manager"] + (["pending_director"] if user["role"] == "owner" else [])}, "user_id": {"$ne": user["id"]}}
+    pending_leave = await db.leave_requests.count_documents(leave_q) if user["role"] in ("manager", "owner") else 0
+    today_exceptions = await db.planned_exceptions.find({"date": {"$gte": day, "$lte": (date_cls.fromisoformat(day) + timedelta(days=7)).isoformat()}}, {"_id": 0}).sort("date", 1).to_list(200)
     service_alerts = [m for m in await machines_with_status() if m.get("active", True) and m["service_state"] in ("soon", "due")]
     return {"date": day, "present": present, "comparison": comparison, "missing": missing[:200], "open_drafts": open_drafts,
-            "faults": faults, "pending_events": pending_events, "pending_requests": pending_requests, "service_alerts": service_alerts,
+            "faults": faults, "pending_events": pending_events, "pending_requests": pending_requests, "service_alerts": service_alerts, "pending_leave": pending_leave,
+            "upcoming_exceptions": [{**r, "kind_label": {"late_arrival": "Pozdní příchod", "early_departure": "Dřívější odchod", "other": "Jiná výjimka"}.get(r.get("kind"), r.get("kind"))} for r in today_exceptions],
             "chart": [{**v, "attendance": round(v["attendance"], 2), "timesheet": round(v["timesheet"], 2)} for v in chart.values()],
             "employees": len(users)}
 
@@ -117,7 +126,7 @@ def _range_name(a, b):
 
 
 @api.get("/exports/sichtovnice.pdf")
-async def export_timesheet(employee_id: str = "", date_from: str = "", date_to: str = "", include_drafts: int = 1,
+async def export_timesheet(employee_id: str = "", date_from: str = "", date_to: str = "", include_drafts: int = 1, duplex: int = 0,
                            user: dict = Depends(get_ready_user)):
     recs = await _export_records(user, employee_id, date_from, date_to, "", bool(include_drafts))
     groups = {}
@@ -138,7 +147,7 @@ async def export_timesheet(employee_id: str = "", date_from: str = "", date_to: 
             return get_object(doc["storage_path"])[0]
         except Exception:
             return None
-    data = timesheet_pdf(sorted(groups.values(), key=lambda g: g["employee_name"]) or [{"employee_name": user["name"], "records": []}], loader)
+    data = timesheet_pdf(sorted(groups.values(), key=lambda g: g["employee_name"]) or [{"employee_name": user["name"], "records": []}], loader, duplex=bool(duplex))
     return Response(content=data, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="DEMSTAV_sichtovnice_{_range_name(date_from, date_to)}.pdf"'})
 
@@ -166,6 +175,11 @@ async def export_diary(employee_id: str = "", machine: str = "", date_from: str 
 api.include_router(users_router)
 api.include_router(records_router)
 api.include_router(att_router)
+api.include_router(stt_router)
+api.include_router(leave_router)
+api.include_router(exceptions_router)
+api.include_router(push_router)
+api.include_router(data_router)
 app.include_router(api)
 
 app.add_middleware(
@@ -181,6 +195,15 @@ app.add_middleware(
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
+    await db.users.create_index("username", unique=True, partialFilterExpression={"username": {"$type": "string"}})
+    await db.leave_requests.create_index("id", unique=True)
+    await db.leave_requests.create_index([("user_id", 1), ("date_from", -1)])
+    await db.planned_exceptions.create_index("id", unique=True)
+    await db.planned_exceptions.create_index([("user_id", 1), ("date", -1)])
+    await db.planned_exceptions.create_index([("date", -1)])
+    await db.push_subscriptions.create_index("endpoint", unique=True)
+    await db.push_subscriptions.create_index([("user_id", 1)])
+    await db.weekly_exports.create_index("week", unique=True)
     await db.records.create_index("id", unique=True)
     await db.records.create_index([("owner_id", 1), ("date", -1)])
     await db.record_versions.create_index([("record_id", 1), ("revision", 1)], unique=True)

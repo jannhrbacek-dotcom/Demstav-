@@ -38,7 +38,7 @@ export default function Machines() {
         <DialogContent className="max-w-md" data-testid="machine-dialog">
           <DialogHeader><DialogTitle className="font-heading">{form?.id ? "Upravit stroj" : "Nový stroj"}</DialogTitle><DialogDescription>Servisní intervaly a karta stroje budou v další etapě.</DialogDescription></DialogHeader>
           {form && <div className="space-y-3">
-            <Field label="Název (jak se zobrazí v zápisu)"><Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className="h-12" placeholder="Liebherr L566/3" data-testid="machine-label-input" /></Field>
+            <Field label="Název stroje s číslem (zobrazí se v zápisu)" hint="Typ / číslo stroje, např. L566/3 nebo L576/7."><Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className="h-12" placeholder="např. L566/3" data-testid="machine-label-input" /></Field>
             <Field label="Typ / značka / model"><Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="h-12" data-testid="machine-type-input" /></Field>
             <div className="grid grid-cols-2 gap-3"><Field label="Interní číslo"><Input value={form.internal_number} onChange={(e) => setForm({ ...form, internal_number: e.target.value })} className="h-12" data-testid="machine-internal-input" /></Field>
               <Field label="SPZ"><Input value={form.plate} onChange={(e) => setForm({ ...form, plate: e.target.value.toUpperCase() })} className="h-12" data-testid="machine-plate-input" /></Field></div>

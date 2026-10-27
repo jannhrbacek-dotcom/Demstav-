@@ -4,7 +4,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from core import (db, now_utc, iso_now, new_id, hash_password, verify_password, temp_password, password_problem,
                   create_access_token, public_user, get_current_user, get_ready_user, require_role, audit, text,
-                  ROLE_RANK, ROLE_LABELS, COMPANY_NAME)
+                  ROLE_RANK, ROLE_LABELS, COMPANY_NAME, POSITIONS, USERNAME_RE)
 
 router = APIRouter()
 
@@ -12,21 +12,21 @@ router = APIRouter()
 # ---------------- auth ----------------
 @router.post("/auth/login")
 async def login(body: dict, request: Request):
-    email = text(body.get("email"), 200).lower()
+    email = text(body.get("login") or body.get("email") or body.get("username"), 200).lower()
     password = body.get("password") or ""
     ip = request.client.host if request.client else "?"
     ident = f"{ip}:{email}"
     att = await db.login_attempts.find_one({"identifier": ident}, {"_id": 0})
     if att and att.get("count", 0) >= 5 and att.get("locked_until") and att["locked_until"] > iso_now():
         raise HTTPException(status_code=429, detail="Příliš mnoho neúspěšných pokusů. Zkuste to znovu za 15 minut.")
-    user = await db.users.find_one({"email": email}, {"_id": 0})
+    user = await db.users.find_one({"email": email} if "@" in email else {"username": email}, {"_id": 0})
     if not user or not verify_password(password, user.get("password_hash", "")):
         count = (att.get("count", 0) if att else 0) + 1
         upd = {"identifier": ident, "count": count}
         if count >= 5:
             upd["locked_until"] = (now_utc() + timedelta(minutes=15)).isoformat().replace("+00:00", "Z")
         await db.login_attempts.update_one({"identifier": ident}, {"$set": upd}, upsert=True)
-        raise HTTPException(status_code=401, detail="Nesprávný e-mail nebo heslo.")
+        raise HTTPException(status_code=401, detail="Nesprávné přihlašovací jméno / e-mail nebo heslo.")
     if not user.get("active", True):
         raise HTTPException(status_code=403, detail="Účet je deaktivovaný. Obraťte se na správce.")
     await db.login_attempts.delete_many({"identifier": ident})
@@ -73,6 +73,24 @@ async def list_users(user: dict = Depends(require_role("manager"))):
     return [public_user(u) for u in users]
 
 
+async def _clean_username(v, uid):
+    un = text(v, 60).lower()
+    if not un:
+        return ""
+    if not USERNAME_RE.match(un):
+        raise HTTPException(status_code=400, detail="Přihlašovací jméno: 3–30 znaků, malá písmena bez diakritiky, číslice, tečka, pomlčka.")
+    other = await db.users.find_one({"username": un}, {"_id": 0, "id": 1})
+    if other and other["id"] != uid:
+        raise HTTPException(status_code=409, detail="Toto přihlašovací jméno už používá jiný uživatel.")
+    return un
+
+
+@router.get("/roles")
+async def roles_info(user: dict = Depends(get_ready_user)):
+    return {"roles": [{"role": r, "label": ROLE_LABELS[r]} for r in ("owner", "admin", "manager", "employee")],
+            "positions": [{"value": k, "label": v} for k, v in POSITIONS.items()]}
+
+
 @router.post("/users")
 async def create_user(body: dict, actor: dict = Depends(require_role("admin"))):
     email = text(body.get("email"), 200).lower()
@@ -84,11 +102,15 @@ async def create_user(body: dict, actor: dict = Depends(require_role("admin"))):
         raise HTTPException(status_code=400, detail="Doplňte jméno a platný e-mail.")
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="Uživatel s tímto e-mailem už existuje.")
+    username = await _clean_username(body.get("username"), None)
+    position = body.get("position") if body.get("position") in POSITIONS else "strojnik"
     pw = temp_password()
     wp = [w for w in (body.get("workplace_ids") or []) if isinstance(w, str)][:200]
     doc = {"id": new_id(), "email": email, "name": name, "role": role, "password_hash": hash_password(pw),
            "must_change_password": True, "active": True, "workplace_ids": wp, "token_version": 0,
-           "created_at": iso_now(), "created_by": actor["id"]}
+           "created_at": iso_now(), "created_by": actor["id"], "position": position if role == "employee" else ""}
+    if username:
+        doc["username"] = username
     await db.users.insert_one(doc)
     await audit(actor, "user_created", {"user_id": doc["id"], "email": email, "role": role})
     return {"user": public_user(doc), "temporary_password": pw}
@@ -108,6 +130,14 @@ async def update_user(uid: str, body: dict, actor: dict = Depends(require_role("
         raise HTTPException(status_code=403, detail="Tento účet nemůžete upravovat." if target["role"] != "owner" else "Účet vlastníka je chráněný.")
     if "name" in body:
         upd["name"] = text(body["name"], 200) or target["name"]
+    if "username" in body:
+        un = await _clean_username(body.get("username"), uid)
+        if un:
+            upd["username"] = un
+    if "position" in body:
+        if body["position"] not in POSITIONS:
+            raise HTTPException(status_code=400, detail="Neznámé pracovní zařazení.")
+        upd["position"] = body["position"]
     if "role" in body:
         if body["role"] not in ROLE_RANK or not _can_manage(actor, body["role"]):
             raise HTTPException(status_code=403, detail="Tuto roli nemůžete přidělit.")
@@ -251,20 +281,28 @@ async def seed_owner():
     pw = os.environ.get("OWNER_PASSWORD", "Demstav2026!")
     existing = await db.users.find_one({"email": email})
     if existing is None:
-        await db.users.insert_one({"id": new_id(), "email": email, "name": os.environ.get("OWNER_NAME", "Vlastník firmy"),
+        await db.users.insert_one({"id": new_id(), "email": email, "name": os.environ.get("OWNER_NAME", "Jednatel DEMSTAV"),
                                    "role": "owner", "password_hash": hash_password(pw), "must_change_password": False,
-                                   "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now()})
+                                   "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
+                                   "username": "jednatel"})
     elif not verify_password(pw, existing["password_hash"]) and not existing.get("password_changed_at"):
         await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_password(pw)}})
 
     # Demo accounts for pilot – only created if missing; passwords never reset once user logs in and changes them.
     demo = [
-        {"email": "admin@demstav.cz", "name": "Správce DEMSTAV", "role": "admin", "pw": "Demstav2026!"},
-        {"email": "vedouci@demstav.cz", "name": "Vedoucí směny", "role": "manager", "pw": "Demstav2026!"},
-        {"email": "strojnik@demstav.cz", "name": "Jan Strojník", "role": "employee", "pw": "Demstav2026!"},
+        {"email": "admin@demstav.cz", "name": "Správce DEMSTAV", "role": "admin", "pw": "Demstav2026!", "username": "admin"},
+        {"email": "vedouci@demstav.cz", "name": "Vedoucí výroby", "role": "manager", "pw": "Demstav2026!", "username": "vedouci"},
+        {"email": "strojnik@demstav.cz", "name": "Jan Strojník", "role": "employee", "pw": "Demstav2026!", "username": "strojnik"},
     ]
+    if not await db.users.find_one({"email": email, "username": {"$exists": True}}):
+        if not await db.users.find_one({"username": "jednatel"}):
+            await db.users.update_one({"email": email}, {"$set": {"username": "jednatel"}})
     for d in demo:
-        if await db.users.find_one({"email": d["email"]}) is None:
+        ex = await db.users.find_one({"email": d["email"]}, {"_id": 0, "username": 1})
+        if ex is not None and not ex.get("username") and not await db.users.find_one({"username": d["username"]}):
+            await db.users.update_one({"email": d["email"]}, {"$set": {"username": d["username"]}})
+        if ex is None:
             await db.users.insert_one({"id": new_id(), "email": d["email"], "name": d["name"], "role": d["role"],
                                        "password_hash": hash_password(d["pw"]), "must_change_password": False,
-                                       "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now()})
+                                       "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
+                                       "username": d["username"], "position": "strojnik" if d["role"] == "employee" else ""})

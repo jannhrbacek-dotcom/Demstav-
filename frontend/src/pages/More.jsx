@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FileDown, KeyRound, LogOut, LayoutDashboard, ShieldCheck, Files, MapPin, Truck, Users, Smartphone, ChevronRight, Eye } from "lucide-react";
+import { FileDown, KeyRound, LogOut, LayoutDashboard, ShieldCheck, Files, MapPin, Truck, Users, Smartphone, ChevronRight, Eye, BarChart3, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/Section";
@@ -21,7 +21,9 @@ export default function More() {
     <div className="space-y-4">
       <PageHeader title="Více" subtitle={`${user?.name} · ${user?.role_label}`} />
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <L to="/exporty" icon={FileDown} label="Exporty PDF (šichtovnice, deník)" testid="more-exports" />
+        <L to="/prehledy" icon={BarChart3} label="Moje přehledy (šichtovnice, deník, směny)" testid="more-my-overview" />
+        <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
+        <L to="/exporty" icon={FileDown} label="Exporty a reporty (PDF, XLSX, CSV)" testid="more-exports" />
         <L to="/zmena-hesla" icon={KeyRound} label="Změnit heslo" testid="more-change-password" />
         <div className="flex min-h-[60px] items-center gap-3 px-4" data-testid="more-simple-mode-row">
           <Eye className="h-5 w-5" />

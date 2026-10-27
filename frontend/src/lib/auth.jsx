@@ -34,7 +34,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (email, password) => {
-    const { data } = await http.post("/auth/login", { email, password });
+    const { data } = await http.post("/auth/login", { login: email, password });
     const prev = cachedUser();
     if (prev && prev.id !== data.user.id) resetSync();
     setSession(data.access_token, data.user);

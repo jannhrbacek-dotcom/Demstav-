@@ -54,10 +54,14 @@ export function timeBreakdown(r) {
   const effService = shift ? inter(service, whole) : service;
   const downAll = serviceSpans(r.downtime || [], whole);
   const downtime = shift ? merge(subtract(inter(downAll, whole), effService)) : [];
-  const productive = shift ? merge(subtract(whole, merge([...service, ...downtime]))) : whole;
+  const travelAll = serviceSpans(r.travel || [], whole);
+  const travel = shift ? merge(subtract(inter(travelAll, whole), merge([...effService, ...downtime]))) : [];
+  const productive = shift ? merge(subtract(whole, merge([...service, ...downtime, ...travel]))) : whole;
   return {
     totalHours: len(total) / 60, workHours: len(productive) / 60, serviceHours: len(effService) / 60, downtimeHours: len(downtime) / 60,
     totalIntervals: asIv(total), workIntervals: asIv(productive), serviceIntervals: asIv(effService), downtimeIntervals: asIv(downtime),
+    travelHours: len(travel) / 60, travelIntervals: asIv(travel), billableHours: (len(total) - len(travel)) / 60,
+    travelOutsideShift: shift && len(subtract(travelAll, whole)) > 0,
     serviceOutsideShift: shift && len(subtract(service, whole)) > 0, downtimeOutsideShift: shift && len(subtract(downAll, whole)) > 0,
     ambiguousDay: total.length > 0 && total[total.length - 1][1] - total[0][0] >= 1440,
   };

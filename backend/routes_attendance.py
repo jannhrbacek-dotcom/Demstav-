@@ -12,8 +12,11 @@ from core import db, iso_now, new_id, get_ready_user, require_role, is_manager, 
 
 router = APIRouter()
 PRAGUE = ZoneInfo("Europe/Prague")
-KINDS = ("arrival", "departure", "break_start", "break_end")
-KIND_LABELS = {"arrival": "Příchod", "departure": "Odchod", "break_start": "Začátek přestávky", "break_end": "Konec přestávky"}
+KINDS = ("arrival", "departure", "break_start", "break_end", "travel_start")
+KIND_LABELS = {"arrival": "Příchod", "departure": "Odchod", "break_start": "Začátek přestávky", "break_end": "Konec přestávky",
+               "travel_start": "Přejezd na jinou zakázku"}
+# Pauza a odjezd na jinou zakázku se jen klepnou – bez QR/GPS. Příchod a odchod se ověřují podle pracoviště (QR + GPS).
+TAP_KINDS = ("break_start", "break_end", "travel_start")
 QR_TTL_MS = 120_000
 
 
@@ -26,10 +29,12 @@ def unb64(s: str) -> bytes:
 
 
 def next_state(state: str, kind: str) -> str:
-    if kind == "arrival" and state == "away":
+    if kind == "arrival" and state in ("away", "travel"):
         return "working"
-    if kind == "departure" and state in ("working", "break"):
+    if kind == "departure" and state in ("working", "break", "travel"):
         return "away"
+    if kind == "travel_start" and state == "working":
+        return "travel"
     if kind == "break_start" and state == "working":
         return "break"
     if kind == "break_end" and state == "break":
@@ -44,21 +49,23 @@ def _ms(e):
 
 def projection(events, now_ms=None, frm=-math.inf, to=math.inf, confirmed_only=False):
     now_ms = now_ms or time.time() * 1000
-    state, cursor, wp, presence, brk = "away", 0, "", 0, 0
+    state, cursor, wp, presence, brk, trv = "away", 0, "", 0, 0, 0
     issues, segments = [], []
     evs = [e for e in events if e["status"] != "rejected" and (not confirmed_only or e["status"] in ("verified", "approved"))]
     evs.sort(key=lambda e: (_ms(e) or 0, e.get("sequence", 0)))
 
     def add(end):
-        nonlocal presence, brk
+        nonlocal presence, brk, trv
         if state == "away" or not cursor:
             return
         s, t = max(cursor, frm), min(end, to)
         if t > s:
-            segments.append({"from": s, "to": t, "kind": "break" if state == "break" else "presence", "workplace_id": wp})
+            segments.append({"from": s, "to": t, "kind": {"break": "break", "travel": "travel"}.get(state, "presence"), "workplace_id": wp})
             presence += t - s
             if state == "break":
                 brk += t - s
+            if state == "travel":
+                trv += t - s
     for e in evs:
         at = _ms(e)
         if at is None or at > now_ms + 60_000:
@@ -73,7 +80,7 @@ def projection(events, now_ms=None, frm=-math.inf, to=math.inf, confirmed_only=F
         except ValueError:
             issues.append("Návaznost událostí vyžaduje opravu: " + KIND_LABELS.get(e["kind"], e["kind"]))
     add(min(now_ms, to))
-    return {"state": state, "presenceHours": presence / 3.6e6, "breakHours": brk / 3.6e6,
+    return {"state": state, "presenceHours": presence / 3.6e6, "breakHours": brk / 3.6e6, "travelHours": trv / 3.6e6,
             "netHours": (presence - brk) / 3.6e6, "issues": issues, "segments": segments, "open": state != "away",
             "workplace_id": wp if state != "away" else None}
 
@@ -261,7 +268,11 @@ async def create_event(b: dict, user: dict = Depends(get_ready_user)):
         if existing["employee_id"] != user["id"] or existing["request_hash"] != req_hash:
             raise HTTPException(status_code=409, detail="Událost se stejným identifikátorem má jiný obsah.")
         return {"status": "duplicate", "event": existing}
-    w = await db.workplaces.find_one({"id": b.get("workplaceId"), "active": True}, {"_id": 0})
+    tap = b["kind"] in TAP_KINDS
+    wid = b.get("workplaceId")
+    if tap and not wid:
+        wid = projection(await _employee_events(user["id"]))["workplace_id"]
+    w = await db.workplaces.find_one({"id": wid, "active": True} if not tap else {"id": wid}, {"_id": 0})
     if not w or (user.get("workplace_ids") and w["id"] not in user["workplace_ids"] and not is_manager(user)):
         raise HTTPException(status_code=400, detail="Pracoviště není dostupné nebo vám není přiřazeno.")
     device_at = parse_iso(b.get("deviceAt"))
@@ -278,15 +289,17 @@ async def create_event(b: dict, user: dict = Depends(get_ready_user)):
     elif abs((received - device_at).total_seconds()) > 300:
         reasons.append("device_clock")
     qr_res, gps_res = None, None
-    if w["mode"] in ("qr", "qr_gps"):
+    if tap:
+        pass
+    elif w["mode"] in ("qr", "qr_gps"):
         qr_res = verify_qr(w, b.get("qr"), at_ms if offline else received.timestamp() * 1000)
         if not qr_res:
             reasons.append("qr_invalid" if b.get("qr") else "qr_missing")
-    if w["mode"] in ("gps", "qr_gps"):
+    if not tap and w["mode"] in ("gps", "qr_gps"):
         gps_res = check_gps(w, b.get("gps"), at_ms)
         if gps_res["result"] != "inside":
             reasons.append("gps_" + gps_res["result"])
-    if w["mode"] == "manual":
+    if not tap and w["mode"] == "manual":
         reasons.append("manual")
     exc_reason = text(b.get("exceptionReason"), 1000)
     if reasons and not offline and not exc_reason and w["mode"] != "manual":
@@ -305,8 +318,9 @@ async def create_event(b: dict, user: dict = Depends(get_ready_user)):
           "kind": b["kind"], "device_at": device_at.isoformat().replace("+00:00", "Z"), "received_at": received.isoformat().replace("+00:00", "Z"),
           "effective_at": device_at.isoformat().replace("+00:00", "Z"), "offline": offline,
           "status": "pending_review" if reasons else "verified", "reasons": reasons, "sequence": seq,
-          "gps": gps_res, "qr": qr_res, "exception_reason": exc_reason, "mode": w["mode"], "request_hash": req_hash,
-          "decision": None}
+          "gps": gps_res, "qr": qr_res, "exception_reason": exc_reason, "mode": "tap" if tap else w["mode"], "request_hash": req_hash,
+          "decision": None, "travel_from": text(b.get("travelFrom"), 300) if b["kind"] == "travel_start" else "",
+          "travel_to": text(b.get("travelTo"), 300) if b["kind"] == "travel_start" else ""}
     try:
         await db.attendance_events.insert_one(ev)
     except Exception:
