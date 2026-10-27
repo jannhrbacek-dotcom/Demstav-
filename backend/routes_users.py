@@ -98,17 +98,23 @@ async def create_user(body: dict, actor: dict = Depends(require_role("admin"))):
     role = body.get("role") or "employee"
     if role not in ROLE_RANK or not _can_manage(actor, role):
         raise HTTPException(status_code=403, detail="Tuto roli nemůžete přidělit.")
-    if "@" not in email or not name:
-        raise HTTPException(status_code=400, detail="Doplňte jméno a platný e-mail.")
-    if await db.users.find_one({"email": email}):
+    if not name:
+        raise HTTPException(status_code=400, detail="Doplňte jméno uživatele.")
+    if email and ("@" not in email or email.startswith("@") or email.endswith("@")):
+        raise HTTPException(status_code=400, detail="Zkontrolujte e-mailovou adresu.")
+    if not email and not text(body.get("username"), 60):
+        raise HTTPException(status_code=400, detail="Doplňte přihlašovací jméno nebo e-mail.")
+    if email and await db.users.find_one({"email": email}):
         raise HTTPException(status_code=409, detail="Uživatel s tímto e-mailem už existuje.")
     username = await _clean_username(body.get("username"), None)
     position = body.get("position") if body.get("position") in POSITIONS else "strojnik"
     pw = temp_password()
     wp = [w for w in (body.get("workplace_ids") or []) if isinstance(w, str)][:200]
-    doc = {"id": new_id(), "email": email, "name": name, "role": role, "password_hash": hash_password(pw),
+    doc = {"id": new_id(), "name": name, "role": role, "password_hash": hash_password(pw),
            "must_change_password": True, "active": True, "workplace_ids": wp, "token_version": 0,
            "created_at": iso_now(), "created_by": actor["id"], "position": position if role == "employee" else ""}
+    if email:
+        doc["email"] = email
     if username:
         doc["username"] = username
     await db.users.insert_one(doc)
