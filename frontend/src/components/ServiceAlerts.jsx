@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Wrench, BellRing, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCached } from "@/lib/data";
@@ -9,7 +9,7 @@ const fmt = (v) => (v === null || v === undefined ? "—" : String(v).replace(".
 /** Upozornění na blížící se pravidelný servis (každých 500 mth, varování 100 mth předem). */
 export function ServiceAlerts({ compact = false, alerts: given }) {
   const q = useCached("/service-alerts", { enabled: !given });
-  const alerts = given || q.data || [];
+  const alerts = useMemo(() => given || q.data || [], [given, q.data]);
   const [perm, setPerm] = useState(notifyPermission());
 
   useEffect(() => { if (alerts.length) notifyServiceAlerts(alerts); }, [alerts]);
