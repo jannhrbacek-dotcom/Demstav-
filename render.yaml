@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: demstav-operations
+    runtime: docker
+    repo: https://github.com/jannhrbacek-dotcom/Demstav-
+    branch: main-2
+    region: frankfurt
+    plan: 0.5c-512mb
+    autoDeployTrigger: "off"
+    healthCheckPath: /api/ready
+    disk:
+      name: demstav-objects
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: DB_NAME
+        value: demstav
+      - key: MONGO_HOSTPORT
+        fromService:
+          type: pserv
+          name: demstav-mongo
+          property: hostport
+      - key: MONGO_USERNAME
+        fromService:
+          type: pserv
+          name: demstav-mongo
+          envVarKey: MONGO_INITDB_ROOT_USERNAME
+      - key: MONGO_PASSWORD
+        fromService:
+          type: pserv
+          name: demstav-mongo
+          envVarKey: MONGO_INITDB_ROOT_PASSWORD
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OWNER_EMAIL
+        sync: false
+      - key: OWNER_PASSWORD
+        sync: false
+      - key: STORAGE_BACKEND
+        value: local
+      - key: STORAGE_LOCAL_ROOT
+        value: /var/data/objects
+      - key: SEED_DEMO_ACCOUNTS
+        value: "false"
+  - type: pserv
+    name: demstav-mongo
+    runtime: image
+    image:
+      url: mongo:8.0
+    region: frankfurt
+    plan: 0.5c-512mb
+    disk:
+      name: demstav-database
+      mountPath: /data/db
+      sizeGB: 5
+    envVars:
+      - key: MONGO_INITDB_ROOT_USERNAME
+        value: demstavroot
+      - key: MONGO_INITDB_ROOT_PASSWORD
+        generateValue: true

@@ -5,6 +5,7 @@ import secrets
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+from urllib.parse import quote
 
 import bcrypt
 import jwt
@@ -13,7 +14,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger("demstav")
 
-client = AsyncIOMotorClient(os.environ["MONGO_URL"])
+mongo_url = os.environ.get("MONGO_URL")
+if not mongo_url:
+    hostport = os.environ["MONGO_HOSTPORT"]
+    username = quote(os.environ["MONGO_USERNAME"], safe="")
+    password = quote(os.environ["MONGO_PASSWORD"], safe="")
+    mongo_url = f"mongodb://{username}:{password}@{hostport}/?authSource=admin"
+client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=10000)
 db = client[os.environ["DB_NAME"]]
 
 JWT_ALGORITHM = "HS256"

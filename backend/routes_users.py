@@ -277,24 +277,35 @@ async def list_audit(limit: int = 200, actor: dict = Depends(require_role("admin
 
 
 async def seed_owner():
-    email = os.environ.get("OWNER_EMAIL", "vlastnik@demstav.cz").lower()
-    pw = os.environ.get("OWNER_PASSWORD", "Demstav2026!")
-    existing = await db.users.find_one({"email": email})
-    if existing is None:
+    # Ostrý provoz: žádné veřejně známé výchozí heslo ani reset existujícího hesla po restartu.
+    email = (os.environ.get("OWNER_EMAIL") or "").strip().lower()
+    pw = os.environ.get("OWNER_PASSWORD") or ""
+    owner_count = await db.users.count_documents({"role": "owner"})
+    if owner_count == 0:
+        if not email or len(pw) < 12:
+            raise RuntimeError("Pro první spuštění nastavte OWNER_EMAIL a silné OWNER_PASSWORD (min. 12 znaků).")
         await db.users.insert_one({"id": new_id(), "email": email, "name": os.environ.get("OWNER_NAME", "Jednatel DEMSTAV"),
-                                   "role": "owner", "password_hash": hash_password(pw), "must_change_password": False,
+                                   "role": "owner", "password_hash": hash_password(pw), "must_change_password": True,
                                    "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
                                    "username": "jednatel"})
-    elif not verify_password(pw, existing["password_hash"]) and not existing.get("password_changed_at"):
-        await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_password(pw)}})
+    elif email and pw:
+        # Existující heslo se NIKDY automaticky nepřepisuje nastavením v prostředí.
+        pass
 
-    # Demo accounts for pilot – only created if missing; passwords never reset once user logs in and changes them.
+    # Demo účty se v ostrém provozu nesmějí automaticky obnovovat po smazání.
+    # Explicitně povolit jen v izolovaném testovacím prostředí.
+    if os.environ.get("SEED_DEMO_ACCOUNTS", "").lower() not in ("1", "true", "yes"):
+        return
+    # Demo accounts for pilot – only created if explicitly enabled in isolated test env.
+    demo_pw = os.environ.get("SEED_DEMO_PASSWORD") or ""
+    if len(demo_pw) < 12:
+        raise RuntimeError("SEED_DEMO_PASSWORD musí mít alespoň 12 znaků, pokud jsou demo účty povoleny.")
     demo = [
-        {"email": "admin@demstav.cz", "name": "Správce DEMSTAV", "role": "admin", "pw": "Demstav2026!", "username": "admin"},
-        {"email": "vedouci@demstav.cz", "name": "Vedoucí výroby", "role": "manager", "pw": "Demstav2026!", "username": "vedouci"},
-        {"email": "strojnik@demstav.cz", "name": "Jan Strojník", "role": "employee", "pw": "Demstav2026!", "username": "strojnik"},
+        {"email": "admin@demstav.cz", "name": "Správce DEMSTAV", "role": "admin", "pw": demo_pw, "username": "admin"},
+        {"email": "vedouci@demstav.cz", "name": "Vedoucí výroby", "role": "manager", "pw": demo_pw, "username": "vedouci"},
+        {"email": "strojnik@demstav.cz", "name": "Jan Strojník", "role": "employee", "pw": demo_pw, "username": "strojnik"},
     ]
-    if not await db.users.find_one({"email": email, "username": {"$exists": True}}):
+    if email and await db.users.find_one({"email": email, "role": "owner", "username": {"$exists": False}}):
         if not await db.users.find_one({"username": "jednatel"}):
             await db.users.update_one({"email": email}, {"$set": {"username": "jednatel"}})
     for d in demo:
@@ -303,6 +314,6 @@ async def seed_owner():
             await db.users.update_one({"email": d["email"]}, {"$set": {"username": d["username"]}})
         if ex is None:
             await db.users.insert_one({"id": new_id(), "email": d["email"], "name": d["name"], "role": d["role"],
-                                       "password_hash": hash_password(d["pw"]), "must_change_password": False,
+                                       "password_hash": hash_password(d["pw"]), "must_change_password": True,
                                        "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
                                        "username": d["username"], "position": "strojnik" if d["role"] == "employee" else ""})

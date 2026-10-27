@@ -1,0 +1,11 @@
+.git
+.emergent
+**/node_modules
+**/build
+**/__pycache__
+**/.env
+**/*.pem
+.pytest_cache
+test_reports
+memory
+reference
