@@ -36,6 +36,11 @@ async def data_stats(user: dict = Depends(require_role("admin"))):
 
 @router.post("/admin/wipe-data")
 async def wipe_data(body: dict, user: dict = Depends(require_role("admin"))):
+    # Bezpečnostní pojistka: původní implementace maže bez filtru i produkční deníky.
+    # Hromadný reset zůstává deaktivován, dokud nebude existovat selektivní mazání
+    # identifikovaných TESTOVACÍCH účtů a ověřená obnovitelná záloha DB a příloh.
+    raise HTTPException(status_code=403, detail="Plošné mazání je z bezpečnostních důvodů deaktivováno. Použijte cílené čištění testovacích účtů po ověřené záloze.")
+
     confirm = (body.get("confirm") or "").strip()
     if confirm != CONFIRM_PHRASE:
         raise HTTPException(status_code=400, detail=f'Pro potvrzení smazání napište přesně: "{CONFIRM_PHRASE}".')
