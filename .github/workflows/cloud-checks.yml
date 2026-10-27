@@ -18,3 +18,18 @@ jobs:
           /tmp/demstav-venv/bin/python -m pytest tests/test_cloud_deployment.py -q
       - name: Build production container
         run: docker build -t demstav-cloud-check .
+      - name: Start with real MongoDB and verify persistence after restart
+        run: |
+          docker network create demstav-check
+          docker run -d --name demstav-mongo-check --network demstav-check mongo:8.0
+          docker run -d --name demstav-app-check --network demstav-check -p 127.0.0.1:10000:10000 \
+            -e MONGO_URL=mongodb://demstav-mongo-check:27017 -e DB_NAME=demstav_ci \
+            -e JWT_SECRET=isolated-ci-signing-secret-not-production \
+            -e OWNER_EMAIL=owner@example.test -e OWNER_PASSWORD=IsolatedCIBootstrap123 \
+            demstav-cloud-check
+          /tmp/demstav-venv/bin/python tests/cloud_smoke.py
+          docker restart demstav-app-check
+          /tmp/demstav-venv/bin/python tests/cloud_smoke.py
+      - name: Container diagnostics on failure
+        if: failure()
+        run: docker logs demstav-app-check 2>&1 | tail -80
