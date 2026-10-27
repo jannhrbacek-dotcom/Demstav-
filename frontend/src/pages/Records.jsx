@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, ClipboardList, OctagonAlert } from "lucide-react";
+import { Plus, ClipboardList, OctagonAlert, FileJson } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,7 +29,7 @@ export default function Records({ all = false }) {
   return (
     <div>
       <PageHeader title={all ? "Všechny zápisy" : "Moje zápisy"} subtitle={all ? "Zápisy zaměstnanců se zobrazí automaticky po přijetí serverem – bez posílání PDF." : "Deník stroje a šichtovnice. Stav ukazuje, zda je zápis jen v telefonu, nebo už na serveru."}
-        actions={!all && <Link to="/zapis/novy"><Button className="btn-primary h-12 font-semibold" data-testid="records-new-button"><Plus className="mr-1 h-5 w-5" />Nový zápis</Button></Link>} />
+        actions={!all && <div className="flex flex-wrap gap-2"><Link to="/zapis/novy"><Button className="btn-primary h-12 font-semibold" data-testid="records-new-button"><Plus className="mr-1 h-5 w-5" />Nový zápis</Button></Link><Link to="/zapisy/import"><Button variant="outline" className="h-12 font-semibold" data-testid="records-import-button"><FileJson className="mr-1 h-5 w-5" />Import JSON</Button></Link></div>} />
       <div className="mb-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-5" data-testid="records-filters">
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11" aria-label="Od" data-testid="records-filter-from" />
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-11" aria-label="Do" data-testid="records-filter-to" />
