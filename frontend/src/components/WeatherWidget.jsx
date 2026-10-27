@@ -66,7 +66,7 @@ async function fetchForecast(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
     + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
     + "&hourly=precipitation_probability,precipitation,weathercode,temperature_2m"
-    + "&forecast_days=4&timezone=Europe%2FPrague";
+    + "&current=temperature_2m,weather_code&forecast_days=4&timezone=Europe%2FPrague";
   const res = await fetch(url);
   if (!res.ok) throw new Error("Nepodařilo se načíst předpověď počasí (" + res.status + ").");
   return res.json();
@@ -200,8 +200,8 @@ export function WeatherWidget({ workplaces = [], preferredWorkplaceId = "" }) {
         aria-expanded={expanded} aria-controls="weather-details" data-testid="weather-expand"
         className="mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg bg-sky-50 px-3 text-left">
         <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-          {React.createElement(describe(data.daily.weathercode[0]).icon, { className: "h-5 w-5 text-sky-700" })}
-          {describe(data.daily.weathercode[0]).label} · {Math.round(data.daily.temperature_2m_max[0])}° / {Math.round(data.daily.temperature_2m_min[0])}°
+          {React.createElement(describe(data.current?.weather_code ?? data.daily.weathercode[0]).icon, { className: "h-5 w-5 text-sky-700" })}
+          {describe(data.current?.weather_code ?? data.daily.weathercode[0]).label} · {Math.round(data.current?.temperature_2m ?? data.daily.temperature_2m_max[0])}°
         </span>
         <span className="flex items-center gap-1 text-xs font-semibold text-slate-700">Předpověď {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</span>
       </button>}
