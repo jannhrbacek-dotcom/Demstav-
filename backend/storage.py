@@ -38,3 +38,18 @@ def get_object(path: str):
             continue
         resp.raise_for_status()
         return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+
+def delete_object(path: str) -> bool:
+    """Smaže objekt v úložišti. Vrátí True při úspěchu nebo pokud objekt už neexistuje."""
+    for attempt in range(2):
+        key = init_storage(force=attempt == 1)
+        resp = requests.delete(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=30)
+        if resp.status_code == 404:
+            return True
+        if resp.status_code == 404 and attempt == 0:
+            continue
+        if resp.ok:
+            return True
+    return False
+

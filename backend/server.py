@@ -16,6 +16,7 @@ from routes_stt import router as stt_router  # noqa: E402
 from routes_leave import router as leave_router  # noqa: E402
 from routes_exceptions import router as exceptions_router  # noqa: E402
 from routes_push import router as push_router  # noqa: E402
+from routes_admin import router as admin_router  # noqa: E402
 from routes_data import router as data_router  # noqa: E402
 from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date  # noqa: E402
 from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
@@ -179,6 +180,7 @@ api.include_router(stt_router)
 api.include_router(leave_router)
 api.include_router(exceptions_router)
 api.include_router(push_router)
+api.include_router(admin_router)
 api.include_router(data_router)
 app.include_router(api)
 
