@@ -94,6 +94,7 @@ def public_user(u: dict) -> dict:
         "id": u["id"], "email": u["email"], "username": u.get("username", ""), "name": u.get("name", ""), "role": u["role"],
         "role_label": role_label(u), "role_group": ROLE_LABELS.get(u["role"], u["role"]),
         "position": (u.get("position") or "strojnik") if u["role"] == "employee" else "", "active": u.get("active", True),
+        "is_test": bool(u.get("is_test", False)),
         "must_change_password": u.get("must_change_password", False),
         "workplace_ids": u.get("workplace_ids", []), "created_at": u.get("created_at"),
         "protected": u["role"] == "owner", "deactivated_at": u.get("deactivated_at"),
