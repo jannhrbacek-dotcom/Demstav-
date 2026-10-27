@@ -211,7 +211,7 @@ export function syncNow() {
     if (navigator.onLine && !state.needsLogin) {
       try { await http.get("/health", { timeout: 8000 }); verified = true; } catch { verified = false; }
     }
-    patch({ syncing: false, lastSync: new Date().toISOString(), lastVerifiedAt: verified ? new Date().toISOString() : null, online: verified });
+    patch({ syncing: false, lastSync: new Date().toISOString(), lastVerifiedAt: verified ? new Date().toISOString() : null, lastError: verified && !state.queue.length ? null : state.lastError, online: verified });
 
     if (accepted) listenersAccepted.forEach((fn) => fn());
   })().finally(() => { running = null; });
