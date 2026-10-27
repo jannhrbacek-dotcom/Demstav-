@@ -98,7 +98,7 @@ def create_access_token(user: dict) -> str:
 
 def public_user(u: dict) -> dict:
     return {
-        "id": u["id"], "email": u["email"], "username": u.get("username", ""), "name": u.get("name", ""), "role": u["role"],
+        "id": u["id"], "email": u.get("email", ""), "username": u.get("username", ""), "name": u.get("name", ""), "role": u["role"],
         "role_label": role_label(u), "role_group": ROLE_LABELS.get(u["role"], u["role"]),
         "position": (u.get("position") or "strojnik") if u["role"] == "employee" else "", "active": u.get("active", True),
         "must_change_password": u.get("must_change_password", False),
