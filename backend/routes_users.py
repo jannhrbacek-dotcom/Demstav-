@@ -288,6 +288,10 @@ async def seed_owner():
     elif not verify_password(pw, existing["password_hash"]) and not existing.get("password_changed_at"):
         await db.users.update_one({"email": email}, {"$set": {"password_hash": hash_password(pw)}})
 
+    # Demo účty se v ostrém provozu nesmějí automaticky obnovovat po smazání.
+    # Explicitně povolit jen v izolovaném testovacím prostředí.
+    if os.environ.get("SEED_DEMO_ACCOUNTS", "").lower() not in ("1", "true", "yes"):
+        return
     # Demo accounts for pilot – only created if missing; passwords never reset once user logs in and changes them.
     demo = [
         {"email": "admin@demstav.cz", "name": "Správce DEMSTAV", "role": "admin", "pw": "Demstav2026!", "username": "admin"},
