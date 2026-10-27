@@ -146,3 +146,34 @@ def test_operations_manager_can_correct_record_without_changing_employee(monkeyp
         assert saved["record"]["revision"]==2
         assert (await routes_records.verify_chain("test-record"))["ok"]
     asyncio.run(scenario())
+
+
+def test_team_calendar_shares_schedule_but_not_medical_or_private_notes(monkeypatch):
+    from mongomock_motor import AsyncMongoMockClient
+    import routes_exceptions
+    db = AsyncMongoMockClient().db
+    monkeypatch.setattr(routes_exceptions, "db", db)
+    async def scenario():
+        colleague = {"id": "e2", "name": "Kolegyně", "role": "employee"}
+        owner = {"id": "e1", "name": "Pracovník", "role": "employee"}
+        await db.planned_exceptions.insert_many([
+            {"id": "hidden", "user_id": "e1", "user_name": "Pracovník", "date": "2026-10-28", "kind": "late_arrival",
+             "time_from": "09:00", "time_to": "", "reason": "Osobní soukromý důvod", "share_with_team": False},
+            {"id": "shared", "user_id": "e1", "user_name": "Pracovník", "date": "2026-10-29", "kind": "early_departure",
+             "time_from": "", "time_to": "12:00", "reason": "Vyzvednutí dítěte", "share_with_team": True},
+        ])
+        await db.leave_requests.insert_one({"id": "sick", "user_id": "e1", "user_name": "Pracovník", "type": "sick",
+                                           "date_from": "2026-10-30", "date_to": "2026-10-30",
+                                           "status": "approved", "note": "Soukromá poznámka"})
+        team = await routes_exceptions.team_calendar("2026-10-27", "2026-11-01", colleague)
+        by_id = {e["id"]: e for e in team}
+        assert by_id["hidden"]["note"] == ""
+        assert by_id["shared"]["note"] == "Vyzvednutí dítěte"
+        assert by_id["sick"]["title"] == "Nepřítomnost"
+        assert by_id["sick"]["kind"] == "absence"
+        assert by_id["sick"]["note"] == ""
+        own = await routes_exceptions.team_calendar("2026-10-27", "2026-11-01", owner)
+        mine = {e["id"]: e for e in own}
+        assert mine["hidden"]["note"] == "Osobní soukromý důvod"
+        assert mine["sick"]["kind"] == "sick"
+    asyncio.run(scenario())

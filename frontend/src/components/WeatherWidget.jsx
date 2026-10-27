@@ -9,7 +9,7 @@
  * Předpověď se cachuje v localStorage na 45 min, aby fungovala i offline.
  */
 import React, { useEffect, useMemo, useState } from "react";
-import { MapPin, CloudSun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudFog, Sun, Loader2, Droplets } from "lucide-react";
+import { MapPin, CloudSun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudFog, Sun, Loader2, Droplets, ChevronDown, ChevronUp } from "lucide-react";
 
 const CACHE_PREFIX = "weather-forecast-v2:";
 const TTL_MS = 45 * 60 * 1000;
@@ -65,23 +65,23 @@ function writeCache(key, payload) { try { localStorage.setItem(CACHE_PREFIX + ke
 async function fetchForecast(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
     + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
-    + "&hourly=precipitation_probability,precipitation,weathercode"
-    + "&forecast_days=4&timezone=Europe%2FPrague";
+    + "&hourly=precipitation_probability,precipitation,weathercode,temperature_2m"
+    + "&current=temperature_2m,weather_code&forecast_days=4&timezone=Europe%2FPrague";
   const res = await fetch(url);
   if (!res.ok) throw new Error("Nepodařilo se načíst předpověď počasí (" + res.status + ").");
   return res.json();
 }
 
 /** Vyrobí 24 hodinových slotů od začátku dnešního dne v časové zóně Europe/Prague. */
-function hourlyToday(data) {
+function hourlyForDay(data, day) {
   if (!data?.hourly?.time) return [];
-  const today = data?.daily?.time?.[0] || data.hourly.time[0].slice(0, 10);
-  const idx = [];
-  data.hourly.time.forEach((t, i) => { if (t.startsWith(today)) idx.push(i); });
-  return idx.map((i) => ({
+  const indexes = [];
+  data.hourly.time.forEach((t, i) => { if (t.startsWith(day)) indexes.push(i); });
+  return indexes.map(i => ({
     hour: parseInt(data.hourly.time[i].slice(11, 13), 10),
     pop: Number(data.hourly.precipitation_probability?.[i] ?? 0),
     mm: Number(data.hourly.precipitation?.[i] ?? 0),
+    temp: data.hourly.temperature_2m?.[i] == null ? null : Math.round(data.hourly.temperature_2m[i]),
     code: Number(data.hourly.weathercode?.[i] ?? 0),
   }));
 }
@@ -124,6 +124,8 @@ export function WeatherWidget({ workplaces = [], preferredWorkplaceId = "" }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(0);
 
   const activeWpWithGps = useMemo(() => {
     const list = (workplaces || []).filter((w) => w.active !== false && w.has_location && w.latitude && w.longitude);
@@ -161,8 +163,8 @@ export function WeatherWidget({ workplaces = [], preferredWorkplaceId = "" }) {
       .finally(() => setLoading(false));
   }, [location]);
 
-  const days = data?.daily?.time || [];
-  const hours = useMemo(() => hourlyToday(data), [data]);
+  const days = useMemo(() => data?.daily?.time || [], [data]);
+  const hours = useMemo(() => hourlyForDay(data, days[selectedDay]), [data, days, selectedDay]);
   const nowHour = new Date().getHours();
 
   if (!location) {
@@ -194,28 +196,43 @@ export function WeatherWidget({ workplaces = [], preferredWorkplaceId = "" }) {
       </div>
       {loading && !data && <div className="mt-1 flex items-center gap-2 text-xs text-slate-600"><Loader2 className="h-3 w-3 animate-spin" />Načítám…</div>}
       {error && !data && <div className="mt-1 rounded border border-rose-200 bg-rose-50 p-1 text-[11px] text-rose-900">{error}</div>}
-      {data && (
-        <div className="mt-1 grid grid-cols-4 gap-1 sm:gap-2" data-testid="weather-days">
+      {data && <button type="button" onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded} aria-controls="weather-details" data-testid="weather-expand"
+        className="mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg bg-sky-50 px-3 text-left">
+        <span className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+          {React.createElement(describe(data.current?.weather_code ?? data.daily.weathercode[0]).icon, { className: "h-5 w-5 text-sky-700" })}
+          {describe(data.current?.weather_code ?? data.daily.weathercode[0]).label} · {Math.round(data.current?.temperature_2m ?? data.daily.temperature_2m_max[0])}°
+        </span>
+        <span className="flex items-center gap-1 text-xs font-semibold text-slate-700">Předpověď {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</span>
+      </button>}
+      {data && expanded && <div id="weather-details" className="mt-2 space-y-3" data-testid="weather-details">
+        <div className="grid grid-cols-4 gap-1" data-testid="weather-days">
           {days.map((d, i) => {
             const { icon: Icon, label } = describe(data.daily.weathercode[i]);
-            const tMax = Math.round(data.daily.temperature_2m_max[i]);
-            const tMin = Math.round(data.daily.temperature_2m_min[i]);
-            const pop = data.daily.precipitation_probability_max?.[i] ?? null;
-            return (
-              <div key={d} className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left ${i === 0 ? "bg-sky-50" : "bg-slate-50"}`}
-                   data-testid={`weather-day-${i}`} title={label}>
-                <Icon className="h-5 w-5 shrink-0 text-sky-700" />
-                <div className="min-w-0 leading-tight">
-                  <div className="truncate text-[11px] font-semibold text-slate-800">{labelFor(d, i)}</div>
-                  <div className="text-[11px] font-semibold tabular-nums text-slate-900">{tMax}° / {tMin}°</div>
-                  {pop !== null && pop > 0 && <div className="text-[10px] text-sky-800">{pop}%</div>}
-                </div>
-              </div>
-            );
+            return <button key={d} type="button" onClick={() => setSelectedDay(i)}
+              className={`min-h-16 rounded-lg border p-1 text-center ${i === selectedDay ? "border-sky-700 bg-sky-100" : "border-slate-200 bg-slate-50"}`}
+              aria-pressed={selectedDay === i} data-testid={`weather-day-${i}`} title={label}>
+              <Icon className="mx-auto h-5 w-5 text-sky-700" />
+              <span className="block text-xs font-bold">{labelFor(d, i)}</span>
+              <span className="block text-[11px]">{Math.round(data.daily.temperature_2m_max[i])}° / {Math.round(data.daily.temperature_2m_min[i])}°</span>
+            </button>;
           })}
         </div>
-      )}
-      {data && <HourlyChart hours={hours} nowHour={nowHour} />}
+        <p className="text-sm font-semibold">Hodinová předpověď · {labelFor(days[selectedDay], selectedDay)}</p>
+        <div className="flex gap-2 overflow-x-auto pb-2" data-testid="weather-hourly-timeline">
+          {hours.map((h) => {
+            const { icon: Icon, label } = describe(h.code);
+            return <div key={h.hour} className="min-w-[78px] rounded-lg border bg-white p-2 text-center" title={label}>
+              <b className="text-xs">{String(h.hour).padStart(2, "0")}:00</b>
+              <Icon className="mx-auto my-1 h-5 w-5 text-sky-700" />
+              <div className="text-sm font-bold">{h.temp == null ? "–" : h.temp + "°"}</div>
+              <div className="text-xs text-sky-700">{h.pop}% déšť</div>
+              <div className="text-[11px] text-slate-500">{h.mm.toFixed(1)} mm</div>
+            </div>;
+          })}
+        </div>
+        <HourlyChart hours={hours} nowHour={selectedDay === 0 ? nowHour : -1} />
+      </div>}
     </div>
   );
 }

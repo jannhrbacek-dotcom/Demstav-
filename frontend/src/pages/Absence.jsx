@@ -57,7 +57,7 @@ export default function Absence() {
   const [busy, setBusy] = useState(false);
   const [rej, setRej] = useState(null);
   const [note, setNote] = useState("");
-  const [ex, setEx] = useState({ kind: "late_arrival", date: today, time_from: "09:00", time_to: "15:00", reason: "" });
+  const [ex, setEx] = useState({ kind: "late_arrival", date: today, time_from: "09:00", time_to: "15:00", reason: "", share_with_team: false });
   const [exBusy, setExBusy] = useState(false);
   const reload = () => { mine.reload(); todo.reload?.(); allQ.reload?.(); };
   const reloadEx = () => { myEx.reload(); allEx.reload?.(); };
@@ -79,7 +79,7 @@ export default function Absence() {
   const submitEx = async () => {
     setExBusy(true);
     try {
-      const payload = { id: newId(), kind: ex.kind, date: ex.date, reason: ex.reason };
+      const payload = { id: newId(), kind: ex.kind, date: ex.date, reason: ex.reason, share_with_team: ex.share_with_team };
       if (ex.kind === "late_arrival") payload.time_from = ex.time_from;
       else if (ex.kind === "early_departure") payload.time_to = ex.time_to;
       else { payload.time_from = ex.time_from; payload.time_to = ex.time_to; }
@@ -152,6 +152,7 @@ export default function Absence() {
           </>}
         </div>
         <Field label="Důvod (dítě, úřad, zubař…)"><Textarea value={ex.reason} onChange={(e) => setEx({ ...ex, reason: e.target.value })} placeholder="Krátce popište, proč potřebujete výjimku." data-testid="exception-reason" /></Field>
+        <label className="flex items-center gap-3 rounded-lg border bg-slate-50 p-3 text-sm"><input type="checkbox" checked={!!ex.share_with_team} onChange={e => setEx({ ...ex, share_with_team: e.target.checked })} className="h-5 w-5" />Sdílet text důvodu i se strojníky v týmovém kalendáři (jinak vidí jen typ a čas)</label>
         <Button className="btn-primary h-14 w-full text-base font-semibold" disabled={exBusy || !ex.reason.trim()} onClick={submitEx} data-testid="exception-submit">{exBusy && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}Oznámit vedení</Button>
       </section>
 

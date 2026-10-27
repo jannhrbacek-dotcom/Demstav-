@@ -33,9 +33,7 @@ export default function Attendance() {
   };
   return (
     <div className="space-y-5">
-      <PageHeader title="Docházka" subtitle="Příchod, přestávky a odchod. Příchod do práce není automatickým spuštěním stroje."
-        actions={<Button variant="outline" className="h-12" onClick={() => openFix(null)} data-testid="attendance-manual-entry-button"><PencilLine className="mr-1 h-4 w-4" />Požádat o opravu</Button>} />
-      <BreakRequests />
+      <PageHeader title="Docházka" subtitle="Příchod, přestávky a odchod. Zahájení docházky není spuštěním stroje." />
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <AttendanceActions workplaces={wps.data} serverState={att.data?.projection?.state} onDone={() => att.reload()} />
@@ -52,6 +50,12 @@ export default function Attendance() {
         </div>
       </div>
 
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="attendance-corrections">
+        <h2 className="font-heading text-lg font-semibold">Opravy docházky</h2>
+        <p className="text-sm text-slate-600">Chybí příchod nebo potřebujete opravit čas? Žádost schvaluje vedoucí.</p>
+        <Button variant="outline" className="h-12 w-full sm:w-auto" onClick={() => openFix(null)} data-testid="attendance-manual-entry-button"><PencilLine className="mr-2 h-4 w-4" />Požádat o opravu</Button>
+      </section>
+      <BreakRequests />
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center gap-2 font-heading font-semibold"><History className="h-5 w-5" />Historie (31 dní)</div>
         {queued.map((o) => (

@@ -16,6 +16,7 @@ import { SignaturePad } from "@/components/SignaturePad";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AttachmentThumb } from "@/components/AttachmentThumb";
 import { remainingText } from "@/lib/serviceNotify";
+import { prefillMachine } from "@/lib/machinePrefill";
 import { useAuth } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { http } from "@/lib/api";
@@ -99,9 +100,11 @@ export default function RecordForm() {
   // Ano/Ne přepínače – řídí viditelnost sekcí servis a přejezd.
   const [hasService, setHasService] = useState(null); // null = nerozhodnuto, true/false
   const [hasTravel, setHasTravel] = useState(null);
+  const [continueMachine, setContinueMachine] = useState(false);
 
   const sugg = useMemo(() => {
-    const merged = mergedRecords(mine.data, s.records).map((x) => x.record);
+    const merged = mergedRecords(mine.data, s.records).map((x) => x.record)
+      .sort((a, b) => (b.date + (b.updatedAt || b.updated_at || "")).localeCompare(a.date + (a.updatedAt || a.updated_at || "")));
     const uniq = (k) => [...new Set(merged.map((r) => (r?.[k] || "").toString().trim()).filter(Boolean))].slice(0, 50);
     return {
       customer: uniq("customer"), site: uniq("site"), job: uniq("job"),
@@ -156,16 +159,15 @@ export default function RecordForm() {
   const set = (k, v) => setRec((r) => { const next = { ...r, [k]: v }; if (k === "date" && v !== r.date) delete next.approvedBreaks; return next; });
   // Při výběru stroje předvyplní MTH začátek: konec MTH z posledního zápisu na tento stroj, jinak stav MTH ze seznamu strojů.
   const setMachine = (v) => setRec((r) => {
-    const next = { ...r, machine: v };
-    if (id) return next;
-    const label = (v || "").trim().toLowerCase();
-    const prev = mergedRecords(mine.data, s.records).map((x) => x.record).find((x) => (x?.machine || "").trim().toLowerCase() === label && x?.mthEnd);
-    const m = (machines.data || []).find((x) => (x.label || "").trim().toLowerCase() === label);
-    const sug = prev?.mthEnd || (m && m.operating_hours != null && m.operating_hours !== "" ? String(m.operating_hours).replace(".", ",") : "");
-    if (sug && (!r.mthStart || r.mthStart === autoMth.current)) { next.mthStart = sug; autoMth.current = sug; }
+    if (v === r.machine) return r;
+    if (id) return { ...r, machine: v, mthStart: "", mthEnd: "" };
+    const next = prefillMachine(r, v, mergedRecords(mine.data, s.records).map(x => x.record), machines.data || []);
+    autoMth.current = next.mthStart;
     return next;
   });
   const setFault = (i, k, v) => set("faults", rec.faults.map((f, j) => (j === i ? { ...f, [k]: v } : f)));
+  const recentWork = [...new Set(mergedRecords(mine.data, s.records).map(x => x.record)
+    .filter(x => x.machine === rec.machine && x.work?.trim()).map(x => x.work.trim()))].slice(0, 4);
   const mthDiff = num(rec.mthStart) !== null && num(rec.mthEnd) !== null ? Math.round((num(rec.mthEnd) - num(rec.mthStart)) * 1000) / 1000 : null;
 
   const toggleHasService = (val) => {
@@ -187,7 +189,13 @@ export default function RecordForm() {
     const clean = { ...rec, billing: rec.billing.filter((i) => i.start || i.end), service: rec.service.filter((i) => i.start || i.end), downtime: rec.downtime.filter((i) => i.start || i.end), travel: (rec.travel || []).filter((i) => i.start || i.end || i.from || i.to) };
     await saveRecordLocal(clean, { confirm, correctionReason, baseRevision: local?.serverRevision ?? server?.revision ?? 0 });
     toast.success(navigator.onLine ? (confirm ? "Zápis uložen a odesílá se k potvrzení" : "Koncept uložen a odesílá se") : "Uloženo v telefonu – čeká na odeslání");
-    nav("/zapisy");
+    if (continueMachine && !id) {
+      // Samostatný záznam pro každý stroj, čas a MTH nikdy nekopírujeme.
+      setRec({ ...blank(user, clean, clean.date), machine: "", mthStart: "", mthEnd: "", billing: [{ start: "", end: "" }], work: "" });
+      setErrors([]); setHasService(null); setHasTravel(null); setContinueMachine(false); autoMth.current = null;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      toast.success("První stroj uložen. Zadejte druhý stroj, jeho časy a vlastní MTH.");
+    } else nav("/zapisy");
   };
   const onConfirm = () => (serverConfirmed ? setReasonOpen(true) : doSave(true));
   const onFile = async (ev, section = "general") => {
@@ -370,6 +378,11 @@ export default function RecordForm() {
           <div className="col-span-2 text-xs text-slate-300 sm:col-span-4">Celkem = ostatní práce + servis + prostoje + přejezdy. {bd.serviceOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část servisu leží mimo pracovní dobu.</span>} {bd.downtimeOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část prostoje leží mimo pracovní dobu.</span>}</div>
         </div>
         <Field label="Provedená práce"><DictateTextarea value={rec.work} onChange={(v) => set("work", v)} placeholder="např. Třídění, nakládka… (nebo klepněte na mikrofon)" testid="record-work-input" /></Field>
+        {recentWork.length > 0 && <div className="space-y-2">
+          <div className="text-xs font-semibold text-slate-600">Použité popisy pro {rec.machine}</div>
+          <div className="flex flex-wrap gap-2" data-testid="record-work-suggestions">{recentWork.map((w, i) => <button key={i} type="button"
+            title={w} onClick={() => set("work", w)} className="min-h-11 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold hover:bg-amber-50">{w}</button>)}</div>
+        </div>}
         {renderPhotos("timesheet", "Fotky k šichtovnici (výkaz, dodací list, stav pracoviště)")}
       </Section>
 
@@ -447,6 +460,10 @@ export default function RecordForm() {
       {local && !server && <Button variant="ghost" className="text-red-700" onClick={async () => { await discardLocalRecord(rec.id); nav("/zapisy"); }} data-testid="record-discard-local">Zahodit neodeslaný zápis z telefonu</Button>}
 
       <div className="fixed inset-x-0 bottom-[64px] z-20 border-t border-slate-200 bg-white px-4 py-3 shadow-md lg:bottom-0 lg:left-64">
+        {!id && <label className="mx-auto mb-2 flex max-w-6xl items-center gap-2 text-sm font-semibold text-slate-800" data-testid="record-next-machine-label">
+          <input type="checkbox" className="h-5 w-5" checked={continueMachine} onChange={e => setContinueMachine(e.target.checked)} />
+          Po uložení pokračovat druhým strojem (samostatné časy a motohodiny)
+        </label>}
         <div className="mx-auto flex max-w-6xl gap-3">
           {!serverConfirmed && <Button type="button" variant="outline" className="h-14 flex-1 border-slate-300 text-base font-semibold" onClick={() => doSave(false)} data-testid="record-save-draft-button">Uložit koncept</Button>}
           <Button type="button" className="btn-primary h-14 flex-[2] text-base font-semibold" onClick={onConfirm} data-testid="record-confirm-button">{serverConfirmed ? "Uložit opravu (nová revize)" : "Uložit a potvrdit"}</Button>

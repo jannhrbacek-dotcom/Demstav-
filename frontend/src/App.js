@@ -25,6 +25,7 @@ import UsersPage from "@/pages/Users";
 import Production from "@/pages/Production";
 import Guide, { guideKey } from "@/pages/Guide";
 import Machines from "@/pages/Machines";
+import TeamCalendar from "@/pages/TeamCalendar";
 
 function Guard({ children, role, bare }) {
   const { user } = useAuth();
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/exporty" element={<Guard><Exports /></Guard>} />
             <Route path="/prehledy" element={<Guard><MyOverview /></Guard>} />
             <Route path="/nepritomnost" element={<Guard><Absence /></Guard>} />
+            <Route path="/kalendar" element={<Guard><TeamCalendar /></Guard>} />
             <Route path="/prehled" element={<Guard role="manager"><Overview /></Guard>} />
             <Route path="/kontrola" element={<Guard role="manager"><Review /></Guard>} />
             <Route path="/vsechny-zapisy" element={<Guard role="manager"><Records all /></Guard>} />

@@ -60,6 +60,7 @@ async def create_exception(b: dict, user: dict = Depends(get_ready_user)):
     doc = {"id": rid, "user_id": user["id"], "user_name": user["name"],
            "role_label": role_label(user), "date": date, "kind": kind,
            "time_from": time_from, "time_to": time_to, "reason": reason,
+            "share_with_team": b.get("share_with_team") is True,
            "created_at": now, "updated_at": now}
     await db.planned_exceptions.insert_one(doc)
     await audit(user, "exception_created", {"exception_id": rid, "kind": kind, "date": date})
@@ -111,3 +112,49 @@ async def exceptions_in_range(date_from: str, date_to: str, user_ids=None):
     if user_ids is not None:
         q["user_id"] = {"$in": list(user_ids)}
     return await db.planned_exceptions.find(q, {"_id": 0}).to_list(5000)
+
+@router.get("/team-calendar")
+async def team_calendar(date_from: str, date_to: str, user: dict = Depends(get_ready_user)):
+    """Minimální společný plán týmu bez zdravotních a soukromých poznámek.
+
+    Detailní důvody kolegů zveřejňujeme jen s jejich výslovným souhlasem;
+    vedoucí má úplné důvody v existující agendě /exceptions.
+    """
+    try:
+        start = date_cls.fromisoformat(date_from)
+        end = date_cls.fromisoformat(date_to)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Neplatný rozsah kalendáře.")
+    if end < start or (end - start).days > 45:
+        raise HTTPException(status_code=400, detail="Kalendář zobrazí nejvýše 46 dní.")
+    q = {"date": {"$gte": date_from, "$lte": date_to}}
+    exceptions = await db.planned_exceptions.find(q, {"_id": 0}).to_list(2000)
+    leaves = await db.leave_requests.find(
+        {"status": "approved", "date_from": {"$lte": date_to}, "date_to": {"$gte": date_from}},
+        {"_id": 0}
+    ).to_list(2000)
+    result = []
+    for r in exceptions:
+        own = r["user_id"] == user["id"]
+        shared = own or r.get("share_with_team") is True
+        result.append({
+            "id": r["id"], "date_from": r["date"], "date_to": r["date"],
+            "user_name": r["user_name"], "user_id": r["user_id"],
+            "title": KINDS.get(r["kind"], "Plánovaná výjimka"),
+            "time_from": r.get("time_from", ""), "time_to": r.get("time_to", ""),
+            "note": r["reason"] if shared else "", "kind": r["kind"], "type": "exception",
+        })
+    for r in leaves:
+        # Nemoc ani návštěvu lékaře nevystavujeme jako zdravotní údaj celému týmu.
+        title = "Nepřítomnost" if r.get("type") in ("sick", "doctor") else (
+            "Dovolená" if r.get("type") == "vacation" else "Volno"
+        )
+        result.append({
+            "id": r["id"], "date_from": r["date_from"], "date_to": r["date_to"],
+            "user_name": r["user_name"], "user_id": r["user_id"],
+            "title": title, "time_from": r.get("time_from", "") if r.get("type") == "doctor" else "",
+            "time_to": r.get("time_to", "") if r.get("type") == "doctor" else "",
+            "note": r.get("note", "") if r["user_id"] == user["id"] else "",
+            "kind": (r.get("type") if r["user_id"] == user["id"] or r.get("type") not in ("doctor", "sick") else "absence"), "type": "leave",
+        })
+    return sorted(result, key=lambda r: (r["date_from"], r["user_name"]))
