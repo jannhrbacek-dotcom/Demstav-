@@ -6,7 +6,7 @@ Tato úprava přidává přenosné nasazení existující aplikace; nepřepisuje
 ## Co se spustí
 
 - `demstav-operations`: sestavený React a původní FastAPI na jedné HTTPS adrese.
-- `demstav-mongo`: MongoDB 8 na soukromé síti s vygenerovaným heslem.
+- `demstav-mongo`: MongoDB 7.0.45 na soukromé síti s vygenerovaným heslem.
 - Dva trvalé disky po 5 GB: databáze `/data/db`, soubory aplikace `/var/data/objects`.
 - Region Frankfurt, placené instance bez uspávání kvůli nečinnosti.
 - Kontrola `/api/ready` ověřuje dostupnost databáze. `/api/health` je pouze kontrola procesu.
@@ -72,3 +72,13 @@ bezpečnost cest, idempotentní mazání objektu, bezpečné založení vlastní
 hesla a bez demo účtů, obsluha SPA a API, české fonty v PDF.
 Testy používají náhradu MongoDB v paměti, nikoli skutečnou cloudovou databázi.
 Docker build ani cloudový start nejsou ověřené, dokud neproběhnou na cílovém hostingu.
+
+## Kompatibilita jádra Renderu
+
+První nasazení MongoDB 8 skončilo před inicializací databáze chybou SERVER-121912
+(nekompatibilita TCMalloc s jádrem hostitele). Pro nové prázdné prostředí je použit
+MongoDB 7.0.45, který používá dřívější alokátor. Nejde o downgrade existující databáze.
+Soukromý port je explicitně 10000 a WiredTiger cache je pro pilot 0,25 GB.
+Odkazy: https://www.mongodb.com/docs/v7.0/release-notes/7.0/ a
+https://jira.mongodb.org/browse/SERVER-121912 . Existující MongoDB 8 data se nesmějí
+připojit přímo k serveru 7.0; případný převod vyžaduje samostatný ověřený export/import.

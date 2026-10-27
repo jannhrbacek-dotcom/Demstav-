@@ -46,7 +46,8 @@ services:
     name: demstav-mongo
     runtime: image
     image:
-      url: mongo:8.0
+      url: mongo:7.0.45
+    dockerCommand: mongod --port 10000 --bind_ip_all --wiredTigerCacheSizeGB 0.25
     region: frankfurt
     plan: 0.5c-512mb
     disk:
