@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { Check, X, ShieldCheck } from "lucide-react";
@@ -32,6 +33,7 @@ export default function Review() {
   return (
     <div className="space-y-5">
       <PageHeader title="Kontrola výjimek" subtitle="Offline, ruční, mimo okruh či bez platného QR – rozhodnutí se ukládá do auditu s vaším jménem a časem." />
+      <Link className="block rounded-xl border bg-amber-50 p-4 font-semibold" to="/prestavky">Žádosti o změnu nebo neuskutečnění přestávky →</Link>
       {!q.loading && evs.length + reqs.length === 0 && <Empty icon={ShieldCheck} title="Nic ke schválení" text="Všechny události docházky jsou ověřené nebo vyřízené." />}
       {evs.length > 0 && <div><div className="mb-2 font-heading font-semibold">Události docházky ({evs.length})</div><div className="grid gap-3 lg:grid-cols-2">{evs.map((e) => (
         <Item key={e.id} testid="review-event-item" title={`${e.employee_name} · ${KIND_LABELS[e.kind]} · ${e.workplace_name}`}

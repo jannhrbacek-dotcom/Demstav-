@@ -102,7 +102,12 @@ def as_intervals(spans):
 def spans_detail(record: dict):
     shift = record.get("workTimeMode", "shift") == "shift"
     whole = work_spans(record.get("billing") or [])
-    service = service_spans(record.get("service") or [], whole)
+    from break_policy import record_policy
+    policy = record_policy(record)
+    pauses = service_spans(policy.get("breakIntervals", []), whole)
+    original = whole
+    whole = subtract(whole, pauses)
+    service = subtract(service_spans(record.get("service") or [], original), pauses)
     total = whole if shift else merge(whole + service)
     eff_service = intersection(service, whole) if shift else service
     down_all = service_spans(record.get("downtime") or [], whole)
@@ -111,10 +116,10 @@ def spans_detail(record: dict):
     travel_all = service_spans(record.get("travel") or [], whole)
     travel = subtract(intersection(travel_all, whole), merge(eff_service + downtime)) if shift else []
     productive = subtract(whole, merge(service + downtime + travel)) if shift else whole
-    return {"total": total, "service": eff_service, "downtime": merge(downtime), "productive": merge(productive), "travel": merge(travel),
-            "travel_outside": shift and length(subtract(travel_all, whole)) > 0,
-            "service_outside": shift and length(subtract(service, whole)) > 0,
-            "downtime_outside": shift and length(subtract(down_all, whole)) > 0}
+    return {"breaks": intersection(original, pauses), "total": total, "service": eff_service, "downtime": merge(downtime), "productive": merge(productive), "travel": merge(travel),
+            "travel_outside": shift and length(subtract(travel_all, original)) > 0,
+            "service_outside": shift and length(subtract(service, original)) > 0,
+            "downtime_outside": shift and length(subtract(down_all, original)) > 0}
 
 
 def time_breakdown(record: dict) -> dict:
@@ -122,6 +127,7 @@ def time_breakdown(record: dict) -> dict:
     total = d["total"]
     ambiguous = bool(total) and total[-1][1] - total[0][0] >= 1440
     return {
+        "breakHours": length(d["breaks"]) / 60, "breakIntervals": as_intervals(d["breaks"]),
         "totalHours": length(total) / 60, "workHours": length(d["productive"]) / 60,
         "serviceHours": length(d["service"]) / 60, "downtimeHours": length(d["downtime"]) / 60,
         "totalIntervals": as_intervals(total), "workIntervals": as_intervals(d["productive"]),

@@ -13,7 +13,7 @@ import { http, errText } from "@/lib/api";
 import { ROLE_LABELS, dateTime } from "@/lib/format";
 import { ROLE_INFO, POSITIONS, positionLabel } from "@/lib/roles";
 
-const canManage = (actor, role) => (actor.role === "owner" ? role !== "owner" : actor.role === "admin" ? ["employee", "manager"].includes(role) : false);
+const canManage = (actor, role) => (["owner", "operations_manager"].includes(actor.role) ? role !== "owner" : actor.role === "admin" ? ["employee", "manager"].includes(role) : false);
 
 function Workplaces({ value, onChange, wps }) {
   return <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">{(wps || []).length === 0 && <div className="text-sm text-slate-600">Zatím žádná pracoviště.</div>}
@@ -34,12 +34,13 @@ export default function UsersPage() {
     try { const { data } = await http.post("/users", create); setCreate(null); setSecret({ name: data.user.name, email: data.user.email, username: data.user.username, pw: data.temporary_password }); q.reload(); } catch (e) { toast.error(errText(e)); }
   };
   const patch = async (u, body, msg) => { try { await http.patch(`/users/${u.id}`, body); toast.success(msg); q.reload(); setEdit(null); } catch (e) { toast.error(errText(e)); } };
-  const reset = async (u) => { if (!window.confirm(`Vygenerovat nové dočasné heslo pro ${u.name}? Současné přihlášení bude zneplatněno.`)) return; try { const { data } = await http.post(`/users/${u.id}/reset-password`); setSecret({ name: u.name, email: u.email, pw: data.temporary_password }); } catch (e) { toast.error(errText(e)); } };
+  const reset = async (u) => { if (!window.confirm(`Vygenerovat nové dočasné heslo pro ${u.name}? Současné přihlášení bude zneplatněno.`)) return; try { const { data } = await http.post(`/users/${u.id}/reset-password`); setSecret({ name: u.name, email: u.email, username: u.username, pw: data.temporary_password }); } catch (e) { toast.error(errText(e)); } };
 
   return (
     <div className="space-y-4">
       <PageHeader title="Uživatelé a přístupy" subtitle="Správce založí účet s dočasným heslem; při prvním přihlášení je změna hesla povinná. Deaktivace zachová historii."
         actions={admin && <Button className="btn-primary h-12 font-semibold" onClick={() => setCreate({ name: "", email: "", username: "", role: "employee", position: "strojnik", workplace_ids: [] })} data-testid="user-create-button"><UserPlus className="mr-1 h-5 w-5" />Nový uživatel</Button>} />
+      {admin && (q.data || []).some(u => u.id === "demstav-operations-manager-jakub-karas" && !u.active) && <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">Účet Jakub Karas (jakub.karas), vedoucí provozu, je připraven. Jednatel mu vygeneruje dočasné heslo tlačítkem Reset hesla a poté účet aktivuje. Heslo předejte osobně; při prvním přihlášení si nastaví vlastní.</div>}
       <details className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="roles-info">
         <summary className="cursor-pointer font-heading font-semibold">Role a oprávnění</summary>
         <div className="mt-3 grid gap-3 md:grid-cols-2">{ROLE_INFO.map((r) => (

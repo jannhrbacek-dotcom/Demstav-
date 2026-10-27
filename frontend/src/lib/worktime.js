@@ -49,7 +49,9 @@ const asIv = (sp) => sp.map(([a, b]) => ({ start: clock(a), end: clock(b) }));
 
 export function timeBreakdown(r) {
   const shift = (r.workTimeMode || "shift") === "shift";
-  const whole = workSpans(r.billing), service = serviceSpans(r.service, whole);
+  const original = workSpans(r.billing);
+  const pauses = r.breakPolicy === "fixed_v1" && (r.revision > 0 || r.date >= "2026-10-27") ? serviceSpans(r.breakIntervals || [{start:"12:00",end:"12:30"},{start:"15:30",end:"16:00"}], original) : [];
+  const whole = subtract(original, pauses), service = subtract(serviceSpans(r.service, original), pauses);
   const total = shift ? whole : merge([...whole, ...service]);
   const effService = shift ? inter(service, whole) : service;
   const downAll = serviceSpans(r.downtime || [], whole);
@@ -58,11 +60,12 @@ export function timeBreakdown(r) {
   const travel = shift ? merge(subtract(inter(travelAll, whole), merge([...effService, ...downtime]))) : [];
   const productive = shift ? merge(subtract(whole, merge([...service, ...downtime, ...travel]))) : whole;
   return {
+    breakHours: len(inter(original, pauses)) / 60,
     totalHours: len(total) / 60, workHours: len(productive) / 60, serviceHours: len(effService) / 60, downtimeHours: len(downtime) / 60,
     totalIntervals: asIv(total), workIntervals: asIv(productive), serviceIntervals: asIv(effService), downtimeIntervals: asIv(downtime),
     travelHours: len(travel) / 60, travelIntervals: asIv(travel), billableHours: (len(total) - len(travel)) / 60,
-    travelOutsideShift: shift && len(subtract(travelAll, whole)) > 0,
-    serviceOutsideShift: shift && len(subtract(service, whole)) > 0, downtimeOutsideShift: shift && len(subtract(downAll, whole)) > 0,
+    travelOutsideShift: shift && len(subtract(travelAll, original)) > 0,
+    serviceOutsideShift: shift && len(subtract(service, original)) > 0, downtimeOutsideShift: shift && len(subtract(downAll, original)) > 0,
     ambiguousDay: total.length > 0 && total[total.length - 1][1] - total[0][0] >= 1440,
   };
 }

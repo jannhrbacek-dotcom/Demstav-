@@ -1,5 +1,6 @@
 /** Role a oprávnění aplikace DEMSTAV Group – jediný zdroj textů pro UI. */
 export const ROLE_INFO = [
+  { role: "operations_manager", label: "Vedoucí provozu", rights: ["Jakub Karas – plná správa provozu, uživatelů, strojů a pracovišť", "Všechna data a exporty, schvalování přestávek, docházky a obou kroků dovolené", "Účet jednatele zůstává chráněný; vlastní žádosti schvaluje jiné vedení"] },
   {
     role: "owner", label: "Jednatel",
     rights: ["Plná správa aplikace DEMSTAV Group (uživatelé, role, stroje, pracoviště)", "Konečné schválení dovolené (2. krok)", "Vidí a exportuje data všech zaměstnanců", "Chráněný účet – nikdo jiný ho nemůže zrušit"],

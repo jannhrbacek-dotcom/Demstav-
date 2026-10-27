@@ -66,7 +66,7 @@ async def create_exception(b: dict, user: dict = Depends(get_ready_user)):
     try:
         from routes_push import notify_users_by_role
         when = date + (f" {time_from}" if time_from else "") + (f"–{time_to}" if time_to else "")
-        await notify_users_by_role(["manager", "owner"], f"Výjimka: {KINDS[kind]}",
+        await notify_users_by_role(["manager", "owner", "operations_manager"], f"Výjimka: {KINDS[kind]}",
                                    f"{user['name']} · {when} · {reason[:80]}",
                                    url="/nepritomnost", tag=f"exc-{rid}", exclude_user_id=user["id"])
     except Exception:
@@ -95,7 +95,7 @@ async def delete_exception(rid: str, user: dict = Depends(get_ready_user)):
     r = await db.planned_exceptions.find_one({"id": rid}, {"_id": 0})
     if not r:
         raise HTTPException(status_code=404, detail="Výjimka nenalezena.")
-    if r["user_id"] != user["id"] and user["role"] not in ("admin", "owner"):
+    if r["user_id"] != user["id"] and user["role"] not in ("admin", "owner", "operations_manager"):
         raise HTTPException(status_code=403, detail="Výjimku může smazat její autor nebo správce.")
     await db.planned_exceptions.delete_one({"id": rid})
     await audit(user, "exception_deleted", {"exception_id": rid})

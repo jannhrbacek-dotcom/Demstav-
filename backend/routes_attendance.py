@@ -80,6 +80,14 @@ def projection(events, now_ms=None, frm=-math.inf, to=math.inf, confirmed_only=F
         except ValueError:
             issues.append("Návaznost událostí vyžaduje opravu: " + KIND_LABELS.get(e["kind"], e["kind"]))
     add(min(now_ms, to))
+    from break_policy import attendance_breaks
+    auto = attendance_breaks(events, segments)
+    from break_policy import EFFECTIVE_DATE
+    cutoff = datetime.fromisoformat(EFFECTIVE_DATE).replace(tzinfo=PRAGUE).timestamp() * 1000
+    manual = [(s["from"], min(s["to"], cutoff)) for s in segments if s["kind"] == "break" and s["from"] < cutoff]
+    from worktime import merge, length, subtract
+    trv = length(subtract([[s["from"], s["to"]] for s in segments if s["kind"] == "travel"], merge([list(v) for v in auto + manual])))
+    brk = length(merge([list(v) for v in auto + manual]))
     return {"state": state, "presenceHours": presence / 3.6e6, "breakHours": brk / 3.6e6, "travelHours": trv / 3.6e6,
             "netHours": (presence - brk) / 3.6e6, "issues": issues, "segments": segments, "open": state != "away",
             "workplace_id": wp if state != "away" else None}
@@ -268,6 +276,11 @@ async def create_event(b: dict, user: dict = Depends(get_ready_user)):
         if existing["employee_id"] != user["id"] or existing["request_hash"] != req_hash:
             raise HTTPException(status_code=409, detail="Událost se stejným identifikátorem má jiný obsah.")
         return {"status": "duplicate", "event": existing}
+    at_for_break = parse_iso(b.get("deviceAt"))
+    from break_policy import EFFECTIVE_DATE
+    closing_old_break = b["kind"] == "break_end" and projection(await _employee_events(user["id"]))["state"] == "break"
+    if b["kind"] in ("break_start", "break_end") and not closing_old_break and (not at_for_break or prague_date(at_for_break) >= EFFECTIVE_DATE):
+        raise HTTPException(400, "Přestávky se počítají automaticky. Změnu nebo neuskutečnění zadejte v Přestávky → Odeslat žádost vedení.")
     tap = b["kind"] in TAP_KINDS
     wid = b.get("workplaceId")
     if tap and not wid:
@@ -350,6 +363,9 @@ async def create_request(b: dict, user: dict = Depends(get_ready_user)):
     kind = b.get("kind")
     if not reason or not at or kind not in KINDS:
         raise HTTPException(status_code=400, detail="Doplňte druh události, skutečný čas a důvod opravy.")
+    from break_policy import EFFECTIVE_DATE
+    if kind in ("break_start", "break_end") and prague_date(at) >= EFFECTIVE_DATE:
+        raise HTTPException(400, "Změnu přestávky zadejte v Přestávky → Odeslat žádost vedení.")
     if at > now_utc() + timedelta(minutes=2):
         raise HTTPException(status_code=400, detail="Čas opravy nesmí být v budoucnosti.")
     w = await db.workplaces.find_one({"id": b.get("workplaceId")}, {"_id": 0})

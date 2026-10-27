@@ -98,7 +98,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
     finish(getState().queue.find((o) => o.opId === op.opId) || null);
   };
 
-  const kinds = state === "travel" ? ["arrival", "departure"] : ["arrival", "break_start", "break_end", "departure"];
+  const kinds = state === "break" ? ["break_end", "departure"] : state === "travel" ? ["arrival", "departure"] : ["arrival", "departure"];
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">

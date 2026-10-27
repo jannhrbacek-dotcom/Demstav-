@@ -32,7 +32,7 @@ const INTERVAL_SERVICE_ALLOWED_NAMES = ["jan hrbáček", "jan hrbacek"];
 
 function canUserDoIntervalService(user) {
   if (!user) return false;
-  if ((user.position || "") === "mechanik") return true;
+  if (user.role === "operations_manager" || (user.position || "") === "mechanik") return true;
   if (INTERVAL_SERVICE_ALLOWED_NAMES.includes((user.name || "").trim().toLowerCase())) return true;
   return false;
 }
@@ -41,7 +41,7 @@ const blank = (user, last, date) => ({
   id: newId(), revision: 0, status: "draft", date, shift: "Denní", operator: user?.name || "", crew: "",
   machine: last?.machine || "", customer: last?.customer || "", site: last?.site || "", job: last?.job || "", drive: last?.drive || "",
   vehiclesTo: last?.vehiclesTo || "", vehiclesFrom: last?.vehiclesFrom || "", accommodation: last?.accommodation || "",
-  billing: [{ start: "", end: "" }], service: [], downtime: [], travel: [], downtimeReason: "", workTimeMode: "shift", work: "", mthStart: last?.mthEnd || "", mthEnd: "",
+  breakPolicy: "fixed_v1", breakIntervals: [{start: "12:00", end: "12:30"}, {start: "15:30", end: "16:00"}], billing: [{ start: "", end: "" }], service: [], downtime: [], travel: [], downtimeReason: "", workTimeMode: "shift", work: "", mthStart: last?.mthEnd || "", mthEnd: "",
   dailyCheck: false, accessoryCheck: false, equipmentCheck: false, fit: "unknown", notes: "", handover: "", handoverName: "", handoverSignature: "", operatorSignature: "",
   diesel: "", hydraulic: "", oil: "", otherFluid: "", serviceDescription: "", repairDescription: "", serviceBy: "", externalCompany: "", workshopSignature: "",
   faults: [], attachments: [], intervalService: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -347,7 +347,8 @@ export default function RecordForm() {
       </Section>
 
       <Section title="4. Pracovní čas" subtitle="Celá pracovní doba a prostoje" testid="section-time">
-        <IntervalEditor label="Pracovní doba (celá směna)" hint="Nezapočítávanou přestávku vynechte – zadejte dva úseky (např. 06:00–11:30 a 12:00–15:30)." items={rec.billing} onChange={(v) => set("billing", v)} testid="billing" />
+        <IntervalEditor label="Pracovní doba (celá směna)" hint="Zadejte celou směnu, např. 06:00–16:00. Přestávky 12:00–12:30 a 15:30–16:00 se odečtou automaticky jen v průniku se směnou. Změnu žádejte v Docházka → Přestávky." items={rec.billing} onChange={(v) => set("billing", v)} testid="billing" />
+        <p className="text-sm text-slate-700">Přestávky ve výpočtu: {fmtH(bd.breakHours)} h. <Link className="underline font-semibold" to="/prestavky">Požádat o změnu přestávky</Link></p>
         <IntervalEditor label="Prostoje" hint="Samostatná kategorie uvnitř pracovní doby (např. čekání na materiál). Není to přestávka." items={rec.downtime} onChange={(v) => set("downtime", v)} testid="downtime" />
         {rec.downtime.length > 0 && <Field label="Důvod prostoje"><Input value={rec.downtimeReason} onChange={(e) => set("downtimeReason", e.target.value)} className="h-12" data-testid="record-downtime-reason-input" /></Field>}
         <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#0B0F14] p-4 text-white sm:grid-cols-4" data-testid="record-time-breakdown">

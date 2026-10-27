@@ -60,7 +60,7 @@ async def change_password(body: dict, user: dict = Depends(get_current_user)):
 
 # ---------------- users (admin) ----------------
 def _can_manage(actor: dict, target_role: str) -> bool:
-    if actor["role"] == "owner":
+    if actor["role"] in ("owner", "operations_manager"):
         return target_role != "owner"
     if actor["role"] == "admin":
         return target_role in ("employee", "manager")
@@ -87,7 +87,7 @@ async def _clean_username(v, uid):
 
 @router.get("/roles")
 async def roles_info(user: dict = Depends(get_ready_user)):
-    return {"roles": [{"role": r, "label": ROLE_LABELS[r]} for r in ("owner", "admin", "manager", "employee")],
+    return {"roles": [{"role": r, "label": ROLE_LABELS[r]} for r in ("owner", "operations_manager", "admin", "manager", "employee")],
             "positions": [{"value": k, "label": v} for k, v in POSITIONS.items()]}
 
 
@@ -323,3 +323,23 @@ async def seed_owner():
                                        "password_hash": hash_password(d["pw"]), "must_change_password": True,
                                        "active": True, "workplace_ids": [], "token_version": 0, "created_at": iso_now(),
                                        "username": d["username"], "position": "strojnik" if d["role"] == "employee" else ""})
+
+
+async def seed_operations_manager():
+    """Provision the requested named account once, without a shared/default password.
+    Identity collisions require manual review; existing identities are never promoted by name.
+    """
+    uid = "demstav-operations-manager-jakub-karas"
+    if await db.users.find_one({"id": uid}):
+        return
+    if await db.users.find_one({"$or": [{"username": "jakub.karas"}, {"name": "Jakub Karas"}]}):
+        return
+    doc = {"id": uid, "username": "jakub.karas", "name": "Jakub Karas", "role": "operations_manager",
+           "password_hash": hash_password(temp_password()), "active": False, "must_change_password": True,
+           "token_version": 0, "workplace_ids": [], "created_at": iso_now(), "created_by": "system"}
+    from pymongo.errors import DuplicateKeyError
+    try:
+        await db.users.insert_one(doc)
+    except DuplicateKeyError:
+        return
+    await audit(None, "operations_manager_provisioned", {"user_id": uid, "active": False})

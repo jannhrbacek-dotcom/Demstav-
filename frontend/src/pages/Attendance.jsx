@@ -34,6 +34,7 @@ export default function Attendance() {
     <div className="space-y-5">
       <PageHeader title="Docházka" subtitle="Příchod, přestávky a odchod. Příchod do práce není automatickým spuštěním stroje."
         actions={<Button variant="outline" className="h-12" onClick={() => openFix(null)} data-testid="attendance-manual-entry-button"><PencilLine className="mr-1 h-4 w-4" />Požádat o opravu</Button>} />
+      <a href="/prestavky" className="block rounded-xl border-2 border-amber-300 bg-amber-50 p-4 font-semibold">Přestávky 12:00–12:30 a 15:30–16:00 se počítají automaticky. Klepněte pro žádost o změnu nebo neuskutečnění.</a>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <AttendanceActions workplaces={wps.data} serverState={att.data?.projection?.state} onDone={() => att.reload()} />
@@ -74,7 +75,7 @@ export default function Attendance() {
         <DialogContent className="max-w-md" data-testid="attendance-request-dialog">
           <DialogHeader><DialogTitle className="font-heading">Žádost o opravu docházky</DialogTitle><DialogDescription>{form.eventId ? "Oprava času existující události." : "Doplnění chybějící události."} Schvaluje vedoucí; původní záznam zůstává v auditu.</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <Field label="Událost"><Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })} disabled={!!form.eventId}><SelectTrigger className="h-12" data-testid="request-kind-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label="Událost"><Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })} disabled={!!form.eventId}><SelectTrigger className="h-12" data-testid="request-kind-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(KIND_LABELS).filter(([k]) => !["break_start", "break_end"].includes(k) || form.date < "2026-10-27").map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent></Select></Field>
             <div className="grid grid-cols-2 gap-3"><Field label="Datum"><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="h-12" data-testid="request-date-input" /></Field>
               <Field label="Skutečný čas"><Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="h-12" data-testid="request-time-input" /></Field></div>
             <Field label="Pracoviště"><Select value={form.workplaceId} onValueChange={(v) => setForm({ ...form, workplaceId: v })}><SelectTrigger className="h-12" data-testid="request-workplace-select"><SelectValue placeholder="Vyberte" /></SelectTrigger><SelectContent>{(wps.data || []).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select></Field>

@@ -21,6 +21,8 @@ import Review from "@/pages/Review";
 import Workplaces from "@/pages/Workplaces";
 import QrDisplay from "@/pages/QrDisplay";
 import UsersPage from "@/pages/Users";
+import Guide, { guideKey } from "@/pages/Guide";
+import Breaks from "@/pages/Breaks";
 import Machines from "@/pages/Machines";
 
 function Guard({ children, role, bare }) {
@@ -28,6 +30,9 @@ function Guard({ children, role, bare }) {
   const loc = useLocation();
   if (!user) return <Navigate to="/login" replace state={{ from: loc.pathname }} />;
   if (user.must_change_password && loc.pathname !== "/zmena-hesla") return <Navigate to="/zmena-hesla" replace />;
+  let guideSeen = false;
+  try { guideSeen = localStorage.getItem(guideKey(user.id)) === "1"; } catch (_) { guideSeen = true; }
+  if (!user.must_change_password && !guideSeen && loc.pathname !== "/jak-na-to") return <Navigate to="/jak-na-to" replace />;
   if (role && !atLeast(user, role)) return <Navigate to="/dnes" replace />;
   return bare ? children : <Layout>{children}</Layout>;
 }
@@ -54,6 +59,8 @@ export default function App() {
             <Route path="/detail/:id" element={<Guard><RecordDetail /></Guard>} />
             <Route path="/dochazka" element={<Guard><Attendance /></Guard>} />
             <Route path="/fronta" element={<Guard><Queue /></Guard>} />
+            <Route path="/jak-na-to" element={<Guard><Guide /></Guard>} />
+            <Route path="/prestavky" element={<Guard><Breaks /></Guard>} />
             <Route path="/vice" element={<Guard><More /></Guard>} />
             <Route path="/exporty" element={<Guard><Exports /></Guard>} />
             <Route path="/prehledy" element={<Guard><MyOverview /></Guard>} />

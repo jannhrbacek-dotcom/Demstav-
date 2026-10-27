@@ -18,7 +18,7 @@ def can_record_interval_service(user: dict, service_by: str) -> bool:
     (serviceBy=external), nebo konkrétní pověřený strojník/mechanik Jan Hrbáček."""
     if not user:
         return False
-    if (user.get("position") or "") == "mechanik":
+    if user.get("role") == "operations_manager" or (user.get("position") or "") == "mechanik":
         return True
     if (user.get("name") or "").strip().lower() in INTERVAL_SERVICE_USER_NAMES:
         return True
@@ -110,6 +110,7 @@ def validate_record(r: dict, confirm: bool):
                     errors.append(f"Přejezd, řádek {idx + 1}: doplňte odkud (bod A) a kam (bod B).")
             clean.append(item)
         out[key] = clean
+    out.update({k: r[k] for k in ("breakPolicy", "breakIntervals") if k in r})
     for k in ("dailyCheck", "accessoryCheck", "equipmentCheck"):
         out[k] = r.get(k) is True
     out["fit"] = r.get("fit") if r.get("fit") in ("yes", "no", "unknown") else "unknown"
@@ -221,6 +222,8 @@ async def verify_chain(rid: str) -> dict:
 
 def public_record(doc: dict) -> dict:
     d = {k: v for k, v in doc.items() if k != "_id"}
+    from break_policy import record_policy
+    d.update(record_policy(d))
     d["breakdown"] = time_breakdown(d)
     return d
 
@@ -301,7 +304,10 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
     if base != cur_rev:
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Záznam byl mezitím změněn na jiném zařízení.",
                                                      "server": public_record(current) if current else None})
+    from break_policy import record_policy
+    payload = {**payload, **record_policy({**payload, "owner_id": user["id"], "breakPolicy": (current or {}).get("breakPolicy")}, new=current is None)}
     errors, rec = validate_record(payload, confirm)
+    rec.update(record_policy({**payload, "owner_id": user["id"]}, new=current is None))
     # Autorizace pravidelného (interval) servisu – jen mechanik, externí servis nebo konkrétní strojník/mechanik Jan Hrbáček.
     if rec and rec.get("intervalService") and confirm and not can_record_interval_service(user, rec.get("serviceBy", "")):
         errors.append("Pravidelný servis (500 mth) může zapsat jen mechanik, externí servisní firma nebo pověřený pracovník (Jan Hrbáček).")
@@ -356,7 +362,7 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
             if stops:
                 from routes_push import notify_users_by_role
                 first = stops[0]
-                await notify_users_by_role(["manager", "owner"], f"STOP závada: {rec.get('machine', '')}",
+                await notify_users_by_role(["manager", "owner", "operations_manager"], f"STOP závada: {rec.get('machine', '')}",
                                            f"{user['name']} · {first.get('description', '')[:160]}",
                                            url=f"/detail/{rid}", tag=f"stop-{rid}", exclude_user_id=user["id"])
         except Exception:

@@ -4,7 +4,7 @@ import { initSync, resetSync, setNeedsLogin, syncNow } from "./sync";
 
 const Ctx = createContext(null);
 export const useAuth = () => useContext(Ctx);
-export const RANK = { employee: 1, manager: 2, admin: 3, owner: 4 };
+export const RANK = { employee: 1, manager: 2, admin: 3, owner: 4, operations_manager: 4 };
 export const atLeast = (user, role) => (RANK[user?.role] || 0) >= RANK[role];
 
 export function AuthProvider({ children }) {

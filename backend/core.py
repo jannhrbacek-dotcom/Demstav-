@@ -27,8 +27,8 @@ JWT_ALGORITHM = "HS256"
 ACCESS_HOURS = 12
 COMPANY_NAME = os.environ.get("COMPANY_NAME", "DEMSTAV GROUP")
 
-ROLE_RANK = {"employee": 1, "manager": 2, "admin": 3, "owner": 4}
-ROLE_LABELS = {"employee": "Strojník", "manager": "Vedoucí výroby", "admin": "Admin", "owner": "Jednatel"}
+ROLE_RANK = {"employee": 1, "manager": 2, "admin": 3, "owner": 4, "operations_manager": 4}
+ROLE_LABELS = {"employee": "Strojník", "manager": "Vedoucí výroby", "admin": "Admin", "owner": "Jednatel", "operations_manager": "Vedoucí provozu"}
 # Pracovní zařazení zaměstnanců (role "employee" – vidí jen svá data).
 POSITIONS = {"strojnik": "Strojník", "mechanik": "Mechanik", "ridic": "Řidič", "strojnik_phm": "Strojník pohonných hmot"}
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,29}$")
@@ -132,6 +132,8 @@ async def get_ready_user(user: dict = Depends(get_current_user)) -> dict:
     """User who already replaced the temporary password."""
     if user.get("must_change_password"):
         raise HTTPException(status_code=403, detail="Nejprve si změňte dočasné heslo.")
+    from break_policy import load_policies
+    await load_policies(user)
     return user
 
 

@@ -91,8 +91,8 @@ async def overview(date: str = "", days: int = 7, user: dict = Depends(require_r
     faults.sort(key=lambda f: (f["severity"] != "stop", f["date"]), reverse=False)
     pending_events = await db.attendance_events.count_documents({"status": "pending_review"})
     pending_requests = await db.attendance_requests.count_documents({"status": "pending"})
-    leave_q = {"status": {"$in": ["pending_manager"] + (["pending_director"] if user["role"] == "owner" else [])}, "user_id": {"$ne": user["id"]}}
-    pending_leave = await db.leave_requests.count_documents(leave_q) if user["role"] in ("manager", "owner") else 0
+    leave_q = {"status": {"$in": ["pending_manager"] + (["pending_director"] if user["role"] in ("owner", "operations_manager") else [])}, "user_id": {"$ne": user["id"]}}
+    pending_leave = await db.leave_requests.count_documents(leave_q) if user["role"] in ("manager", "owner", "operations_manager") else 0
     today_exceptions = await db.planned_exceptions.find({"date": {"$gte": day, "$lte": (date_cls.fromisoformat(day) + timedelta(days=7)).isoformat()}}, {"_id": 0}).sort("date", 1).to_list(200)
     service_alerts = [m for m in await machines_with_status() if m.get("active", True) and m["service_state"] in ("soon", "due")]
     return {"date": day, "present": present, "comparison": comparison, "missing": missing[:200], "open_drafts": open_drafts,
@@ -173,6 +173,8 @@ async def export_diary(employee_id: str = "", machine: str = "", date_from: str 
                     headers={"Content-Disposition": f'attachment; filename="DEMSTAV_provozni_denik_{_range_name(date_from, date_to)}.pdf"'})
 
 
+from routes_breaks import router as breaks_router
+api.include_router(breaks_router)
 api.include_router(users_router)
 api.include_router(records_router)
 api.include_router(att_router)
@@ -221,7 +223,12 @@ async def startup():
     await db.workplaces.create_index("id", unique=True)
     await db.machines.create_index("id", unique=True)
     await db.login_attempts.create_index("identifier")
+    await db.break_requests.create_index("id", unique=True)
+    await db.break_requests.create_index([("employee_id", 1), ("date", 1)], unique=True, partialFilterExpression={"status": "pending"})
+    await db.break_requests.create_index([("status", 1), ("employee_id", 1), ("date", 1)])
     await seed_owner()
+    from routes_users import seed_operations_manager
+    await seed_operations_manager()
     try:
         init_storage()
         logger.info("Storage initialized")
