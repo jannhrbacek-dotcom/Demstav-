@@ -50,7 +50,7 @@ export function SyncPill() {
   const failed = s.queue.some(o => ["error", "conflict", "needs_reason"].includes(o.state));
   const waiting = s.queue.length > 0;
   const stale = !s.lastVerifiedAt || Date.now() - new Date(s.lastVerifiedAt).getTime() > 5 * 60 * 1000;
-  const state = !s.online || stale && !waiting ? "offline" : failed ? "failed" : waiting ? "pending" : "synced";
+  const state = failed ? "failed" : !s.online || (stale && !waiting) ? "offline" : waiting ? "pending" : "synced";
   const meta = {
     synced: { label: "Synchronizováno a potvrzeno serverem", Icon: Cloud, color: "text-emerald-400" },
     pending: { label: "Čeká na odeslání", Icon: CloudUpload, color: "text-amber-400" },
