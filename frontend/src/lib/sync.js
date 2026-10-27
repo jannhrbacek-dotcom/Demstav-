@@ -209,7 +209,7 @@ export function syncNow() {
     // Zelený indikátor jen po skutečné odpovědi serveru, nikoliv podle navigator.onLine.
     let verified = false;
     if (navigator.onLine && !state.needsLogin) {
-      try { await http.get("/health", { timeout: 8000 }); verified = true; } catch { verified = false; }
+      try { await http.get("/auth/me", { timeout: 8000 }); verified = true; } catch { verified = false; }
     }
     patch({ syncing: false, lastSync: new Date().toISOString(), lastVerifiedAt: verified ? new Date().toISOString() : null, lastError: verified && !state.queue.length ? null : state.lastError, online: verified });
 
