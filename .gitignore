@@ -94,3 +94,8 @@ credentials.json
 frontend/node_modules/.cache/default-development/8.pack
 frontend/node_modules/.cache/default-development/1.pack
 frontend/node_modules/.cache/default-development/13.pack
+
+# Local verification and Web Push secrets
+__pycache__/
+.pytest_cache/
+*.pem

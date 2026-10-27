@@ -26,7 +26,7 @@ MUTED = HexColor("#555555")
 TITLE = os.environ.get("TIMESHEET_TITLE", "Týdenní výkaz strojníka střediska 002 - MECHANIZACE")
 SERVICE_PHONE = os.environ.get("SERVICE_PHONE", "602 786 464")
 SERVICE_PHONE_2 = os.environ.get("SERVICE_PHONE_2", "602 736 583")
-SERVICE_BY = {"operator": "servis - strojník", "workshop": "servis - dílna výjezd", "external": "servis - cizí"}
+SERVICE_BY = {"operator": "servis - strojník", "operator_workshop": "servis - strojník včetně dílny", "workshop": "servis - dílna výjezd", "external": "servis - cizí"}
 KIND_LABEL = {"vehicleFuel": "Doklad o tankování vozidla", "machineFuel": "Doklad o tankování stroje", "invoice": "Podklad pro fakturaci",
               "photo": "Fotografie", "other": "Ostatní"}
 ROWS_PER_SHEET = 9
@@ -582,3 +582,4 @@ def _diary_block(pdf: Pdf, r: dict, top: float, overflow: list):
         pdf.txt(a + 4, y + 5, lab, 6.5)
         pdf.rect(a, y + 17, b - a, 27)
         pdf.para(a + 4, y + 23, b - a - 8, val, 7.5, max_lines=2, lead=8.5)
+

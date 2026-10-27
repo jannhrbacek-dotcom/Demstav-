@@ -20,6 +20,8 @@ export const ROLE_INFO = [
 export const POSITIONS = [
   { value: "strojnik", label: "Strojník" },
   { value: "mechanik", label: "Mechanik" },
+  { value: "strojnik_mechanik", label: "Strojník / mechanik" },
+  { value: "externi_servis", label: "Externí servis" },
   { value: "ridic", label: "Řidič" },
   { value: "strojnik_phm", label: "Strojník pohonných hmot" },
 ];
@@ -30,3 +32,4 @@ export const LEAVE_TYPES = [
   { value: "doctor", label: "Návštěva lékaře", hint: "Jeden den, čas od–do. Schvaluje vedoucí výroby." },
   { value: "sick", label: "Nemoc (ohlášení)", hint: "Ohlaste co nejdřív. Potvrzuje vedoucí výroby." },
 ];
+

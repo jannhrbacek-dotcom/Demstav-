@@ -223,7 +223,10 @@ async def my_summary(date_from: str = "", date_to: str = "", employee_id: str = 
         for k in tot:
             tot[k] += u.get(k, 0)
     leaves = await leaves_in_range(date_from, date_to, [target], statuses=("approved", "pending_manager", "pending_director"))
+    from routes_exceptions import exceptions_in_range, _public
+    exceptions = await exceptions_in_range(date_from, date_to, [target])
     return {"date_from": date_from, "date_to": date_to, "timesheet": ts, "attendance": att,
+            "exceptions": [_public(e) for e in sorted(exceptions, key=lambda e: (e["date"], e.get("time_from", "")))],
             "totals": {**{k: _h(v) for k, v in tot.items()}, "attendanceNet": _h(sum(a["Odpracováno h"] for a in att)),
                        "mth": round(sum(r["MTH celkem"] or 0 for r in ts), 1)},
             "leaves": [{**lv, "type_label": LEAVE_TYPES[lv["type"]], "status_label": LEAVE_STATUS[lv["status"]]} for lv in leaves]}
@@ -341,3 +344,4 @@ async def cron_weekly(request: Request, background: BackgroundTasks):
     await db.cron_runs.insert_one({"run_id": run_id, "job": "weekly-exports", "status": "queued", "at": iso_now()})
     background.add_task(_cron_weekly_job, run_id)
     return {"status": "accepted"}
+

@@ -15,14 +15,13 @@ INTERVAL_SERVICE_USER_NAMES = {"jan hrbáček", "jan hrbacek"}
 
 def can_record_interval_service(user: dict, service_by: str) -> bool:
     """Pravidelný (interval) servis smí zapsat jen mechanik (pozice/role), externí servisní firma
-    (serviceBy=external), nebo konkrétní pověřený strojník/mechanik Jan Hrbáček."""
+    (pracovní zařazení externi_servis), nebo pověřený strojník/mechanik Jan Hrbáček.
+    Deklarace provádějící firmy ve formuláři sama o sobě není oprávnění."""
     if not user:
         return False
-    if (user.get("position") or "") == "mechanik":
+    if (user.get("position") or "") in ("mechanik", "strojnik_mechanik", "externi_servis"):
         return True
     if (user.get("name") or "").strip().lower() in INTERVAL_SERVICE_USER_NAMES:
-        return True
-    if service_by == "external":
         return True
     return False
 
@@ -361,6 +360,11 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
                                            url=f"/detail/{rid}", tag=f"stop-{rid}", exclude_user_id=user["id"])
         except Exception:
             pass
+        try:
+            from routes_push import notify_service_threshold
+            await notify_service_threshold(rec.get("machine", ""), user["id"])
+        except Exception:
+            pass
     rec.pop("_id", None)
     return {"status": "saved", "record": public_record(rec)}
 
@@ -422,3 +426,4 @@ async def download_attachment(aid: str, user: dict = Depends(get_ready_user)):
     except Exception:
         raise HTTPException(status_code=503, detail="Úložiště souborů je dočasně nedostupné.")
     return Response(content=data, media_type=att["type"], headers={"Cache-Control": "private, max-age=3600"})
+

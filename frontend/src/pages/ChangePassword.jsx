@@ -30,8 +30,9 @@ export default function ChangePassword() {
         <Input type="password" placeholder="Nové heslo znovu" value={pw2} onChange={(e) => setPw2(e.target.value)} className="h-14" data-testid="password-change-confirm-input" required />
         {err && <Alert variant="destructive" data-testid="password-change-error"><AlertDescription>{err}</AlertDescription></Alert>}
         <Button type="submit" className="btn-primary h-14 w-full text-base font-semibold" data-testid="password-change-submit-button">Uložit nové heslo</Button>
-        <Button type="button" variant="ghost" className="w-full" onClick={() => { if (user?.must_change_password) { logout(); nav("/login"); } else nav(-1); }} data-testid="password-change-cancel">{user?.must_change_password ? "Odhlásit" : "Zpět"}</Button>
+        <Button type="button" variant="ghost" className="w-full" onClick={async () => { if (user?.must_change_password) { if (await logout()) nav("/login"); } else nav(-1); }} data-testid="password-change-cancel">{user?.must_change_password ? "Odhlásit" : "Zpět"}</Button>
       </form>
     </div>
   );
 }
+
