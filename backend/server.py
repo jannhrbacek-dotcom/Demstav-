@@ -12,6 +12,7 @@ from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 from core import db, client, get_ready_user, require_role, is_manager, COMPANY_NAME  # noqa: E402
 from routes_users import router as users_router, seed_owner, machines_with_status  # noqa: E402
 from routes_records import router as records_router  # noqa: E402
+from routes_stt import router as stt_router  # noqa: E402
 from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date  # noqa: E402
 from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
 from storage import init_storage, get_object  # noqa: E402
@@ -166,6 +167,7 @@ async def export_diary(employee_id: str = "", machine: str = "", date_from: str 
 api.include_router(users_router)
 api.include_router(records_router)
 api.include_router(att_router)
+api.include_router(stt_router)
 app.include_router(api)
 
 app.add_middleware(
