@@ -84,6 +84,12 @@ async def _snapshot(ids):
         blockers.append("Vybrané záznamy obsahují pravidelný servis stroje. Nejprve oddělte a ověřte servisní historii.")
     if any(not a.get("storage_path") for a in data["attachments"]):
         blockers.append("Některá příloha nemá platnou cestu k souboru. Nelze zaručit úplnou zálohu.")
+    # Záznamy v ostatních kolekcích nesmí zůstat osiřelé.
+    # Existující data jsou různorodá, proto je při neznámých závislostech bezpečnější
+    # mazání zastavit než tvrdit, že jsou definitivně odstraněna všechna testovací data.
+    if any(a.get("record_id") and a["record_id"] not in {r.get("id") for r in data["records"]}
+           for a in data["attachments"]):
+        blockers.append("Příloha odkazuje na cizí nebo chybějící provozní záznam. Vyžaduje ruční kontrolu.")
     # Týdenní PDF/XLSX/CSV může obsahovat i docházku či absenci bez provozního zápisu.
     # Proto se po odstranění testovacích dat bezpečně zneplatní VŠECHNY uložené týdenní exporty.
     exported_weeks = await db.weekly_exports.find({}, {"_id": 0, "week": 1}).to_list(5000)
