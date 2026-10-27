@@ -394,7 +394,7 @@ export default function RecordForm() {
           <div className="text-xs font-semibold text-slate-600">Použité popisy pro {rec.machine}</div>
           <div className="flex flex-wrap gap-2" data-testid="record-work-suggestions">{recentWork.map((w, i) => <button key={i} type="button"
             title={w} onClick={() => set("work", w)} className="min-h-11 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold hover:bg-amber-50">{w}</button>)}</div>
-        </div>
+        </div>}
         {renderPhotos("timesheet", "Fotky k šichtovnici (výkaz, dodací list, stav pracoviště)")}
       </Section>
 
