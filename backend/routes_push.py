@@ -7,6 +7,8 @@
 
 Notifikace se posílají interně helperem `send_push_to_users(user_ids, title, body, url)`.
 """
+import asyncio
+from urllib.parse import urlparse
 import json
 import logging
 import os
@@ -21,21 +23,27 @@ log = logging.getLogger("push")
 router = APIRouter()
 
 VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
-VAPID_PRIVATE_KEY_FILE = os.path.join(os.path.dirname(__file__), "vapid_private.pem")
+VAPID_PRIVATE_KEY_FILE = os.environ.get("VAPID_PRIVATE_KEY_FILE", os.path.join(os.path.dirname(__file__), "vapid_private.pem"))
 VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:admin@demstav.cz")
 
 
 def _load_private_key() -> Optional[str]:
+    return VAPID_PRIVATE_KEY_FILE if os.path.isfile(VAPID_PRIVATE_KEY_FILE) else None
+
+
+def valid_endpoint(endpoint):
     try:
-        with open(VAPID_PRIVATE_KEY_FILE, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return None
+        u = urlparse(endpoint)
+        host = (u.hostname or "").lower()
+        allowed = host in ("fcm.googleapis.com", "android.googleapis.com", "updates.push.services.mozilla.com") or host.endswith(".push.apple.com") or host.endswith(".notify.windows.com")
+        return bool(allowed and u.scheme == "https" and u.port in (None, 443) and not u.username and not u.password and not u.fragment)
+    except ValueError:
+        return False
 
 
 @router.get("/push/public-key")
 async def public_key(user: dict = Depends(get_ready_user)):
-    if not VAPID_PUBLIC_KEY:
+    if not VAPID_PUBLIC_KEY or not _load_private_key():
         raise HTTPException(status_code=501, detail="Push notifikace nejsou nakonfigurované (chybí VAPID klíč).")
     return {"public_key": VAPID_PUBLIC_KEY}
 
@@ -43,11 +51,13 @@ async def public_key(user: dict = Depends(get_ready_user)):
 @router.post("/push/subscribe")
 async def subscribe(body: dict, user: dict = Depends(get_ready_user)):
     sub = body.get("subscription") or {}
+    if not isinstance(sub, dict) or not isinstance(sub.get("keys"), dict):
+        raise HTTPException(status_code=400, detail="Neplatný odběr oznámení.")
     endpoint = str(sub.get("endpoint") or "")[:1024]
     keys = sub.get("keys") or {}
     p256dh = str(keys.get("p256dh") or "")[:200]
     auth = str(keys.get("auth") or "")[:200]
-    if not endpoint or not p256dh or not auth:
+    if not valid_endpoint(endpoint) or not p256dh or not auth:
         raise HTTPException(status_code=400, detail="Nekompletní subscription (endpoint/keys).")
     ua = text(body.get("user_agent"), 500)
     now = iso_now()
@@ -89,13 +99,16 @@ async def send_push_to_users(user_ids: Iterable[str], title: str, body: str, url
     payload = json.dumps({"title": title[:120], "body": body[:300], "url": url[:200], "tag": tag[:60]})
     sent = 0
     for s in subs:
+        if not valid_endpoint(s["endpoint"]):
+            continue
         try:
-            webpush(
+            await asyncio.to_thread(webpush,
                 subscription_info={"endpoint": s["endpoint"], "keys": {"p256dh": s["p256dh"], "auth": s["auth"]}},
                 data=payload,
                 vapid_private_key=priv,
                 vapid_claims={"sub": VAPID_SUBJECT},
                 ttl=3600,
+                timeout=10,
             )
             sent += 1
             await db.push_subscriptions.update_one({"endpoint": s["endpoint"]},
@@ -107,9 +120,9 @@ async def send_push_to_users(user_ids: Iterable[str], title: str, body: str, url
             else:
                 await db.push_subscriptions.update_one({"endpoint": s["endpoint"]},
                                                        {"$inc": {"failed_count": 1}, "$set": {"last_error": str(e)[:300]}})
-                log.warning("push failed status=%s err=%s", status, str(e)[:200])
+                log.warning("push failed status=%s", status)
         except Exception as e:  # noqa: BLE001
-            log.exception("push exception: %s", e)
+            log.warning("push failed (%s)", type(e).__name__)
     return sent
 
 

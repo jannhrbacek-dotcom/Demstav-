@@ -17,6 +17,8 @@ import routes_users
 
 @pytest.fixture
 def local_storage(monkeypatch, tmp_path):
+    monkeypatch.setenv("VAPID_PRIVATE_KEY_FILE", str(tmp_path / "vapid.pem"))
+    monkeypatch.delenv("VAPID_PUBLIC_KEY", raising=False)
     monkeypatch.setenv("STORAGE_BACKEND", "local")
     monkeypatch.setenv("STORAGE_LOCAL_ROOT", str(tmp_path / "objects"))
     return tmp_path / "objects"

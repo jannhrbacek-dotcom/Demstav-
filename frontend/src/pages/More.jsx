@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/Section";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useSync } from "@/lib/sync";
+import { errText } from "@/lib/api";
 import { pushSupported, pushPermission, getActiveSubscription, enablePush, disablePush, sendTestPush } from "@/lib/push";
 
 const L = ({ to, icon: I, label, testid }) => (<Link to={to} className="flex min-h-[60px] items-center gap-3 border-b border-slate-100 px-4 font-semibold last:border-0 hover:bg-slate-50" data-testid={testid}><I className="h-5 w-5" /><span className="flex-1">{label}</span><ChevronRight className="h-5 w-5 text-slate-400" /></Link>);
@@ -25,7 +26,7 @@ export default function More() {
     try {
       if (pushState.subscribed) { await disablePush(); setPushState((p) => ({ ...p, subscribed: false, busy: false })); toast.success("Notifikace vypnuty"); }
       else { await enablePush(); setPushState((p) => ({ ...p, subscribed: true, permission: pushPermission(), busy: false })); toast.success("Notifikace zapnuty"); }
-    } catch (e) { setPushState((p) => ({ ...p, busy: false })); toast.error(e.message || "Nepodařilo se zapnout notifikace."); }
+    } catch (e) { setPushState((p) => ({ ...p, busy: false })); toast.error(e.response ? errText(e) : (e.message || "Nepodařilo se zapnout notifikace.")); }
   };
   const sendTest = async () => { try { const n = await sendTestPush(); toast.success(n ? "Testovací notifikace odeslána." : "Žádné aktivní zařízení pro notifikace."); } catch (e) { toast.error(e?.response?.data?.detail || "Chyba odeslání testu."); } };
   const out = () => { if (s.queue.length && !window.confirm(`V telefonu je ${s.queue.length} neodeslaných položek. Zůstanou uloženy a odešlou se po dalším přihlášení stejného účtu. Odhlásit?`)) return; logout(); nav("/login"); };

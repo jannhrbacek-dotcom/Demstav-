@@ -5,6 +5,8 @@ from pathlib import Path
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from push_config import configure_cloud_push
+configure_cloud_push()
 from server import app
 
 BUILD = Path(os.environ.get("FRONTEND_BUILD_DIR", "/app/frontend/build")).resolve()

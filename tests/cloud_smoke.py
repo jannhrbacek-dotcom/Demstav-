@@ -25,6 +25,10 @@ with httpx.Client(base_url=BASE, timeout=15) as client:
         rotated = client.post("/api/auth/change-password", json={"current_password": "IsolatedCIBootstrap123", "new_password": "IsolatedCIPersonal456"})
         rotated.raise_for_status()
         client.headers["Authorization"] = "Bearer " + rotated.json()["access_token"]
+    public_key = client.get("/api/push/public-key")
+    public_key.raise_for_status()
+    assert len(public_key.json()["public_key"]) == 87
+    assert client.post("/api/push/subscribe", json={"subscription": {"endpoint": "https://127.0.0.1/private", "keys": {"auth": "x", "p256dh": "x"}}}).status_code == 400
     attachment = client.post("/api/attachments", data={"id": "ci-attachment", "kind": "other"},
                              files={"file": ("test.pdf", b"%PDF-1.4\nCI persistence check", "application/pdf")})
     attachment.raise_for_status()
