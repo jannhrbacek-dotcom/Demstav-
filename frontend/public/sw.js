@@ -28,6 +28,17 @@ self.addEventListener('fetch', (e) => {
   }).catch(() => caches.match(req)));
 });
 
+// Push: zobrazí notifikaci i při zavřené aplikaci.
+self.addEventListener("push", (event) => {
+  let data = { title: "DEMSTAV OPERATIONS", body: "Máte novou událost.", url: "/", tag: "demstav" };
+  try { if (event.data) data = { ...data, ...event.data.json() }; } catch (_) { /* fallback */ }
+  const opts = {
+    body: data.body, tag: data.tag, renotify: true, badge: "/icon-192.png", icon: "/icon-192.png",
+    data: { url: data.url || "/" }, requireInteraction: false,
+  };
+  event.waitUntil(self.registration.showNotification(data.title || "DEMSTAV OPERATIONS", opts));
+});
+
 // Klepnutí na upozornění (např. blížící se servis) otevře aplikaci.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();

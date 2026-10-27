@@ -1,34 +1,18 @@
 [
   {
-    "content": "Phase 6.1: Backend + Frontend complete",
+    "content": "7.5 Zmenšit widget počasí na tenký řádek + hodinový graf srážek",
     "status": "completed"
   },
   {
-    "content": "Phase 6.2: Backend intervalService auth validation",
+    "content": "7.6 XLSX stavební deník stroje – listy per stroj",
     "status": "completed"
   },
   {
-    "content": "Phase 6.2: Frontend RecordForm refactor (dropdown + Yes/No + service up + 500mth restriction)",
+    "content": "7.7 UI tlačítko pro nový XLSX export + ověření screínshotem",
     "status": "completed"
   },
   {
-    "content": "Phase 6.3: Backend - web-push + VAPID + push_subscriptions + subscribe endpoints",
+    "content": "Testing: testing_agent_v3 pro Phase 7.5-7.7 (weather compact + machine_log XLSX)",
     "status": "in_progress"
-  },
-  {
-    "content": "Phase 6.3: Frontend - Push opt-in UI + SW push handler",
-    "status": "pending"
-  },
-  {
-    "content": "Phase 6.3: Backend - Hook push notifications to new leave requests + service alerts",
-    "status": "pending"
-  },
-  {
-    "content": "Testing: Run testing_agent_v3 after Phase 6.1 + 6.2 + 6.3",
-    "status": "pending"
-  },
-  {
-    "content": "Phase 6.4: Visual verification via screenshot tool",
-    "status": "pending"
   }
 ]

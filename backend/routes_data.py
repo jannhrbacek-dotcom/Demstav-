@@ -145,7 +145,171 @@ async def attendance_rows(user, f: dict):
     return rows
 
 
-DATASETS = {"timesheet": "sichtovnice", "attendance": "dochazka"}
+DATASETS = {"timesheet": "sichtovnice", "attendance": "dochazka", "machine_log": "stavebni_denik_stroje"}
+
+
+def _bool(v):
+    return "ano" if v else ""
+
+
+def _machine_log_header():
+    return [
+        "Datum", "Směna", "Zaměstnanec", "Objednatel", "Pracoviště", "Zakázka",
+        "SPZ na pracoviště", "SPZ z pracoviště", "Ubytování", "Posádka",
+        "Pracovní doba (úseky)", "Celkem h", "Práce h", "Servis h", "Prostoje h", "Přejezdy h", "K fakturaci h",
+        "Přejezdy – trasa", "Důvod prostoje", "Popis práce",
+        "MTH začátek", "MTH konec", "MTH celkem",
+        "Denní kontrola", "Kontrola příslušenství", "Kontrola vybavení", "Provozuschopný",
+        "Závady (shrnutí)", "STOP závady",
+        "Servis provedl", "Externí firma", "Popis servisu", "Popis opravy", "Pravidelný servis (interval)",
+        "Nafta l", "Hydr. olej l", "Mot. olej l", "Jiná kapalina",
+        "Předal (jméno)", "Poznámky",
+        "Stav zápisu", "Revize", "Důvod opravy", "Autor", "ID zápisu", "Otisk SHA-256",
+    ]
+
+
+def _machine_log_row(r, bd, users):
+    ms, me = _num(r.get("mthStart")), _num(r.get("mthEnd"))
+    faults = r.get("faults") or []
+    stops = [f for f in faults if f.get("severity") == "stop"]
+    service_actor = {"operator": "Strojník", "operator_workshop": "Strojník + dílna",
+                     "workshop": "Dílna – výjezd", "external": "Externí servis"}.get(r.get("serviceBy", ""), "")
+    author = users.get(r.get("owner_id", ""), {}).get("name") or r.get("owner_name", "")
+    rev = r.get("revisions") or []
+    last_reason = rev[-1].get("reason", "") if rev else ""
+    return [
+        r.get("date", ""), r.get("shift", ""), r.get("operator", ""), r.get("customer", ""), r.get("site", ""), r.get("job", ""),
+        r.get("vehiclesTo", ""), r.get("vehiclesFrom", ""), r.get("accommodation", ""), r.get("crew", ""),
+        ", ".join(f"{i['start']}–{i['end']}" for i in bd["totalIntervals"]),
+        _h(bd["totalHours"]), _h(bd["workHours"]), _h(bd["serviceHours"]), _h(bd["downtimeHours"]),
+        _h(bd.get("travelHours")), _h(bd.get("billableHours", bd["totalHours"])),
+        "; ".join(f"{t.get('from', '')} → {t.get('to', '')}" for t in r.get("travel") or []),
+        r.get("downtimeReason", ""), r.get("work", ""),
+        ms, me, round(me - ms, 1) if ms is not None and me is not None else None,
+        _bool(r.get("dailyCheck")), _bool(r.get("accessoryCheck")), _bool(r.get("equipmentCheck")),
+        {"yes": "ano", "no": "ne", "unknown": "nevím"}.get(r.get("fit", ""), ""),
+        "; ".join(f"{'STOP ' if f.get('severity') == 'stop' else ''}{f.get('description', '')}"
+                  + (" → " + f.get("resolution", "") if f.get("resolved") else " [neopraveno]") for f in faults),
+        "; ".join(f.get("description", "") for f in stops),
+        service_actor, r.get("externalCompany", ""), r.get("serviceDescription", ""), r.get("repairDescription", ""),
+        _bool(r.get("intervalService")),
+        _num(r.get("diesel")), _num(r.get("hydraulic")), _num(r.get("oil")), r.get("otherFluid", ""),
+        r.get("handoverName", ""), r.get("notes", ""),
+        STATUS_REC.get(r.get("status", ""), r.get("status", "")), r.get("revision"), last_reason,
+        author, r.get("id", ""), (r.get("integrity_hash") or "")[:16],
+    ]
+
+
+def _style_header(ws, cols):
+    for c in ws[1]:
+        c.font = Font(bold=True, color="0F172A")
+        c.fill = PatternFill("solid", fgColor="FFD200")
+        c.alignment = Alignment(vertical="center", wrap_text=True, horizontal="center")
+    ws.row_dimensions[1].height = 32
+    for i, _ in enumerate(cols, 1):
+        ws.column_dimensions[get_column_letter(i)].width = 18
+    ws.freeze_panes = "A2"
+
+
+import re as _re
+
+_INVALID_SHEET_CHARS = _re.compile(r"[\\/\*\?:\[\]]")
+
+
+def _safe_sheet_name(name: str) -> str:
+    return _INVALID_SHEET_CHARS.sub("-", (name or "Bez stroje").strip())[:28] or "Bez stroje"
+
+
+def machine_logs_xlsx(records_by_machine: dict, users: dict, machines: dict, meta: dict) -> bytes:
+    """Vygeneruje XLSX stavební deník stroje – jeden list na každý stroj.
+
+    `records_by_machine`: {machine_label: [záznamy seřazené podle data]}.
+    `machines`: {label: machine_doc} pro doplnění metadat (interní číslo, aktuální MTH apod.).
+    """
+    wb = Workbook()
+    # Souhrnný list jako první.
+    overview = wb.active
+    overview.title = "Přehled"
+    overview.append(["DEMSTAV OPERATIONS – Stavební deník stroje"])
+    overview["A1"].font = Font(bold=True, size=14)
+    overview.append([f"Období: {meta.get('date_from', '')} – {meta.get('date_to', '')}"])
+    overview.append([f"Vygeneroval: {meta.get('generated_by', '')} ({meta.get('generated_at', '')})"])
+    overview.append([])
+    overview.append(["Stroj", "Interní č.", "Počet záznamů", "Hodiny celkem", "MTH celkem", "List"])
+    for c in overview[5]:
+        c.font = Font(bold=True)
+        c.fill = PatternFill("solid", fgColor="FFD200")
+
+    header = _machine_log_header()
+    for label in sorted(records_by_machine.keys(), key=lambda x: x.lower()):
+        rows = records_by_machine[label]
+        m = machines.get(label.lower(), {})
+        sheet_name = _safe_sheet_name(label)
+        base = sheet_name
+        suffix = 1
+        while sheet_name in wb.sheetnames:
+            suffix += 1
+            sheet_name = _safe_sheet_name(base[:26] + f" {suffix}")
+        ws = wb.create_sheet(title=sheet_name)
+        ws.append([f"Stavební deník stroje – {label}"])
+        ws["A1"].font = Font(bold=True, size=12)
+        info = []
+        if m.get("internal_number"): info.append(f"interní č. {m['internal_number']}")
+        if m.get("manufacturer"): info.append(m["manufacturer"])
+        if m.get("vin"): info.append(f"VIN {m['vin']}")
+        ws.append([" · ".join(info) if info else ""])
+        ws.append([])
+        ws.append(header)
+        hdr_row = ws.max_row
+        total_h = 0.0
+        mth_total = 0.0
+        for r in sorted(rows, key=lambda x: x.get("date", "")):
+            bd = time_breakdown(r)
+            ws.append(_machine_log_row(r, bd, users))
+            total_h += bd["totalHours"]
+            ms, me = _num(r.get("mthStart")), _num(r.get("mthEnd"))
+            if ms is not None and me is not None and me >= ms: mth_total += me - ms
+        # Styly záhlaví
+        for c in ws[hdr_row]:
+            c.font = Font(bold=True, color="0F172A")
+            c.fill = PatternFill("solid", fgColor="FFD200")
+            c.alignment = Alignment(vertical="center", wrap_text=True, horizontal="center")
+        ws.row_dimensions[hdr_row].height = 32
+        for i, _ in enumerate(header, 1):
+            # Dynamická šířka pro čitelné sloupce (max 42).
+            col = get_column_letter(i)
+            maxlen = max([len(str(header[i - 1]))] + [len(str(ws.cell(row=rr, column=i).value or "")) for rr in range(hdr_row + 1, ws.max_row + 1)])
+            ws.column_dimensions[col].width = min(max(maxlen + 2, 12), 42)
+        ws.freeze_panes = f"A{hdr_row + 1}"
+        if ws.max_row > hdr_row:
+            ws.auto_filter.ref = f"A{hdr_row}:{get_column_letter(len(header))}{ws.max_row}"
+        overview.append([label, m.get("internal_number", ""), len(rows), round(total_h, 2), round(mth_total, 1), sheet_name])
+    for i in range(1, 7):
+        overview.column_dimensions[get_column_letter(i)].width = [34, 12, 16, 16, 14, 24][i - 1]
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+async def machine_log_data(user, f: dict):
+    """Načte potvrzené i draft záznamy a seskupí je podle stroje."""
+    users = {u["id"]: u for u in await _users_scope(user, f.get("employee_id", ""), f.get("position", ""))}
+    q = {"owner_id": {"$in": list(users)}}
+    if f.get("date_from") or f.get("date_to"):
+        q["date"] = {k: v for k, v in (("$gte", f.get("date_from")), ("$lte", f.get("date_to"))) if v}
+    if f.get("machine"):
+        q["machine"] = f["machine"]
+    if not f.get("include_drafts"):
+        q["status"] = "confirmed"
+    recs = await db.records.find(q, {"_id": 0}).sort([("machine", 1), ("date", 1)]).to_list(50000)
+    by_machine: dict = {}
+    for r in recs:
+        label = (r.get("machine") or "Bez stroje").strip() or "Bez stroje"
+        by_machine.setdefault(label, []).append(r)
+    machines = {}
+    for m in await db.machines.find({}, {"_id": 0}).to_list(500):
+        machines[(m.get("label") or "").strip().lower()] = m
+    return by_machine, users, machines
 
 
 def to_xlsx(rows: list, title: str) -> bytes:
@@ -186,13 +350,22 @@ def to_csv(rows: list) -> bytes:
 @router.get("/exports/data")
 async def export_data(dataset: str = "attendance", format: str = "xlsx", employee_id: str = "", date_from: str = "", date_to: str = "",
                       machine: str = "", workplace_id: str = "", workplace: str = "", status: str = "", position: str = "",
-                      user: dict = Depends(get_ready_user)):
+                      include_drafts: int = 0, user: dict = Depends(get_ready_user)):
     if dataset not in DATASETS or format not in ("xlsx", "csv"):
         raise HTTPException(status_code=400, detail="Neznámý typ exportu.")
     f = {"employee_id": employee_id, "date_from": date_from, "date_to": date_to, "machine": machine, "workplace_id": workplace_id,
-         "workplace": workplace, "status": status, "position": position}
-    rows = (await timesheet_rows(user, f))[0] if dataset == "timesheet" else await attendance_rows(user, f)
+         "workplace": workplace, "status": status, "position": position, "include_drafts": bool(include_drafts)}
     name = f"DEMSTAV_{DATASETS[dataset]}_{date_from or 'zacatek'}_{date_to or 'dnes'}.{format}"
+    if dataset == "machine_log":
+        if format != "xlsx":
+            raise HTTPException(status_code=400, detail="Stavební deník stroje se exportuje jen jako XLSX.")
+        by_machine, users, machines = await machine_log_data(user, f)
+        meta = {"date_from": date_from or "začátek", "date_to": date_to or prague_date(),
+                "generated_by": user.get("name", ""), "generated_at": iso_now()[:16].replace("T", " ")}
+        data = machine_logs_xlsx(by_machine, users, machines, meta)
+        mt = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        return Response(content=data, media_type=mt, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    rows = (await timesheet_rows(user, f))[0] if dataset == "timesheet" else await attendance_rows(user, f)
     if format == "xlsx":
         data, mt = to_xlsx(rows, "Šichtovnice" if dataset == "timesheet" else "Docházka"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     else:

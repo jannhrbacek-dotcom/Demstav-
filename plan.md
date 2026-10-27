@@ -12,7 +12,7 @@
   - `admin` → **Admin**.
   - `manager` → **Vedoucí výroby**.
   - `employee` → **Strojník / zaměstnanec** + pracovní zařazení: **strojník, mechanik, řidič, strojník pohonných hmot**.
-  - Přihlášení podporuje **username nebo e-mail** (demo: `jednatel`, `admin`, `vedouci`, `strojnik`, `spravce`).
+  - Přihlášení podporuje **username nebo e-mail**.
 
 - Offline-first:
   - Persistovaná **lokální fronta** na úrovni účtu (stabilní ID, idempotentní resend, detekce konfliktu přes `baseRevision`).
@@ -24,7 +24,7 @@
 - Servisní intervaly:
   - Default interval: **500 mth**, varování: **100 mth**.
   - Aktuální MTH: `max(machine.operating_hours, poslední mthEnd/mthStart ze zápisů)`.
-  - Upozornění v aplikaci + (nově plánováno) **systémové push notifikace**.
+  - Upozornění v aplikaci + **push notifikace**.
 
 - Integrita dat:
   - Revize v `record_versions`, **hash-chain** (SHA-256), včetně SHA příloh.
@@ -37,11 +37,16 @@
 - Konvence názvů strojů:
   - Primární štítek s číslem stroje: např. **L566/3**, **L576/7**.
 
-- **Nově (Phase 6)**: 
+- **Nově (Phase 6) — DODÁNO**:
   - **Plánované výjimky / zkrácené směny** (pozdní příchody / dřívější odchody) – zadává zaměstnanec, **bez schvalování**, viditelné vedení.
-  - **Refaktor RecordForm** pro výrazně čistší UX (dropdown stroje + podmíněné sekce servis/přejezd).
-  - **Push notifikace i při zavřené aplikaci**: nativní Web Push (VAPID) + subscription backend.
-  - **Vizuální ověření** klíčových toků, které automatické testy plně nepokryly.
+  - **Refaktor RecordForm** pro výrazně čistší UX (dropdown stroje + podmíněné sekce servis/přejezd) + business pravidla pro 500 mth interval servis.
+  - **Push notifikace i při zavřené aplikaci**: nativní Web Push (VAPID) + subscription backend + FE opt-in + SW push handler.
+
+- **Nově (Phase 7) — UX pro mobil/PC/tablet + „dlaždicový“ jednoduchý režim + počasí**:
+  - Opravit horizontální posouvání a nutnost „zmenšovat“ zobrazení na telefonu.
+  - Dodat komfortní rozložení pro **PC a tablety**.
+  - Předělat **Jednoduchý režim** na opravdu jednoduché ovládání „pro důchodce“ (velké dlaždice, minimum textu, jednoznačné akce).
+  - Přidat **widget Počasí** na uvítací obrazovku (min. 4 dny dopředu) podle polohy **pracoviště** (GPS z pracoviště, fallback na geolokaci zařízení).
 
 ---
 
@@ -80,7 +85,7 @@ Testing ✅
 ---
 
 ### Phase 3 — Hardening + použitelnost ✅ HOTOVO
-- Jednoduchý režim.
+- Jednoduchý režim (první verze).
 - Smart autocomplete + „Načíst z minula“.
 - Diktování (Whisper přes Emergent).
 - Pilot data.
@@ -110,7 +115,7 @@ Testing ✅
 ---
 
 ### Phase 4.4 — Emergent STT (Whisper) ✅ IMPLEMENTOVÁNO + OTESTOVÁNO
-- Backend: `POST /api/stt` (Whisper-1, cs).
+- Backend: `POST /api/stt`.
 - Frontend: Dictation komponenta (offline: drží nahrávku a transkribuje po návratu online).
 
 ---
@@ -119,7 +124,7 @@ Testing ✅
 > Phase 5 je funkčně hotová a prošla automatickými testy; část UI toků vyžaduje ruční vizuální kontrolu.
 
 #### 5.1 Role model + username login ✅ HOTOVO
-- Backend: `public_user` (username, position, role_group/label), `/auth/login` s `login` (username/email), index unikátnosti username.
+- Backend: `public_user` (username, position, role_group/label), `/auth/login` s `login` (username/email).
 - Frontend: login texty, Users page pro username+position, role labely.
 
 #### 5.2 Nepřítomnosti (žádosti + schvalování) ✅ HOTOVO
@@ -148,124 +153,115 @@ Testing ✅
 
 ---
 
-### Phase 6 — Úkoly potvrzené uživatelem (Message 332) 🔜 PLÁNOVÁNO
-Priorita byla potvrzena uživatelem v tomto pořadí:
-1) **Plánované výjimky / zkrácené směny**, 2) **RecordForm refaktor**, 3) **Web Push (VAPID)**, 4) **Vizuální ověření**.
+### Phase 6 — Úkoly potvrzené uživatelem (Message 332) ✅ DODÁNO + OTESTOVÁNO
+Priorita byla potvrzena uživatelem v pořadí: 1) výjimky, 2) RecordForm refaktor, 3) Push (VAPID), 4) vizuální ověření.
 
-#### 6.1 Plánované výjimky / zkrácené směny (P1 → nyní priorita #1) ⏳
-Cíl
-- Zaměstnanec zadá plánovanou výjimku: **pozdní příchod** / **dřívější odchod** (případně obecný důvod: dítě/úřad apod.).
-- **Bez schvalování**: je to oznámení, ale musí být viditelné vedení.
-- Zobrazit v přehledu zaměstnanců (Vedoucí/Jednatel), ideálně i v detailu zaměstnance / denním přehledu.
-
-Návrh datového modelu
-- Kolekce: `planned_exceptions`
-  - `{ id, user_id, user_name, date, kind: late_arrival|early_departure|other, time_from?, time_to?, minutes?, reason, created_at, updated_at }`
-
-Backend
-- Endpoints:
-  - `POST /api/exceptions` vytvoření výjimky (idempotentně dle `id`).
-  - `GET /api/exceptions?mine=1|0&date_from&date_to&employee_id` výpis.
-  - (volitelně) `DELETE /api/exceptions/{id}` pro smazání vlastní výjimky v rámci dne.
-- Validace:
-  - datum ISO, čas HH:MM, smysluplnost rozsahu, limit délky textu.
-  - oprávnění: zaměstnanec může CRUD jen svoje; vedení vidí vše.
-
-Frontend
-- Nová stránka: např. `/vyjimky` nebo integrace do `/dochazka` (sekce „Plánované výjimky“).
-- Formulář:
-  - Datum, typ (pozdě/předčasně), čas (nebo minuty), důvod.
-  - Seznam „Moje výjimky“ + možnost odstranění.
-- Vedení:
-  - Přehled v `/prehled` (např. count a seznam pro zvolený den/týden), nebo v uživatelském přehledu.
-
-Testy
-- Backend: unit test endpointů + oprávnění.
-- Frontend: základní render + submit (smoke).
-
-#### 6.2 Refaktor UI/UX formuláře zápisu (RecordForm) (P0, priorita #2) ⏳
-Cíl (konkrétně dle požadavků)
-1. **Stroj jako dropdown** (Select) místo volného inputu (ponechat možnost rychlého psaní vyhledávání).
-2. **Ano/Ne otázka** před zobrazením sekcí:
-   - „Prováděl jsem servis?“ → teprve pak zobrazit servisní část.
-   - „Měl jsem přejezd A→B?“ → teprve pak zobrazit přejezdové intervaly.
-3. **Servis přesunout nahoru** – hned pod otázku (ne jako sekce 6 na konci).
-4. Přidat volbu servis provedl: **„strojník včetně dílny“**.
-5. **Omezení 500 mth (interval) servisu**:
-   - Povolit pouze: role/pozice **mechanik**, nebo servis aktor **externí servis**, nebo konkrétní uživatel **Jan Hrbáček**.
-   - Pozn.: uživatel v odpovědi potvrdil VAPID cestu pro push; u 500 mth se objevily vícenásobné volby – implementace bude podle zadání: **mechanik + externí servis + Jan Hrbáček** (a explicitně to v UI vysvětlit).
-
-Implementace (frontend)
-- Úpravy `RecordForm.jsx`:
-  - Předělat výběr stroje na `Select` z `/machines`.
-  - Přidat state `hasService` / `hasTravel` (např. boolean toggles) a podle toho renderovat IntervalEditor pro `service`/`travel`.
-  - Přeskládat sekce (servis blok přesunout výše).
-  - Rozšířit `serviceBy` možnosti (včetně „strojník včetně dílny“).
-  - Vynutit pravidla pro `intervalService` checkbox:
-    - Pokud uživatel nemá oprávnění, checkbox zobrazit disabled + tooltip/text proč.
-
-Backend (pokud bude potřeba)
-- Doplnit server-side validaci při confirm:
-  - Pokud `intervalService=true`, ověřit oprávnění (pozice mechanik / serviceBy external / jméno Jan Hrbáček).
-  - Jinak vrátit 403/400 s jasnou hláškou.
-
-Testy
-- Frontend: komponentové/smoke testy, případně e2e flow „nový zápis“.
-
-#### 6.3 Push notifikace (P0, priorita #3) ⏳
-Cíl
-- Notifikace fungují **i při zavřené aplikaci** (PWA), minimálně pro servisní upozornění a případně pro management eventy (později).
-
-Technická volba (potvrzeno uživatelem)
-- **Nativní Web Push** s **VAPID klíči** (bez Firebase).
-
-Návrh implementace
+#### 6.1 Plánované výjimky / zkrácené směny ✅
 - Backend:
-  - Generace/konfigurace VAPID: env `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
-  - Kolekce `push_subscriptions`: `{id, user_id, endpoint, keys, user_agent, created_at, last_seen_at}`.
-  - Endpoints:
-    - `POST /api/push/subscribe` uloží subscription (idempotentně).
-    - `POST /api/push/unsubscribe` odebere.
-    - (interně) utilita pro odeslání notifikace přes web-push.
-  - Job/triggery:
-    - Na serveru periodicky (nebo při login/overview) kontrola `service-alerts` a odeslání notifikace.
-
+  - `routes_exceptions.py`: `POST/GET/DELETE /api/exceptions`.
+  - Oprávnění: zaměstnanec vidí svoje; vedení vidí vše.
 - Frontend:
-  - UI ve „Více“ / nastavení: tlačítko „Zapnout upozornění“.
-  - Registrace service workeru + `PushManager.subscribe` s public VAPID key.
-  - Odeslání subscription na backend.
+  - Integrace do `/nepritomnost` (form + seznam „Moje plánované výjimky“ + přehled pro vedení).
+- Přehled vedení:
+  - `/api/overview` obsahuje `upcoming_exceptions` (nejbližší týden).
 
-- Service Worker (`/frontend/public/sw.js`):
-  - Přidat `push` handler: `self.addEventListener('push', ...)` → `showNotification`.
-  - `notificationclick` už existuje – zachovat.
+#### 6.2 Refaktor UI/UX formuláře zápisu (RecordForm) ✅
+- Stroj jako dropdown `Select` z `/machines`.
+- Ano/Ne gating před sekcemi Servis a Přejezd.
+- Servis přesunut nahoru.
+- Přidáno „strojník včetně dílny“.
+- Omezení interval servisu (500 mth): server-side i UI (mechanik / externí / Jan Hrbáček).
 
-Poznámky
-- Vyžaduje HTTPS v produkci.
-- iOS podpora web push je omezená dle verze – otestovat cílová zařízení.
+#### 6.3 Push notifikace (Web Push + VAPID) ✅
+- Backend:
+  - `routes_push.py`: `GET /api/push/public-key`, `POST /api/push/subscribe`, `POST /api/push/unsubscribe`, `POST /api/push/test`.
+  - Hooky: leave request/decision, planned exception, STOP závada.
+- Frontend:
+  - More page opt-in (zapnout/vypnout + test).
+  - SW: handler `push` + `notificationclick`.
+
+#### 6.4 Vizuální ověření ⏳ (stále pending)
+- Travel A→B UI flow.
+- Pauza bez QR.
+- PDF exporty (šichtovnice, deník) vizuálně.
+
+---
+
+### Phase 7 — Mobilní responsivita + tablet/desktop layout + „dlaždicový“ jednoduchý režim + Počasí 🔜 PLÁNOVÁNO
+**Motivace / problém:** uživatel hlásí, že na telefonu musí neustále zmenšovat nebo posouvat do stran; aplikace musí být pohodlná i na PC/tabletu. Jednoduchý režim má být výrazně jednodušší (dlaždice, obří ovládání).
+
+#### 7.1 Mobilní audit a oprava horizontálního overflow (P0)
+Cíl
+- Nikde na mobilu nevznikne vodorovný scrollbar.
+- Komponenty se nevejdou mimo viewport (typicky gap, padding, fixed width).
+
+Kroky
+- Přidat globální ochranu:
+  - `html, body { overflow-x: hidden; }`
+  - `* { max-width: 100%; }` pouze selektivně (neglobálně na vše), preferovat: `img, video, canvas, svg { max-width:100%; height:auto; }`.
+- Najít a opravit konkrétní viníky overflow (např. `Today` grid, karty s `w` větší než viewport, špatné `px` na containeru).
+- Zkontrolovat fixed/spodní nav a safe-area.
 
 Testy
-- Backend: unit test subscribe endpoint.
-- Manuální: Chrome/Android – subscribe + doručení.
+- Povinně spustit `testing_agent_v3` na regression + nový „mobile overflow check“ (screenshot + měření `scrollWidth > clientWidth`).
 
-#### 6.4 Vizuální ověření (priorita #4) ⏳
+#### 7.2 Responsivní layout pro PC a tablety (P0/P1)
 Cíl
-- Ručně/screenshotově ověřit toky, které automatické testy nemohly plně zvalidovat:
-  - Travel A→B UI flow (docházka).
-  - Pauza bez QR (jen když je uživatel ve stavu „pracuje“).
-  - Vizuální kontrola PDF exportů:
-    - `/api/exports/sichtovnice.pdf`
-    - `/api/exports/denik.pdf`
+- Tablet/desktop využije šířku rozumně:
+  - více sloupců, menší výška karet, rozumné max-width.
+  - stabilní sidebar (už existuje), ale upravit některé stránky pro desktop grid.
 
-Výstup
-- Krátký checklist + screenshoty / poznámky, zda odpovídá šablonám.
+Kroky
+- Zkontrolovat klíčové stránky: Today, Attendance, Records list, RecordForm, Overview.
+- Přidat breakpoint layouty (sm/md/lg/xl) tam, kde je to uživatelsky přínosné.
+
+Testy
+- Screenshoty v šířkách 390 (mobil), 768 (tablet), 1280 (desktop).
+
+#### 7.3 „Jednoduchý režim“ jako dlaždicový dashboard (P0)
+Cíl
+- Jednoduchý režim bude ovladatelný „pro důchodce“:
+  - minimum textu, velká tlačítka, jednoznačné volby.
+  - přednostně **dlaždice**: „Docházka“, „Nový zápis“, „Fronta“, „Volno“, „Exporty“.
+
+Kroky
+- V Today page (a případně v Layoutu) při `simpleMode=true`:
+  - nahradit některé sekce tile gridem.
+  - obří tlačítka pro hlavní akce docházky (Příchod, Pauza, Odchod, Přejezd).
+  - skrýt nebo sbalit sekundární informace.
+- Zachovat funkčnost i bez jednoduchého režimu.
+
+Testy
+- `testing_agent_v3` – frontend smoke: zapnout simple mode → ověřit, že jsou vidět dlaždice a hlavní akce.
+
+#### 7.4 Widget Počasí na uvítací obrazovce (P1)
+Technická volba
+- Open-Meteo (bez API klíče): denní předpověď min. na 4 dny.
+
+Datový zdroj polohy
+- Primárně: GPS souřadnice z vybraného **pracoviště** (pokud má `latitude/longitude`).
+- Fallback: geolokace zařízení (na vyžádání povolení).
+- Fallback #2: žádné počasí (pouze placeholder a instrukce).
+
+Implementace
+- FE komponenta `WeatherWidget`:
+  - zvolí lokaci (workplace → device geo → none).
+  - fetch: `https://api.open-meteo.com/v1/forecast?latitude=...&longitude=...&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=4&timezone=Europe%2FPrague`
+  - zobrazí 4 dny: den, ikona/stav (z weathercode), min/max, srážky.
+  - caching: v localStorage (např. 30–60 min) + offline fallback na poslední data.
+- Umístění: Today page (uvítací obrazovka) – nahoře pod pozdravem.
+
+Testy
+- `testing_agent_v3` – smoke (fetch může být mocked/skip, ale komponenta nesmí shodit stránku offline).
 
 ---
 
 ## 3) Další kroky (aktuální)
-1. **Phase 6.1: Plánované výjimky / zkrácené směny** (zaměstnanec bez schvalování) — implementace BE+FE + základní testy.
-2. **Phase 6.2: RecordForm refaktor** (dropdown stroje, Ano/Ne gating, servis sekce nahoru, servis provedl + restrikce 500 mth) + FE testy; doplnit BE validaci pro `intervalService`.
-3. **Phase 6.3: Push notifikace** (Web Push + VAPID) — BE endpoints + SW push handler + UI opt-in.
-4. **Phase 6.4: Vizuální ověření** — ruční průchod a kontrola PDF.
+1. **Phase 7.1**: Fix horizontálního overflow na mobilu (globální ochrany + opravy viníků na Today/ostatních stránkách).
+2. **Phase 7.2**: Responsivní úpravy pro tablet/desktop (klíčové stránky).
+3. **Phase 7.3**: Jednoduchý režim → dlaždicový dashboard + velké akce.
+4. **Phase 7.4**: Weather widget (Open-Meteo, 4 dny) podle polohy pracoviště / geolokace.
+5. **Phase 6.4**: Dokončit vizuální ověření (Travel/Pauza/PDF) — stále potřeba.
 
 ---
 
@@ -276,11 +272,16 @@ Výstup
 - Přílohy se dají pořídit offline a exportují se v odpovídajících sekcích.
 - Servisní upozornění fungují a interval servis po potvrzení resetuje odpočet.
 - Integrita: historie revizí + hash-chain ověření viditelné v UI/PDF.
-- Nepřítomnosti: dovolená = 2 kroky (vedoucí → jednatel), ostatní = vedoucí; bez self-approval.
+- Nepřítomnosti: dovolená = 2 kroky (vedoucí → jednatel), ostatní = vedoucí.
 - Reporty: XLSX/CSV exporty fungují s filtry.
 - Zaměstnanec: má vlastní přehledy a vlastní exporty.
 - Docházka: pauza bez QR, travel A→B se počítá do práce, ale nefakturuje.
-- **Nově**:
-  - Plánované výjimky/zkrácené směny lze zadat a vedení je vidí.
+- **Phase 6:**
+  - Plánované výjimky lze zadat a vedení je vidí.
   - RecordForm je výrazně jednodušší (sekce se zobrazují až po „ANO“).
   - Push notifikace fungují i při zavřené aplikaci (tam, kde to platforma dovolí).
+- **Phase 7:**
+  - Na mobilu nevzniká horizontální scroll (žádné posouvání do stran).
+  - Tablet/desktop layout je komfortní (využitá šířka, rozumné gridy).
+  - Jednoduchý režim je „dlaždicový“ a použitelný i pro velmi nezkušené uživatele.
+  - Widget Počasí ukazuje min. 4denní předpověď dle pracoviště (fallbacky fungují offline i bez oprávnění).

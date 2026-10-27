@@ -48,11 +48,13 @@ export default function Exports() {
   };
   const data = (dataset, format) => {
     const p = base(); p.set("dataset", dataset); p.set("format", format);
-    if (machine && dataset === "timesheet") p.set("machine", machine);
+    if (dataset === "machine_log") p.set("include_drafts", drafts ? "1" : "0");
+    if (machine && (dataset === "timesheet" || dataset === "machine_log")) p.set("machine", machine);
     if (wpId) { if (dataset === "attendance") p.set("workplace_id", wpId); else p.set("workplace", (wps.data || []).find((w) => w.id === wpId)?.name || ""); }
     if (status) p.set("status", dataset === "attendance" ? (status === "pending" ? "pending" : "") : (status === "pending" ? "" : status));
     if (position) p.set("position", position);
-    run(`${dataset}-${format}`, `/exports/data?${p}`, `DEMSTAV_${dataset === "timesheet" ? "sichtovnice" : "dochazka"}_${from}_${to}.${format}`);
+    const nameMap = { timesheet: "sichtovnice", attendance: "dochazka", machine_log: "stavebni_denik_stroje" };
+    run(`${dataset}-${format}`, `/exports/data?${p}`, `DEMSTAV_${nameMap[dataset]}_${from}_${to}.${format}`);
   };
   const genWeek = async () => {
     setBusy("gen");
@@ -101,6 +103,11 @@ export default function Exports() {
           <Btn k="timesheet-csv" onClick={() => data("timesheet", "csv")} testid="export-timesheet-csv">Šichtovnice CSV</Btn>
         </div>
         <p className="text-xs text-slate-600">CSV je oddělené středníkem s desetinnou čárkou – Excel ho otevře česky. Docházka obsahuje i schválené a čekající nepřítomnosti.</p>
+        <div className="mt-2 border-t border-slate-100 pt-3">
+          <h3 className="font-heading text-base font-semibold">Stavební deník stroje – XLSX s listy per stroj</h3>
+          <p className="mb-2 text-xs text-slate-600">Vygeneruje přehledový list + jeden list pro každý stroj. Řádek na den: kontroly, MTH, závady, servis, popis práce, autor, revize i otisk pro audit.</p>
+          <Btn k="machine-log-xlsx" primary onClick={() => data("machine_log", "xlsx")} testid="export-machine-log-xlsx">Stavební deník stroje XLSX</Btn>
+        </div>
       </section>
 
       {mgr && (

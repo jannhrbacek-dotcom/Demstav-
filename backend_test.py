@@ -46,6 +46,8 @@ class APITester:
                 response = requests.patch(url, json=data, headers=headers, timeout=10)
             elif method == 'PUT':
                 response = requests.put(url, json=data, headers=headers, timeout=10)
+            elif method == 'DELETE':
+                response = requests.delete(url, headers=headers, timeout=10)
             else:
                 raise ValueError(f"Unsupported method: {method}")
             
@@ -466,6 +468,84 @@ def main():
     )
     
     # ============================================================================
+    # 3.5. MACHINE LOG XLSX EXPORT (Phase 7.5-7.7)
+    # ============================================================================
+    tester.log("\n\n📋 SECTION 3.5: MACHINE LOG XLSX EXPORT", Colors.YELLOW)
+    
+    # Test machine_log XLSX export as manager
+    success, _ = tester.test(
+        "Manager exports machine_log as XLSX",
+        "GET",
+        "exports/data",
+        200,
+        params={
+            "dataset": "machine_log",
+            "format": "xlsx",
+            "date_from": (today - timedelta(days=30)).strftime("%Y-%m-%d"),
+            "date_to": today.strftime("%Y-%m-%d")
+        },
+        token=tester.tokens.get("vedouci")
+    )
+    
+    if success:
+        tester.log("   ✓ Machine log XLSX export works", Colors.GREEN)
+    
+    # Test machine_log CSV format (should return 400)
+    tester.test(
+        "Machine log CSV format (should return 400)",
+        "GET",
+        "exports/data",
+        400,
+        params={
+            "dataset": "machine_log",
+            "format": "csv"
+        },
+        token=tester.tokens.get("vedouci")
+    )
+    
+    # Test machine_log with include_drafts parameter
+    success, _ = tester.test(
+        "Machine log with include_drafts=1",
+        "GET",
+        "exports/data",
+        200,
+        params={
+            "dataset": "machine_log",
+            "format": "xlsx",
+            "include_drafts": "1"
+        },
+        token=tester.tokens.get("vedouci")
+    )
+    
+    # Test machine_log with machine filter
+    if 'test_machine' in tester.test_data:
+        success, _ = tester.test(
+            f"Machine log filtered by machine: {tester.test_data['test_machine']}",
+            "GET",
+            "exports/data",
+            200,
+            params={
+                "dataset": "machine_log",
+                "format": "xlsx",
+                "machine": tester.test_data['test_machine']
+            },
+            token=tester.tokens.get("vedouci")
+        )
+    
+    # Test employee can access machine_log (only own records)
+    success, _ = tester.test(
+        "Strojnik exports machine_log (only own records)",
+        "GET",
+        "exports/data",
+        200,
+        params={
+            "dataset": "machine_log",
+            "format": "xlsx"
+        },
+        token=tester.tokens.get("strojnik")
+    )
+    
+    # ============================================================================
     # 4. MY SUMMARY (PŘEHLEDY)
     # ============================================================================
     tester.log("\n\n📋 SECTION 4: MY SUMMARY (Přehledy)", Colors.YELLOW)
@@ -601,6 +681,496 @@ def main():
             tester.log(f"   ✓ Found L576/7", Colors.GREEN)
         else:
             tester.log(f"   ✗ L576/7 not found", Colors.RED)
+        
+        # Store first active machine for later tests
+        active_machines = [m for m in machines if m.get('active', True)]
+        if active_machines:
+            tester.test_data['test_machine'] = active_machines[0].get('label', 'L566/3')
+    
+    # ============================================================================
+    # 7. PLANNED EXCEPTIONS (Phase 6)
+    # ============================================================================
+    tester.log("\n\n📋 SECTION 7: PLANNED EXCEPTIONS (zkrácené směny)", Colors.YELLOW)
+    
+    # Test late_arrival exception (requires time_from)
+    exception_date = (today + timedelta(days=3)).strftime("%Y-%m-%d")
+    
+    success, late_response = tester.test(
+        "Strojnik creates late_arrival exception (requires time_from)",
+        "POST",
+        "exceptions",
+        200,
+        data={
+            "kind": "late_arrival",
+            "date": exception_date,
+            "time_from": "09:30",
+            "reason": "Lékař - kontrola"
+        },
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        late_exc = late_response.get('exception', {})
+        late_exc_id = late_exc.get('id')
+        tester.test_data['late_exc_id'] = late_exc_id
+        
+        # Verify kind_label is returned
+        if late_exc.get('kind_label') == 'Pozdní příchod':
+            tester.log(f"   ✓ kind_label returned: {late_exc.get('kind_label')}", Colors.GREEN)
+        else:
+            tester.log(f"   ✗ kind_label should be 'Pozdní příchod', got: {late_exc.get('kind_label')}", Colors.RED)
+    
+    # Test late_arrival without time_from (should fail with 400)
+    tester.test(
+        "Late arrival without time_from (should get 400)",
+        "POST",
+        "exceptions",
+        400,
+        data={
+            "kind": "late_arrival",
+            "date": exception_date,
+            "reason": "Test"
+        },
+        token=tester.tokens.get("strojnik")
+    )
+    
+    # Test early_departure exception (requires time_to)
+    success, early_response = tester.test(
+        "Strojnik creates early_departure exception (requires time_to)",
+        "POST",
+        "exceptions",
+        200,
+        data={
+            "kind": "early_departure",
+            "date": (today + timedelta(days=4)).strftime("%Y-%m-%d"),
+            "time_to": "14:00",
+            "reason": "Úřad - vyřízení dokumentů"
+        },
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        early_exc_id = early_response.get('exception', {}).get('id')
+        tester.test_data['early_exc_id'] = early_exc_id
+    
+    # Test early_departure without time_to (should fail with 400)
+    tester.test(
+        "Early departure without time_to (should get 400)",
+        "POST",
+        "exceptions",
+        400,
+        data={
+            "kind": "early_departure",
+            "date": exception_date,
+            "reason": "Test"
+        },
+        token=tester.tokens.get("strojnik")
+    )
+    
+    # Test other exception (optional times)
+    success, other_response = tester.test(
+        "Strojnik creates 'other' exception (optional times)",
+        "POST",
+        "exceptions",
+        200,
+        data={
+            "kind": "other",
+            "date": (today + timedelta(days=5)).strftime("%Y-%m-%d"),
+            "time_from": "10:00",
+            "time_to": "12:00",
+            "reason": "Osobní záležitost"
+        },
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        other_exc_id = other_response.get('exception', {}).get('id')
+        tester.test_data['other_exc_id'] = other_exc_id
+    
+    # Test exception without reason (should fail with 400)
+    tester.test(
+        "Exception without reason (should get 400)",
+        "POST",
+        "exceptions",
+        400,
+        data={
+            "kind": "other",
+            "date": exception_date
+        },
+        token=tester.tokens.get("strojnik")
+    )
+    
+    # Test GET /api/exceptions?mine=1 (employee sees only own)
+    success, my_exceptions = tester.test(
+        "Strojnik gets own exceptions (mine=1)",
+        "GET",
+        "exceptions",
+        200,
+        params={"mine": 1},
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        if len(my_exceptions) >= 3:
+            tester.log(f"   ✓ Found {len(my_exceptions)} exceptions", Colors.GREEN)
+        else:
+            tester.log(f"   ✗ Expected at least 3 exceptions, got {len(my_exceptions)}", Colors.RED)
+        
+        # Verify can_delete is True for own exceptions
+        if all(exc.get('can_delete') for exc in my_exceptions):
+            tester.log(f"   ✓ All exceptions have can_delete=True", Colors.GREEN)
+        else:
+            tester.log(f"   ✗ Some exceptions have can_delete=False", Colors.RED)
+    
+    # Test GET /api/exceptions as manager (sees all)
+    success, all_exceptions = tester.test(
+        "Vedouci gets all exceptions (manager view)",
+        "GET",
+        "exceptions",
+        200,
+        token=tester.tokens.get("vedouci")
+    )
+    
+    if success:
+        tester.log(f"   Manager sees {len(all_exceptions)} total exceptions", Colors.BLUE)
+        
+        # Verify manager sees strojnik's exceptions
+        strojnik_exceptions = [e for e in all_exceptions if e.get('user_name') == strojnik_user.get('name')]
+        if len(strojnik_exceptions) >= 3:
+            tester.log(f"   ✓ Manager sees strojnik's exceptions", Colors.GREEN)
+        else:
+            tester.log(f"   ✗ Manager should see strojnik's exceptions", Colors.RED)
+    
+    # Test DELETE /api/exceptions/{id} (author can delete)
+    if 'late_exc_id' in tester.test_data:
+        success, _ = tester.test(
+            "Strojnik deletes own exception (should succeed)",
+            "DELETE",
+            f"exceptions/{tester.test_data['late_exc_id']}",
+            200,
+            token=tester.tokens.get("strojnik")
+        )
+    
+    # Test DELETE /api/exceptions/{id} (non-author gets 403)
+    if 'early_exc_id' in tester.test_data:
+        # Create an exception as vedouci first
+        success, vedouci_exc = tester.test(
+            "Vedouci creates own exception",
+            "POST",
+            "exceptions",
+            200,
+            data={
+                "kind": "other",
+                "date": (today + timedelta(days=6)).strftime("%Y-%m-%d"),
+                "reason": "Test exception for delete test"
+            },
+            token=tester.tokens.get("vedouci")
+        )
+        
+        if success:
+            vedouci_exc_id = vedouci_exc.get('exception', {}).get('id')
+            
+            # Strojnik tries to delete vedouci's exception (should get 403)
+            tester.test(
+                "Strojnik tries to delete vedouci's exception (should get 403)",
+                "DELETE",
+                f"exceptions/{vedouci_exc_id}",
+                403,
+                token=tester.tokens.get("strojnik")
+            )
+    
+    # Test GET /api/overview includes upcoming_exceptions
+    success, overview = tester.test(
+        "Vedouci gets overview (should include upcoming_exceptions)",
+        "GET",
+        "overview",
+        200,
+        token=tester.tokens.get("vedouci")
+    )
+    
+    if success:
+        if 'upcoming_exceptions' in overview:
+            tester.log(f"   ✓ Overview includes upcoming_exceptions array", Colors.GREEN)
+            tester.log(f"   Found {len(overview['upcoming_exceptions'])} upcoming exceptions (next 7 days)", Colors.BLUE)
+        else:
+            tester.log(f"   ✗ Overview missing upcoming_exceptions", Colors.RED)
+    
+    # ============================================================================
+    # 8. PUSH NOTIFICATIONS (Phase 6)
+    # ============================================================================
+    tester.log("\n\n📋 SECTION 8: PUSH NOTIFICATIONS (Web Push)", Colors.YELLOW)
+    
+    # Test GET /api/push/public-key
+    success, pubkey_response = tester.test(
+        "Get VAPID public key",
+        "GET",
+        "push/public-key",
+        200,
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        if 'public_key' in pubkey_response:
+            tester.log(f"   ✓ public_key returned", Colors.GREEN)
+            tester.log(f"   Public key: {pubkey_response['public_key'][:50]}...", Colors.BLUE)
+        else:
+            tester.log(f"   ✗ public_key missing in response", Colors.RED)
+    
+    # Test POST /api/push/subscribe
+    fake_subscription = {
+        "subscription": {
+            "endpoint": f"https://fcm.googleapis.com/fcm/send/test-endpoint-{datetime.now().strftime('%H%M%S')}",
+            "keys": {
+                "p256dh": "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM=",
+                "auth": "tBHItJI5svbpez7KI4CCXg=="
+            }
+        },
+        "user_agent": "Test Agent"
+    }
+    
+    success, subscribe_response = tester.test(
+        "Subscribe to push notifications",
+        "POST",
+        "push/subscribe",
+        200,
+        data=fake_subscription,
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        status = subscribe_response.get('status')
+        if status in ('created', 'updated'):
+            tester.log(f"   ✓ Subscription {status}", Colors.GREEN)
+        else:
+            tester.log(f"   ✗ Unexpected status: {status}", Colors.RED)
+    
+    # Test POST /api/push/subscribe again (should return 'updated')
+    success, subscribe_response2 = tester.test(
+        "Subscribe again (should return 'updated')",
+        "POST",
+        "push/subscribe",
+        200,
+        data=fake_subscription,
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success and subscribe_response2.get('status') == 'updated':
+        tester.log(f"   ✓ Idempotent subscription update works", Colors.GREEN)
+    
+    # Test POST /api/push/test (may fail silently if endpoint is fake)
+    success, test_response = tester.test(
+        "Send test push notification (may fail silently with fake endpoint)",
+        "POST",
+        "push/test",
+        200,
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        sent = test_response.get('sent', 0)
+        tester.log(f"   Push test sent to {sent} subscription(s)", Colors.BLUE)
+        tester.log(f"   Note: Actual delivery may fail with fake endpoint (expected)", Colors.YELLOW)
+    
+    # Test POST /api/push/unsubscribe
+    success, unsub_response = tester.test(
+        "Unsubscribe from push notifications",
+        "POST",
+        "push/unsubscribe",
+        200,
+        data={"endpoint": fake_subscription["subscription"]["endpoint"]},
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        deleted = unsub_response.get('deleted', 0)
+        if deleted == 1:
+            tester.log(f"   ✓ Subscription deleted", Colors.GREEN)
+        else:
+            tester.log(f"   Deleted count: {deleted}", Colors.BLUE)
+    
+    # ============================================================================
+    # 9. RECORDS INTERVALSERVICE RESTRICTIONS (Phase 6)
+    # ============================================================================
+    tester.log("\n\n📋 SECTION 9: RECORDS INTERVALSERVICE RESTRICTIONS", Colors.YELLOW)
+    
+    # Get test machine
+    test_machine = tester.test_data.get('test_machine', 'L566/3')
+    record_date = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    # Helper function to create a minimal valid record
+    def create_test_record(record_id, interval_service=False, service_by=""):
+        return {
+            "opId": f"test-op-{record_id}",
+            "baseRevision": 0,
+            "confirm": True,
+            "record": {
+                "id": record_id,
+                "date": record_date,
+                "machine": test_machine,
+                "operator": "Test Operator",
+                "shift": "ranní",
+                "mthStart": "1000",
+                "mthEnd": "1008",
+                "billing": [{"start": "07:00", "end": "15:00"}],
+                "intervalService": interval_service,
+                "serviceBy": service_by,
+                "serviceDescription": "Test service" if interval_service else "",
+                "service": [{"start": "07:00", "end": "08:00"}] if interval_service else []
+            }
+        }
+    
+    # Test 1: Regular employee (strojnik) tries to save intervalService=true without external (should FAIL)
+    record_id_1 = f"test-rec-{datetime.now().strftime('%H%M%S')}-1"
+    tester.test(
+        "Strojnik (employee) saves intervalService=true with serviceBy=operator (should FAIL 422)",
+        "PUT",
+        f"records/{record_id_1}",
+        422,
+        data=create_test_record(record_id_1, interval_service=True, service_by="operator"),
+        token=tester.tokens.get("strojnik")
+    )
+    
+    # Test 2: Regular employee with serviceBy='external' (should SUCCEED)
+    record_id_2 = f"test-rec-{datetime.now().strftime('%H%M%S')}-2"
+    rec2_data = create_test_record(record_id_2, interval_service=True, service_by="external")
+    rec2_data["record"]["externalCompany"] = "Test External Service s.r.o."
+    success, rec2_response = tester.test(
+        "Strojnik saves intervalService=true with serviceBy=external (should SUCCEED)",
+        "PUT",
+        f"records/{record_id_2}",
+        200,
+        data=rec2_data,
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        tester.log(f"   ✓ External service allowed for regular employee", Colors.GREEN)
+    
+    # Test 3: serviceBy='operator_workshop' is accepted as valid value
+    record_id_3 = f"test-rec-{datetime.now().strftime('%H%M%S')}-3"
+    success, rec3_response = tester.test(
+        "Strojnik saves record with serviceBy=operator_workshop (should be accepted)",
+        "PUT",
+        f"records/{record_id_3}",
+        200,
+        data=create_test_record(record_id_3, interval_service=False, service_by="operator_workshop"),
+        token=tester.tokens.get("strojnik")
+    )
+    
+    if success:
+        saved_rec = rec3_response.get('record', {})
+        if saved_rec.get('serviceBy') == 'operator_workshop':
+            tester.log(f"   ✓ serviceBy='operator_workshop' accepted", Colors.GREEN)
+        else:
+            tester.log(f"   ✗ serviceBy should be 'operator_workshop', got: {saved_rec.get('serviceBy')}", Colors.RED)
+    
+    # Test 4: Mechanik can save intervalService=true (if test_user_id exists and is mechanik)
+    if 'test_user_id' in tester.test_data:
+        # First, reset password for test mechanik user
+        success, reset_response = tester.test(
+            "Admin resets password for test mechanik",
+            "POST",
+            f"users/{tester.test_data['test_user_id']}/reset-password",
+            200,
+            token=tester.tokens.get("admin")
+        )
+        
+        if success:
+            temp_password = reset_response.get('temporary_password')
+            
+            # Login as test mechanik with temporary password
+            success, mechanik_user = tester.login(f"test_mechanik_{datetime.now().strftime('%H%M%S')}", temp_password)
+            
+            # Note: First login requires password change, so this might fail
+            # We'll skip this test if login fails
+            tester.log(f"   Note: Mechanik login test skipped (requires password change flow)", Colors.YELLOW)
+    
+    # ============================================================================
+    # 10. REGRESSION TESTS
+    # ============================================================================
+    tester.log("\n\n📋 SECTION 10: REGRESSION (existing endpoints)", Colors.YELLOW)
+    
+    # Test /api/auth/login still works
+    tester.test(
+        "Regression: Login still works",
+        "POST",
+        "auth/login",
+        200,
+        data={"login": "strojnik", "password": "Demstav2026!"}
+    )
+    
+    # Test /api/machines still works
+    tester.test(
+        "Regression: GET /api/machines still works",
+        "GET",
+        "machines",
+        200,
+        token=tester.tokens.get("admin")
+    )
+    
+    # Test /api/records still works
+    tester.test(
+        "Regression: GET /api/records still works",
+        "GET",
+        "records",
+        200,
+        params={"mine": 1, "limit": 10},
+        token=tester.tokens.get("strojnik")
+    )
+    
+    # Test /api/attendance/events still works (requires manager role)
+    tester.test(
+        "Regression: GET /api/attendance/events still works (manager)",
+        "GET",
+        "attendance/events",
+        200,
+        token=tester.tokens.get("vedouci")
+    )
+    
+    # Test /api/leave still works
+    tester.test(
+        "Regression: GET /api/leave still works",
+        "GET",
+        "leave",
+        200,
+        params={"mine": 1},
+        token=tester.tokens.get("strojnik")
+    )
+    
+    # Test PDF exports still work (should return PDF content)
+    # Note: We can't easily verify PDF content, but we can check status code
+    tester.log(f"   Testing PDF exports...", Colors.BLUE)
+    
+    # Test sichtovnice.pdf
+    url_sichtovnice = f"{BASE_URL}/exports/sichtovnice.pdf"
+    headers = {'Authorization': f'Bearer {tester.tokens.get("vedouci")}'}
+    try:
+        response = requests.get(url_sichtovnice, headers=headers, timeout=30)
+        if response.status_code == 200 and response.headers.get('content-type') == 'application/pdf':
+            tester.tests_run += 1
+            tester.tests_passed += 1
+            tester.log(f"   ✅ Regression: GET /api/exports/sichtovnice.pdf works (PDF returned)", Colors.GREEN)
+        else:
+            tester.tests_run += 1
+            tester.log(f"   ❌ Regression: sichtovnice.pdf failed - Status: {response.status_code}", Colors.RED)
+    except Exception as e:
+        tester.tests_run += 1
+        tester.log(f"   ❌ Regression: sichtovnice.pdf error - {str(e)}", Colors.RED)
+    
+    # Test denik.pdf
+    url_denik = f"{BASE_URL}/exports/denik.pdf"
+    try:
+        response = requests.get(url_denik, headers=headers, timeout=30)
+        if response.status_code == 200 and response.headers.get('content-type') == 'application/pdf':
+            tester.tests_run += 1
+            tester.tests_passed += 1
+            tester.log(f"   ✅ Regression: GET /api/exports/denik.pdf works (PDF returned)", Colors.GREEN)
+        else:
+            tester.tests_run += 1
+            tester.log(f"   ❌ Regression: denik.pdf failed - Status: {response.status_code}", Colors.RED)
+    except Exception as e:
+        tester.tests_run += 1
+        tester.log(f"   ❌ Regression: denik.pdf error - {str(e)}", Colors.RED)
     
     # ============================================================================
     # SUMMARY

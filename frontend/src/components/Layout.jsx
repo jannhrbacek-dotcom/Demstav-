@@ -90,7 +90,7 @@ export default function Layout({ children }) {
       <main className="lg:pl-64">
         <div className="hidden items-center justify-end gap-3 border-b border-slate-200 bg-white px-8 py-3 lg:flex"><SyncPill /></div>
         {!s.online && <div className="hazard-stripe h-1.5" />}
-        <div className="mx-auto max-w-6xl px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">{children}</div>
+        <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">{children}</div>
       </main>
 
       <nav className="dark safe-bottom fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav">
