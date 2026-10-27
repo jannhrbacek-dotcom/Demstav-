@@ -21,6 +21,7 @@ import Review from "@/pages/Review";
 import Workplaces from "@/pages/Workplaces";
 import QrDisplay from "@/pages/QrDisplay";
 import UsersPage from "@/pages/Users";
+import Production from "@/pages/Production";
 import Machines from "@/pages/Machines";
 
 function Guard({ children, role, bare }) {
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="/detail/:id" element={<Guard><RecordDetail /></Guard>} />
             <Route path="/dochazka" element={<Guard><Attendance /></Guard>} />
             <Route path="/fronta" element={<Guard><Queue /></Guard>} />
+            <Route path="/vykazy-vazeni" element={<Guard><Production /></Guard>} />
             <Route path="/vice" element={<Guard><More /></Guard>} />
             <Route path="/exporty" element={<Guard><Exports /></Guard>} />
             <Route path="/prehledy" element={<Guard><MyOverview /></Guard>} />

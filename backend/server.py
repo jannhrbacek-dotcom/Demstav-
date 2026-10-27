@@ -17,6 +17,7 @@ from routes_leave import router as leave_router  # noqa: E402
 from routes_exceptions import router as exceptions_router  # noqa: E402
 from routes_push import router as push_router  # noqa: E402
 from routes_admin import router as admin_router  # noqa: E402
+from routes_production import router as production_router  # noqa: E402
 from routes_data import router as data_router  # noqa: E402
 from routes_attendance import router as att_router, projection, day_bounds_ms, prague_date  # noqa: E402
 from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
@@ -182,6 +183,7 @@ api.include_router(exceptions_router)
 api.include_router(push_router)
 api.include_router(admin_router)
 api.include_router(data_router)
+api.include_router(production_router)
 app.include_router(api)
 
 app.add_middleware(
@@ -211,6 +213,9 @@ async def startup():
     await db.push_subscriptions.create_index("endpoint", unique=True)
     await db.push_subscriptions.create_index([("user_id", 1)])
     await db.weekly_exports.create_index("week", unique=True)
+    await db.production_reports.create_index("id", unique=True)
+    await db.production_reports.create_index([("owner_id", 1), ("date", -1)])
+    await db.production_settings.create_index("id", unique=True)
     await db.records.create_index("id", unique=True)
     await db.records.create_index([("owner_id", 1), ("date", -1)])
     await db.record_versions.create_index([("record_id", 1), ("revision", 1)], unique=True)

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { http, getToken, errText } from "./api";
 import { newId } from "./format";
 
-const PRIORITY = { attachment: 0, record: 1, event: 2, request: 3 };
+const PRIORITY = { attachment: 0, record: 1, event: 2, request: 3, production: 1 };
 let uid = null;
 let state = { queue: [], records: {}, serverRecords: [], online: typeof navigator !== "undefined" ? navigator.onLine : true, syncing: false, needsLogin: false, lastSync: null, lastError: null, ready: false };
 const listeners = new Set();
@@ -76,6 +76,17 @@ export async function resolveConflict(id, choice, correctionReason = "") {
   await saveRecordLocal(loc.record, { confirm: server?.status === "confirmed" ? true : loc.confirm, correctionReason: correctionReason || loc.correctionReason, baseRevision: server?.revision || 0 });
 }
 
+// Shared crew reports use the same durable account-specific queue as daily records.
+export async function saveProduction(report, submit = false) {
+  const now = new Date().toISOString();
+  const previous = state.queue.find((op) => op.type === "production" && op.refId === report.id);
+  const payload = { report, submit, baseRevision: previous?.payload.baseRevision ?? report.revision ?? 0 };
+  const op = { opId: newId(), type: "production", refId: report.id, createdAt: now, attempts: 0, state: "queued", error: null, payload };
+  patch({ queue: [...state.queue.filter((q) => !(q.type === "production" && q.refId === report.id)), op] });
+  await persist();
+  syncNow();
+}
+
 // ---------------- attachments ----------------
 export async function addAttachment(file, meta) {
   const id = newId();
@@ -138,6 +149,10 @@ async function sendOp(op) {
     const { data } = await http.put(`/records/${op.refId}`, { opId: op.opId, record: loc.record, ...op.payload });
     const rec = data.record;
     patch({ records: { ...state.records, [op.refId]: { ...loc, localState: rec.status === "confirmed" ? "confirmed" : "received", serverRevision: rec.revision, record: rec, error: null } } });
+    return;
+  }
+  if (op.type === "production") {
+    await http.put(`/production/${op.refId}`, { ...op.payload, opId: op.opId });
     return;
   }
   if (op.type === "event") { await http.post("/attendance/events", op.payload); return; }
