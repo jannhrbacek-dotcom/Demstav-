@@ -76,20 +76,19 @@ async def _snapshot(ids):
     refs = await db.machines.find({"last_service_record_id": {"$in": record_ids}},
                                   {"_id": 0, "label": 1, "last_service_record_id": 1}).to_list(100)
     blockers = []
+    if any(u.get("active", True) for u in users):
+        blockers.append("Před odstraněním musíte každý vybraný testovací účet deaktivovat, aby už nemohl zapisovat nová data.")
     if refs:
         blockers.append("U některého stroje je poslední pravidelný servis navázán na mazaný záznam.")
     if any(r.get("intervalService") for r in data["records"]):
         blockers.append("Vybrané záznamy obsahují pravidelný servis stroje. Nejprve oddělte a ověřte servisní historii.")
     if any(not a.get("storage_path") for a in data["attachments"]):
         blockers.append("Některá příloha nemá platnou cestu k souboru. Nelze zaručit úplnou zálohu.")
-    weeks = set()
-    for r in data["records"]:
-        try:
-            d = date.fromisoformat(r.get("date", ""))
-            weeks.add((d - timedelta(days=d.weekday())).isoformat())
-        except (TypeError, ValueError):
-            blockers.append("Záznam obsahuje neplatné datum, není možné určit dotčené týdenní exporty.")
-    return data, sorted(set(blockers)), sorted(weeks)
+    # Týdenní PDF/XLSX/CSV může obsahovat i docházku či absenci bez provozního zápisu.
+    # Proto se po odstranění testovacích dat bezpečně zneplatní VŠECHNY uložené týdenní exporty.
+    exported_weeks = await db.weekly_exports.find({}, {"_id": 0, "week": 1}).to_list(5000)
+    weeks = sorted({d.get("week") for d in exported_weeks if d.get("week")})
+    return data, sorted(set(blockers)), weeks
 
 
 def _public_preview(ids, data, blockers, weeks):
@@ -193,10 +192,11 @@ async def test_cleanup_delete(body: dict, actor: dict = Depends(require_role("ad
         deleted["users"] = (await db.users.delete_many({"id": {"$in": ids}, "role": "employee", "is_test": True})).deleted_count
         if deleted["users"] != len(ids):
             log.error("Mismatch during cleanup: users deleted %s, expected %s", deleted["users"], len(ids))
-        if weeks:
-            # Staré agregované exporty se nemažou potichu; jsou zneplatněné pro stahování.
-            await db.weekly_exports.update_many({"week": {"$in": weeks}},
-                                                 {"$set": {"stale": True, "stale_reason": "Testovací data byla odstraněna."}})
+        # Staré agregované exporty se nemažou potichu; jsou zneplatněné pro stahování.
+        # Zneplatnit všechny, včetně těch, jejichž obsah zahrnoval jen docházku/absence.
+        stale_result = await db.weekly_exports.update_many({},
+                    {"$set": {"stale": True, "stale_reason": "Testovací data byla odstraněna."}})
+        deleted["weekly_exports_invalidated"] = stale_result.modified_count
         await audit(actor, "test_cleanup_deleted", {
             "user_ids": ids, "deleted": deleted, "zip_sha256": body["backup_sha256"], "affected_weeks": weeks
         })
