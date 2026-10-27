@@ -34,6 +34,8 @@ jobs:
           assert 'delete_many({})' not in code
           print("Cleanup safety syntax and invariants OK")
           PY
+      - name: Run isolated cleanup guardrail unit tests
+        run: python3 -m unittest discover -s backend/tests -p 'test_cleanup_guardrails.py' -v
       - name: Parse changed JSX
         run: |
           mkdir -p /tmp/demstav-jsx-parse
