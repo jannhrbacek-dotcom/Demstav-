@@ -23,6 +23,7 @@ function When({ r }) {
 }
 
 function Item({ r, onDecide, onCancel, showName }) {
+  const { t } = useLanguage();
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="leave-item">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -33,7 +34,7 @@ function Item({ r, onDecide, onCancel, showName }) {
         </div>
         <span className={`rounded-md px-2 py-1 text-xs font-semibold ${TONE[r.status]}`} data-testid="leave-status">{r.status_label}</span>
       </div>
-      {(r.history || []).length > 1 && <ol className="mt-2 space-y-0.5 text-xs text-slate-600">{r.history.slice(1).map((h, i) => <li key={i}>{h.action === "approve" ? "Schválil(a)" : h.action === "reject" ? "Zamítl(a)" : "Zrušeno"}: {h.by_name} ({h.role}) {h.at?.slice(0, 16).replace("T", " ")}{h.note && ` – ${h.note}`}</li>)}</ol>}
+      {(r.history || []).length > 1 && <ol className="mt-2 space-y-0.5 text-xs text-slate-600">{r.history.slice(1).map((h, i) => <li key={i}>{h.action === "approve" ? "Schválil(a)" : h.action === "reject" ? "Zamítl(a)" : "Zrušeno"}: {h.by_name} ({h.role}) {h.achosenLeaveType?.slice(0, 16).replace("T", " ")}{h.note && ` – ${h.note}`}</li>)}</ol>}
       {(r.can_decide || r.can_cancel) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {r.can_decide && <Button className="btn-primary h-11 font-semibold" onClick={() => onDecide(r, "approve")} data-testid="leave-approve-button"><Check className="mr-1 h-4 w-4" />{r.status === "pending_manager" && r.type === "vacation" ? "Schválit (posláno jednateli)" : "Schválit"}</Button>}
@@ -67,7 +68,7 @@ export default function Absence() {
   const [exBusy, setExBusy] = useState(false);
   const reload = () => { mine.reload(); todo.reload?.(); allQ.reload?.(); summary.reload?.(); };
   const reloadEx = () => { myEx.reload(); allEx.reload?.(); };
-  const t = LEAVE_TYPES.find((x) => x.value === f.type);
+  const chosenLeaveType = LEAVE_TYPES.find((x) => x.value === f.type);
 
   const submit = async () => {
     setBusy(true);
@@ -129,7 +130,7 @@ export default function Absence() {
               className={`min-h-[56px] rounded-xl border-2 px-3 text-sm font-semibold transition-colors ${f.type === x.value ? "border-[#E6BD00] bg-[#FFD200] text-slate-900" : "border-slate-200 bg-white hover:bg-slate-50"}`}>{x.label}</button>
           ))}
         </div>
-        <p className="text-xs text-slate-600">{t?.hint}</p>
+        <p className="text-xs text-slate-600">{chosenLeaveType?.hint}</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={f.type === "doctor" ? "Datum" : "Od"}><Input type="date" value={f.date_from} onChange={(e) => setF({ ...f, date_from: e.target.value, date_to: e.target.value > f.date_to ? e.target.value : f.date_to })} className="h-12" data-testid="leave-date-from" /></Field>
           {f.type !== "doctor" && <Field label="Do"><Input type="date" value={f.date_to} min={f.date_from} onChange={(e) => setF({ ...f, date_to: e.target.value })} className="h-12" data-testid="leave-date-to" /></Field>}
@@ -184,7 +185,7 @@ export default function Absence() {
             <div className="min-w-0">
               <div className="font-semibold">{r.kind_label} · {dmy(r.date)}{r.time_from && ` · od ${r.time_from}`}{r.time_to && ` · do ${r.time_to}`}</div>
               <div className="text-sm text-slate-700">{r.reason}</div>
-              <div className="mt-1 text-xs text-slate-500">Oznámeno {r.created_at?.slice(0, 16).replace("T", " ")}</div>
+              <div className="mt-1 text-xs text-slate-500">Oznámeno {r.created_achosenLeaveType?.slice(0, 16).replace("T", " ")}</div>
             </div>
             {r.can_delete && <Button variant="outline" size="sm" className="h-10 text-red-700" onClick={() => delEx(r)} data-testid="exception-delete"><Trash2 className="mr-1 h-4 w-4" />{t("Smazat")}</Button>}
           </div>
