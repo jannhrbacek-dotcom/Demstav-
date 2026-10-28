@@ -14,6 +14,7 @@ from routes_breaks import router as breaks_router
 from routes_users import router as users_router, seed_owner, ensure_operations_manager, machines_with_status  # noqa: E402
 from routes_records import router as records_router  # noqa: E402
 from routes_stt import router as stt_router  # noqa: E402
+from routes_ocr import router as ocr_router  # noqa: E402
 from routes_leave import router as leave_router  # noqa: E402
 from routes_leave import absence_overview
 from routes_exceptions import router as exceptions_router  # noqa: E402
@@ -188,6 +189,7 @@ api.include_router(users_router)
 api.include_router(records_router)
 api.include_router(att_router)
 api.include_router(stt_router)
+api.include_router(ocr_router)
 api.include_router(leave_router)
 api.include_router(exceptions_router)
 api.include_router(push_router)
