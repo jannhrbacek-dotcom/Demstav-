@@ -61,14 +61,14 @@ export default function Today() {
       <section className="space-y-3 rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm" data-testid="today-attendance-primary">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("Příchod / odchod")}</p>
-            <div className={`mt-1 inline-flex rounded-lg px-3 py-1.5 font-heading text-lg font-semibold ${STATE_CLS[state]}`} data-testid="today-shift-state">{STATE_LABELS[state]}</div>
-            {pending.length > 0 && <p className="mt-1 text-xs text-amber-800">Čeká na server: {pending.length} událostí</p>}
+            <div className={`mt-1 inline-flex rounded-lg px-3 py-1.5 font-heading text-lg font-semibold ${STATE_CLS[state]}`} data-testid="today-shift-state">{t(STATE_LABELS[state])}</div>
+            {pending.length > 0 && <p className="mt-1 text-xs text-amber-800">{t("Čeká na server:")} {pending.length} {t("událostí")}</p>}
           </div>
           <div className="text-right"><p className="text-xs font-semibold text-slate-600">{t("Čistá doba dnes")}</p><p className="font-heading text-3xl font-bold tabular-nums" data-testid="today-hours-total">{fmtHM(net)}</p></div>
         </div>
         <AttendanceActions workplaces={wps.data} serverState={att.data?.projection?.state} onDone={() => att.reload()} />
         {lastEvents.length > 0 && !simpleMode && <div className="space-y-1 border-t pt-2">{lastEvents.slice(0, 2).map((e) =>
-          <div key={e.id} className="flex justify-between gap-2 text-sm"><span>{timeOf(e.effective_at)} · {KIND_LABELS[e.kind]}</span><StatusBadge status={e.status} /></div>
+          <div key={e.id} className="flex justify-between gap-2 text-sm"><span>{timeOf(e.effective_at)} · {t(KIND_LABELS[e.kind])}</span><StatusBadge status={e.status} /></div>
         )}</div>}
       </section>
       <Link to="/zapis/novy" className="flex min-h-[86px] items-center gap-4 rounded-xl border-2 border-[#E6BD00] bg-[#FFD200] px-5 text-slate-900 shadow-sm hover:bg-[#FFC400]" data-testid="today-new-record-button">
