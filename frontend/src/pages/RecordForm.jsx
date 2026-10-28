@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DictateTextarea } from "@/components/DictateTextarea";
 import { PhotoDiaryOcr } from "@/components/PhotoDiaryOcr";
 import MachinePicker from "@/components/MachinePicker";
+import { useLanguage } from "@/lib/language";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -83,6 +84,7 @@ function validate(r, confirm, user) {
 export default function RecordForm() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const nav = useNavigate();
   const s = useSync();
   const machines = useCached("/machines");
@@ -245,8 +247,8 @@ export default function RecordForm() {
       <PageHeader title={id ? "Úprava zápisu" : "Nový denní zápis"} subtitle="Provozní deník stroje a šichtovnice – vyplníte jednou, promítne se do obou."
         actions={<>
           <StatusBadge status={status} testid="record-status-badge" />
-          {id && server && <Link to={`/detail/${rec.id}`}><Button variant="outline" className="h-10" data-testid="record-history-link"><History className="mr-1 h-4 w-4" />Historie</Button></Link>}
-          <Button variant="ghost" className="h-10" onClick={() => nav(-1)} data-testid="record-back-button"><ArrowLeft className="mr-1 h-4 w-4" />Zpět</Button>
+          {id && server && <Link to={`/detail/${rec.id}`}><Button variant="outline" className="h-10" data-testid="record-history-link"><History className="mr-1 h-4 w-4" />{t("Historie")}</Button></Link>}
+          <Button variant="ghost" className="h-10" onClick={() => nav(-1)} data-testid="record-back-button"><ArrowLeft className="mr-1 h-4 w-4" />{t("Zpět")}</Button>
         </>} />
       {serverConfirmed && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950" data-testid="record-correction-note">Zápis je potvrzený (revize {local?.serverRevision || server?.revision}). Úprava vytvoří novou revizi s důvodem opravy; původní znění zůstane v historii.</div>}
       {local?.localState === "conflict" && <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950">Zápis byl mezitím změněn jinde. Konflikt vyřešte ve <Link to="/fronta" className="font-semibold underline">Frontě</Link>.</div>}
@@ -265,7 +267,7 @@ export default function RecordForm() {
               job: lastRecord.job || r.job, vehiclesTo: lastRecord.vehiclesTo || r.vehiclesTo,
               vehiclesFrom: lastRecord.vehiclesFrom || r.vehiclesFrom, accommodation: lastRecord.accommodation || r.accommodation,
               crew: lastRecord.crew || r.crew, mthStart: prefillMachine({ ...r, machine: "" }, lastRecord.machine || r.machine, mergedRecords(mine.data, s.records).map(x => x.record), machines.data || []).mthStart, shift: lastRecord.shift || r.shift,
-            }))}>Načíst z minula</Button>
+            }))}>{t("Načíst z minula")}</Button>
         </div>
       )}
 
@@ -289,7 +291,7 @@ export default function RecordForm() {
           <Field label="Datum"><Input type="date" value={rec.date} onChange={(e) => set("date", e.target.value)} className="h-12" data-testid="record-date-input" /></Field>
           <Field label="Stroj" hint="Začněte psát typ, značku nebo evidenční číslo. Vyberte nalezený stroj.">
             <MachinePicker machines={activeMachines} value={rec.machine || ""} onChange={setMachine} />
-            {activeMachines.length === 0 && <p className="mt-1 text-sm text-amber-800">Žádný aktivní stroj – obraťte se na správce.</p>}
+            {activeMachines.length === 0 && <p className="mt-1 text-sm text-amber-800">{t("Žádný aktivní stroj – obraťte se na správce.")}</p>}
           </Field>
           <Field label="Pracoviště / dílna (stavba)">
             <Input list="site-list" value={rec.site} onChange={(e) => set("site", e.target.value)} className="h-12" data-testid="record-site-input" />
@@ -314,7 +316,7 @@ export default function RecordForm() {
           {bd.travelHours > 0 && <div><div className="text-xs text-slate-300">K fakturaci</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-billable">{fmtH(bd.billableHours)} h</div></div>}
           <div className="col-span-2 text-xs text-slate-300 sm:col-span-4">Celkem = ostatní práce + servis + prostoje + přejezdy. {bd.serviceOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část servisu leží mimo pracovní dobu.</span>} {bd.downtimeOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část prostoje leží mimo pracovní dobu.</span>}</div>
         </div>
-        <Field label="Provedená práce"><DictateTextarea value={rec.work} onChange={(v) => set("work", v)} placeholder="např. Třídění, nakládka… (nebo klepněte na mikrofon)" testid="record-work-input" /></Field>
+        <Field label="Provedená práce"><DictateTextarea value={rec.work} onChange={(v) => set("work", v)} placeholder={t("např. Třídění, nakládka… (nebo klepněte na mikrofon)")} testid="record-work-input" /></Field>
         {recentWork.length > 0 && <div className="space-y-2">
           <div className="text-xs font-semibold text-slate-600">Použité popisy pro {rec.machine}</div>
           <div className="flex flex-wrap gap-2" data-testid="record-work-suggestions">{recentWork.map((w, i) => <button key={i} type="button"
@@ -329,7 +331,7 @@ export default function RecordForm() {
           <Field label="MTH konec"><Input inputMode="decimal" value={rec.mthEnd} onChange={(e) => set("mthEnd", e.target.value)} className="h-12 text-lg" data-testid="record-mth-end-input" /></Field>
           <Field label="Rozdíl"><div className={`flex h-12 items-center rounded-md border px-3 text-lg font-semibold ${mthDiff !== null && mthDiff < 0 ? "border-red-300 bg-red-50 text-red-800" : "border-slate-200 bg-slate-50"}`} data-testid="record-mth-diff">{mthDiff === null ? "—" : String(mthDiff).replace(".", ",")}</div></Field>
         </div>
-        <p className="text-xs text-slate-600">MTH je údaj měřidla stroje a počítá se nezávisle na pracovních hodinách.</p>
+        <p className="text-xs text-slate-600">{t("MTH je údaj měřidla stroje a počítá se nezávisle na pracovních hodinách.")}</p>
         {svc && (
           <div className={`flex items-start gap-3 rounded-lg px-3 py-2 text-sm ${svc.service_state === "due" ? "bg-black text-[#FFD200]" : svc.service_state === "soon" ? "bg-amber-100 text-amber-950" : "bg-slate-100 text-slate-800"}`} data-testid="record-service-hint">
             <Wrench className="mt-0.5 h-4 w-4 shrink-0" />
@@ -387,7 +389,7 @@ export default function RecordForm() {
             <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.resolved} onCheckedChange={(v) => setFault(i, "resolved", v === true)} className="h-6 w-6" data-testid={`fault-resolved-${i}`} />Závada odstraněna</label>
             {f.resolved && <Field label="Způsob odstranění"><DictateTextarea value={f.resolution} onChange={(v) => setFault(i, "resolution", v)} testid={`fault-resolution-${i}`} /></Field>}
           </div>))}
-        <Button type="button" variant="outline" className="h-12" onClick={() => set("faults", [...rec.faults, { id: newId(), date: rec.date, time: new Date().toTimeString().slice(0, 5), description: "", severity: "normal", resolved: false, resolution: "", acknowledged: false, reportedToWorkshop: false }])} data-testid="fault-add-button"><Plus className="mr-1 h-4 w-4" />Přidat závadu</Button>
+        <Button type="button" variant="outline" className="h-12" onClick={() => set("faults", [...rec.faults, { id: newId(), date: rec.date, time: new Date().toTimeString().slice(0, 5), description: "", severity: "normal", resolved: false, resolution: "", acknowledged: false, reportedToWorkshop: false }])} data-testid="fault-add-button"><Plus className="mr-1 h-4 w-4" />{t("Přidat závadu")}</Button>
       </Section>
       <button type="button" aria-expanded={additional} aria-controls="record-additional" onClick={() => setAdditional(!additional)} className="min-h-14 w-full rounded-xl border-2 bg-white px-4 text-left text-lg font-bold" data-testid="record-additional-toggle">Další údaje a přílohy · nic se nemaže</button>
       <div id="record-additional" hidden={!additional} className="space-y-4">
@@ -428,10 +430,10 @@ export default function RecordForm() {
 
       <Section title="Kontroly stroje" subtitle="Zaškrtnutí nepotvrzuje bezpečnost ani odborné odstranění závady" testid="section-checks" defaultOpen={!id}>
         {[["dailyCheck", "Provedena denní kontrola a údržba stroje"], ["accessoryCheck", "Kontrola příslušenství stroje"], ["equipmentCheck", "Kontrola vybavení stroje"]].map(([k, l]) => (
-          <label key={k} className="flex min-h-[52px] items-center gap-3 rounded-lg border border-slate-200 px-3"><Checkbox checked={rec[k]} onCheckedChange={(v) => set(k, v === true)} className="h-6 w-6" data-testid={`record-${k}-checkbox`} /><span className="font-medium">{l}</span></label>))}
+          <label key={k} className="flex min-h-[52px] items-center gap-3 rounded-lg border border-slate-200 px-3"><Checkbox checked={rec[k]} onCheckedChange={(v) => set(k, v === true)} className="h-6 w-6" data-testid={`record-${k}-checkbox`} /><span className="font-medium">{t(l)}</span></label>))}
         <Field label="Stroj je provozuschopný, bez zjevných závad">
           <div className="grid grid-cols-3 gap-2">{[["yes", "Ano"], ["no", "Ne"], ["unknown", "Nevím"]].map(([v, l]) => (
-            <button key={v} type="button" onClick={() => set("fit", v)} data-testid={`record-fit-${v}`} className={`h-12 rounded-lg border-2 font-semibold ${rec.fit === v ? (v === "no" ? "border-red-600 bg-red-600 text-white" : "border-slate-900 bg-slate-900 text-white") : "border-slate-300 bg-white"}`}>{l}</button>))}</div>
+            <button key={v} type="button" onClick={() => set("fit", v)} data-testid={`record-fit-${v}`} className={`h-12 rounded-lg border-2 font-semibold ${rec.fit === v ? (v === "no" ? "border-red-600 bg-red-600 text-white" : "border-slate-900 bg-slate-900 text-white") : "border-slate-300 bg-white"}`}>{t(l)}</button>))}</div>
         </Field>
       </Section>
 
@@ -445,7 +447,7 @@ export default function RecordForm() {
       </Section>
 
       <Section title="Poznámky a předání" testid="section-handover" defaultOpen={false}>
-        <Field label="Poznámky"><DictateTextarea value={rec.notes} onChange={(v) => set("notes", v)} placeholder="Poznámky – můžete nadiktovat" testid="record-notes-input" /></Field>
+        <Field label="Poznámky"><DictateTextarea value={rec.notes} onChange={(v) => set("notes", v)} placeholder={t("Poznámky – můžete nadiktovat")} testid="record-notes-input" /></Field>
         <Field label="Pracoviště / stroj předal (popis)"><DictateTextarea value={rec.handover} onChange={(v) => set("handover", v)} testid="record-handover-input" /></Field>
         <Field label="Jméno předávajícího (hůlkovým písmem)"><Input value={rec.handoverName} onChange={(e) => set("handoverName", e.target.value.toUpperCase())} className="h-12" data-testid="record-handover-name-input" /></Field>
         <SignaturePad label="Podpis předávajícího" value={rec.handoverSignature} onChange={(v) => set("handoverSignature", v)} testid="handover-signature" />
@@ -455,17 +457,17 @@ export default function RecordForm() {
       <Section defaultOpen={false} title="Přílohy" subtitle="Doklad o tankování vč. stavu km, podklady pro fakturaci, fotky stroje" testid="section-attachments">
         <div>
         <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Druh přílohy"><Select value={attKind} onValueChange={setAttKind}><SelectTrigger className="h-12" data-testid="attachment-kind-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ATT_KINDS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent></Select></Field>
+          <Field label="Druh přílohy"><Select value={attKind} onValueChange={setAttKind}><SelectTrigger className="h-12" data-testid="attachment-kind-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ATT_KINDS).map(([k, l]) => <SelectItem key={k} value={k}>{t(l)}</SelectItem>)}</SelectContent></Select></Field>
           <Field label="Stav km (u tankování)"><Input inputMode="numeric" value={attKm} onChange={(e) => setAttKm(e.target.value)} className="h-12" data-testid="attachment-km-input" /></Field>
-          <div className="flex items-end"><label className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-slate-900 bg-white font-semibold hover:bg-slate-50" data-testid="record-add-attachment-button"><Camera className="h-5 w-5" />Vyfotit / přidat<input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={onFile} data-testid="record-attachment-input" /></label></div>
+          <div className="flex items-end"><label className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-slate-900 bg-white font-semibold hover:bg-slate-50" data-testid="record-add-attachment-button"><Camera className="h-5 w-5" />{t("Vyfotit / přidat")}<input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={onFile} data-testid="record-attachment-input" /></label></div>
         </div>
         <div className="space-y-2">{rec.attachments.filter((a) => (a.section || "general") === "general").map((a) => <AttachmentThumb key={a.id} att={a} onRemove={() => removeAtt(a.id)} />)}</div>
-        <p className="text-xs text-slate-600">Max. 15 MB na soubor. Bez připojení se soubor uloží v telefonu a nahraje se později.</p>
+        <p className="text-xs text-slate-600">{t("Max. 15 MB na soubor. Bez připojení se soubor uloží v telefonu a nahraje se později.")}</p>
         </div>
       </Section>
       </div>
 
-      {local && !server && <Button variant="ghost" className="text-red-700" onClick={async () => { await discardLocalRecord(rec.id); nav("/zapisy"); }} data-testid="record-discard-local">Zahodit neodeslaný zápis z telefonu</Button>}
+      {local && !server && <Button variant="ghost" className="text-red-700" onClick={async () => { await discardLocalRecord(rec.id); nav("/zapisy"); }} data-testid="record-discard-local">{t("Zahodit neodeslaný zápis z telefonu")}</Button>}
 
       <div className="sticky bottom-20 z-10 lg:bottom-0 rounded-xl border border-slate-200 bg-white p-3 shadow-md">
         {!id && <label className="mx-auto mb-2 flex max-w-6xl items-center gap-2 text-sm font-semibold text-slate-800" data-testid="record-next-machine-label">
@@ -473,16 +475,16 @@ export default function RecordForm() {
           Po uložení pokračovat druhým strojem (samostatné časy a motohodiny)
         </label>}
         <div className="mx-auto flex max-w-6xl gap-3">
-          {!serverConfirmed && <Button type="button" variant="outline" className="h-14 flex-1 border-slate-300 text-base font-semibold" onClick={() => doSave(false)} data-testid="record-save-draft-button">Uložit koncept</Button>}
-          <Button type="button" className="btn-primary h-14 flex-[2] text-base font-semibold" onClick={onConfirm} data-testid="record-confirm-button">{serverConfirmed ? "Uložit opravu (nová revize)" : "Uložit a potvrdit"}</Button>
+          {!serverConfirmed && <Button type="button" variant="outline" className="h-14 flex-1 border-slate-300 text-base font-semibold" onClick={() => doSave(false)} data-testid="record-save-draft-button">{t("Uložit koncept")}</Button>}
+          <Button type="button" className="btn-primary h-14 flex-[2] text-base font-semibold" onClick={onConfirm} data-testid="record-confirm-button">{t(serverConfirmed ? "Uložit opravu (nová revize)" : "Uložit a potvrdit")}</Button>
         </div>
       </div>
 
       <Dialog open={reasonOpen} onOpenChange={setReasonOpen}>
         <DialogContent className="max-w-md" data-testid="correction-reason-dialog">
-          <DialogHeader><DialogTitle className="font-heading">Důvod opravy</DialogTitle><DialogDescription>Potvrzený zápis se nepřepisuje: vznikne nová revize a původní znění zůstane v historii.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{t("Důvod opravy")}</DialogTitle><DialogDescription>{t("Potvrzený zápis se nepřepisuje: vznikne nová revize a původní znění zůstane v historii.")}</DialogDescription></DialogHeader>
           <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="např. Špatně zadané datum" data-testid="record-revision-reason-input" />
-          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" disabled={!reason.trim()} onClick={() => { setReasonOpen(false); doSave(true, reason.trim()); }} data-testid="record-revision-submit">Uložit novou revizi</Button></DialogFooter>
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" disabled={!reason.trim()} onClick={() => { setReasonOpen(false); doSave(true, reason.trim()); }} data-testid="record-revision-submit">{t("Uložit novou revizi")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
