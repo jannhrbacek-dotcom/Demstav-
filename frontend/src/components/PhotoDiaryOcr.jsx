@@ -84,11 +84,11 @@ export function PhotoDiaryOcr({ record, onAttach, onApply }) {
     <p className="text-sm text-slate-800">{t("Vyfoťte jednu stránku nebo nahrajte její fotku. Originál se přiloží k zápisu, rozpoznané údaje nejdříve zkontrolujete. Nic se samo nepotvrdí.")}</p>
     <div className="flex flex-wrap gap-2">
       <label className="flex min-h-12 cursor-pointer items-center gap-2 rounded-lg bg-slate-900 px-4 font-semibold text-white focus-within:ring-2 focus-within:ring-amber-500">
-        <Camera className="h-5 w-5" /> Vyfotit dokument
+        <Camera className="h-5 w-5" /> {t("Vyfotit dokument")}
         <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only" onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) process(file); }} data-testid="ocr-photo-input" />
       </label>
       <label className="flex min-h-12 cursor-pointer items-center gap-2 rounded-lg border-2 border-slate-900 bg-white px-4 font-semibold">
-        <ImagePlus className="h-5 w-5" /> Vybrat fotografii
+        <ImagePlus className="h-5 w-5" /> {t("Vybrat fotografii")}
         <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) process(file); }} data-testid="ocr-gallery-input" />
       </label>
     </div>
