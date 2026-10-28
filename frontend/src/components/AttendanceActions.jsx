@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { QrScanner } from "@/components/QrScanner";
 import { addAttendanceEvent, updateOp, removeOp, useSync } from "@/lib/sync";
 import { newId, KIND_LABELS, REASON_LABELS, MODE_LABELS } from "@/lib/format";
+import { useLanguage } from "@/lib/language";
 
 export function nextState(state, kind) {
   if (kind === "arrival" && (state === "away" || state === "travel")) return "working";
@@ -50,6 +51,7 @@ const BTN = {
 const TAP = ["break_start", "break_end", "travel_start"];
 
 export function AttendanceActions({ workplaces, serverState, onDone }) {
+  const { t } = useLanguage();
   const { state } = useShiftState(serverState);
   const [wpId, setWpId] = useState(() => localStorage.getItem("demstav:lastWorkplace") || "");
   const [qrFor, setQrFor] = useState(null);
@@ -62,15 +64,15 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
   const wp = (workplaces || []).find((w) => w.id === wpId) || (workplaces?.length === 1 ? workplaces[0] : null);
 
   const finish = (op) => {
-    if (!op) { toast.success("Přijato serverem"); onDone && onDone(); return; }
+    if (!op) { toast.success(t("Přijato serverem")); onDone && onDone(); return; }
     if (op.state === "needs_reason") { setReasonOp(op); return; }
-    if (op.state === "error") { toast.error(op.error || "Událost nebyla přijata."); return; }
-    toast("Uloženo v telefonu – čeká na odeslání", { description: "Odešle se automaticky po připojení." });
+    if (op.state === "error") { toast.error(op.error || t("Událost nebyla přijata.")); return; }
+    toast(t("Uloženo v telefonu – čeká na odeslání"), { description: t("Odešle se automaticky po připojení.") });
   };
 
   const send = async (kind, qr, extra = {}) => {
     if (busy) return;
-    if (!wp) { toast.error("Nejprve vyberte pracoviště."); return; }
+    if (!wp) { toast.error(t("Nejprve vyberte pracoviště.")); return; }
     setBusy(true);
     try {
       localStorage.setItem("demstav:lastWorkplace", wp.id);
@@ -79,10 +81,10 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
       const deviceAt = new Date().toISOString();
       const op = await addAttendanceEvent({ id: newId(), workplaceId: wp.id, kind, deviceAt, offline: !navigator.onLine, qr: qr || null, gps, exceptionReason: "", ...extra });
       finish(op);
-    } catch (e) { toast.error(e.message || "Událost nelze uložit. Zkuste to znovu."); } finally { setBusy(false); }
+    } catch (e) { toast.error(e.message || t("Událost nelze uložit. Zkuste to znovu.")); } finally { setBusy(false); }
   };
   const start = (kind) => {
-    if (!wp) { toast.error("Nejprve vyberte pracoviště."); return; }
+    if (!wp) { toast.error(t("Nejprve vyberte pracoviště.")); return; }
     if (kind === "travel_start") { setTravelOpen(true); return; }
     if (TAP.includes(kind)) { send(kind); return; }
     if (wp.mode === "gps_or_qr") setMethodFor(kind);
@@ -105,9 +107,9 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <div className="text-sm font-semibold text-slate-900">Pracoviště</div>
+        <div className="text-sm font-semibold text-slate-900">{t("Pracoviště")}</div>
         <Select value={wp?.id || ""} onValueChange={(v) => setWpId(v)}>
-          <SelectTrigger className="h-14 text-base" data-testid="attendance-workplace-select"><SelectValue placeholder={workplaces?.length ? "Vyberte pracoviště" : "Žádné pracoviště – kontaktujte vedoucího"} /></SelectTrigger>
+          <SelectTrigger className="h-14 text-base" data-testid="attendance-workplace-select"><SelectValue placeholder={workplaces?.length ? t("Vyberte pracoviště") : t("Žádné pracoviště – kontaktujte vedoucího")} /></SelectTrigger>
           <SelectContent>{(workplaces || []).map((w) => <SelectItem key={w.id} value={w.id} data-testid={`workplace-option-${w.id}`}>{w.name} · {MODE_LABELS[w.mode]}</SelectItem>)}</SelectContent>
         </Select>
         {wp?.mode === "gps_or_qr" && <p className="text-sm text-slate-700">Příchod i odchod potvrdíte polohou GPS v okruhu {wp.radius} m nebo QR kódem na pracovišti. Stačí jeden způsob.</p>}
@@ -115,7 +117,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
       </div>
       {state === "travel" && (
         <div className="rounded-xl border-2 border-[#E6BD00] bg-amber-50 p-3 text-sm text-amber-950" data-testid="attendance-travel-banner">
-          <div className="font-semibold">Přejezd na jinou zakázku – stále v práci</div>
+          <div className="font-semibold">{t("Přejezd na jinou zakázku – stále v práci")}</div>
           <div>Po příjezdu vyberte nové pracoviště (bod B) a dejte <b>Příchod</b> s ověřením podle pracoviště. Čas přejezdu se počítá do pracovní doby, ale nefakturuje se.</div>
         </div>
       )}
@@ -124,11 +126,11 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
           const enabled = !!nextState(state, k) && !busy;
           const primary = k === "arrival" || k === "departure";
           const I = BTN[k].icon;
-          const label = k === "arrival" && state === "travel" ? "Příjezd na bod B" : KIND_LABELS[k];
+          const label = k === "arrival" && state === "travel" ? t("Příjezd na bod B") : KIND_LABELS[k];
           return (
             <button key={k} type="button" disabled={!enabled} onClick={() => start(k)} data-testid={BTN[k].testid}
               className={`flex min-h-[84px] flex-col items-center justify-center gap-1.5 rounded-xl border-2 px-3 text-base font-semibold transition-colors duration-150 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 ${primary ? "border-[#E6BD00] bg-[#FFD200] text-slate-900 hover:bg-[#FFC400]" : "border-slate-300 bg-white text-slate-900 hover:bg-slate-50"}`}>
-              <I className="h-7 w-7" />{label}
+              <I className="h-7 w-7" />{t(label)}
             </button>
           );
         })}
@@ -136,17 +138,17 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
       {state !== "travel" && (
         <button type="button" disabled={!nextState(state, "travel_start") || busy} onClick={() => start("travel_start")} data-testid={BTN.travel_start.testid}
           className="flex min-h-[64px] w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-900 bg-white px-3 text-base font-semibold text-slate-900 transition-colors duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
-          <Route className="h-6 w-6" />Přejezd na jinou zakázku (A → B)
+          <Route className="h-6 w-6" />{t("Přejezd na jinou zakázku (A → B)")}
         </button>
       )}
-      {busy && <p role="status" className="text-sm font-semibold">Ověřuji a ukládám docházku…</p>}
+      {busy && <p role="status" className="text-sm font-semibold">{t("Ověřuji a ukládám docházku…")}</p>}
       <p className="text-xs text-slate-600">Přestávky 12:00–12:30 a 15:30–16:00 se odečítají automaticky. Změnu žádejte v Docházce. Přejezd stačí klepnout – bez QR. Příchod a odchod potvrďte způsobem uvedeným u pracoviště.</p>
 
       <Dialog open={!!methodFor} onOpenChange={(o) => !o && setMethodFor(null)}>
         <DialogContent className="max-w-md" data-testid="attendance-method-dialog">
-          <DialogHeader><DialogTitle>{KIND_LABELS[methodFor]} – jak potvrdit?</DialogTitle><DialogDescription>{wp?.name}. Vyberte jeden způsob ověření.</DialogDescription></DialogHeader>
-          <Button className="btn-primary h-16 text-lg" disabled={busy} data-testid="attendance-method-gps" onClick={() => { const kind = methodFor; setMethodFor(null); send(kind); }}><MapPin className="mr-2 h-6 w-6" />Potvrdit pomocí GPS</Button>
-          <Button variant="outline" className="h-16 text-lg" disabled={busy} data-testid="attendance-method-qr" onClick={() => { setQrFor(methodFor); setMethodFor(null); }}><QrCode className="mr-2 h-6 w-6" />Naskenovat QR kód</Button>
+          <DialogHeader><DialogTitle>{t(KIND_LABELS[methodFor])} – {t("jak potvrdit?")}</DialogTitle><DialogDescription>{wp?.name}. {t("Vyberte jeden způsob ověření.")}</DialogDescription></DialogHeader>
+          <Button className="btn-primary h-16 text-lg" disabled={busy} data-testid="attendance-method-gps" onClick={() => { const kind = methodFor; setMethodFor(null); send(kind); }}><MapPin className="mr-2 h-6 w-6" />{t("Potvrdit pomocí GPS")}</Button>
+          <Button variant="outline" className="h-16 text-lg" disabled={busy} data-testid="attendance-method-qr" onClick={() => { setQrFor(methodFor); setMethodFor(null); }}><QrCode className="mr-2 h-6 w-6" />{t("Naskenovat QR kód")}</Button>
           <p className="text-sm text-slate-600">GPS se použije jen při potvrzení. Při skenování QR není přístup k poloze potřeba. Bez ověření záznam schvaluje vedoucí.</p>
         </DialogContent>
       </Dialog>

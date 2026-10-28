@@ -3,6 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth, atLeast } from "@/lib/auth";
+import { LanguageProvider } from "@/lib/language";
 import Layout from "@/components/Layout";
 import Login from "@/pages/Login";
 import ChangePassword from "@/pages/ChangePassword";
@@ -46,6 +47,7 @@ function Home() {
 export default function App() {
   return (
     <div className="App">
+      <LanguageProvider>
       <AuthProvider>
         <BrowserRouter>
           <Routes>
@@ -79,6 +81,7 @@ export default function App() {
         </BrowserRouter>
         <Toaster position="top-center" richColors />
       </AuthProvider>
+      </LanguageProvider>
     </div>
   );
 }

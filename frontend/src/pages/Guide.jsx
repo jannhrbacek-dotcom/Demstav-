@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth, atLeast } from "@/lib/auth";
+import { useLanguage } from "@/lib/language";
+import { UK_GUIDE } from "@/lib/guideUk";
 
 export const guideKey = (id) => `demstav:guide:v1:${id}`;
 const STEPS = [
@@ -15,25 +17,27 @@ const STEPS = [
 ];
 export default function Guide() {
   const { user } = useAuth();
+  const { language, t } = useLanguage();
   const nav = useNavigate(), loc = useLocation();
   const context = loc.state?.context || "";
   const contextStep = context.startsWith("/dochazka") ? 1 : context.startsWith("/zapis") || context === "/zapisy" ? 3 :
     context === "/fronta" ? 4 : context === "/nepritomnost" || context === "/kalendar" ? 5 :
     context === "/prehled" || context === "/kontrola" ? 7 : 0;
   const [step, setStep] = useState(Math.min(contextStep, atLeast(user, "manager") ? 7 : 6));
-  const steps = atLeast(user, "manager") ? [...STEPS, { title: "7. Přehled a schvalování pro vedení", text: "V Přehledu vedení vidíte zaměstnance, docházku a zápisy. Kontrola výjimek obsahuje žádosti o opravy a změny přestávek. Před rozhodnutím ověřte datum, skutečné časy a důvod. Zamítnutí vyžaduje poznámku.", action: "Kontrola výjimek", to: "/kontrola", task: "Vedoucí provozu má plnou správu uživatelů, strojů a pracovišť, všechny exporty i schvalování. Vlastní žádost o přestávku nebo nepřítomnost schvaluje jiný oprávněný člověk." }] : STEPS;
+  const baseSteps = atLeast(user, "manager") ? [...STEPS, { title: "7. Přehled a schvalování pro vedení", text: "V Přehledu vedení vidíte zaměstnance, docházku a zápisy. Kontrola výjimek obsahuje žádosti o opravy a změny přestávek. Před rozhodnutím ověřte datum, skutečné časy a důvod. Zamítnutí vyžaduje poznámku.", action: "Kontrola výjimek", to: "/kontrola", task: "Vedoucí provozu má plnou správu uživatelů, strojů a pracovišť, všechny exporty i schvalování. Vlastní žádost o přestávku nebo nepřítomnost schvaluje jiný oprávněný člověk." }] : STEPS;
+  const steps = language === "uk" ? baseSteps.map((entry, index) => ({ ...entry, ...UK_GUIDE[index] })) : baseSteps;
   const finish = (to) => { localStorage.setItem(guideKey(user.id), "1"); nav(to || loc.state?.returnTo || "/dnes", { replace: true }); };
   const current = steps[step];
   return <main className="mx-auto max-w-2xl space-y-5" data-testid="app-guide">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-600">Jak na to · {step + 1} z {steps.length}</p><h1 className="mt-2 text-3xl font-bold">{current.title}</h1></div>
-      <Button variant="outline" className="h-11" onClick={() => setStep(0)} data-testid="guide-restart">Celý tutoriál od začátku</Button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-600">{t("Jak na to")} · {step + 1} {language === "uk" ? "/" : "z"} {steps.length}</p><h1 className="mt-2 text-3xl font-bold">{current.title}</h1></div>
+      <Button variant="outline" className="h-11" onClick={() => setStep(0)} data-testid="guide-restart">{t("Celý tutoriál od začátku")}</Button></div>
     <progress className="h-3 w-full accent-yellow-500" value={step + 1} max={steps.length} aria-label="Postup průvodcem" />
     <article className="space-y-5 rounded-xl border bg-white p-5 text-lg leading-relaxed" aria-live="polite">
       <p>{current.text}</p><p className="rounded-lg bg-amber-50 p-4">{current.task}</p>
       <Button variant="outline" className="min-h-12 w-full whitespace-normal" onClick={() => finish(current.to)}>{current.action}</Button>
     </article>
-    <div className="flex gap-3"><Button variant="outline" className="h-14 flex-1 text-lg" disabled={step === 0} onClick={() => setStep(step - 1)}>Zpět</Button>
-      <Button className="btn-primary h-14 flex-1 text-lg" onClick={() => step + 1 < steps.length ? setStep(step + 1) : finish()}>{step + 1 < steps.length ? "Další" : "Rozumím, začít"}</Button></div>
-    <button className="min-h-12 w-full underline" onClick={() => finish()}>Přeskočit prohlídku – návod najdu v nabídce Jak na to</button>
+    <div className="flex gap-3"><Button variant="outline" className="h-14 flex-1 text-lg" disabled={step === 0} onClick={() => setStep(step - 1)}>{t("Zpět")}</Button>
+      <Button className="btn-primary h-14 flex-1 text-lg" onClick={() => step + 1 < steps.length ? setStep(step + 1) : finish()}>{t(step + 1 < steps.length ? "Další" : "Rozumím, začít")}</Button></div>
+    <button className="min-h-12 w-full underline" onClick={() => finish()}>{t("Přeskočit prohlídku – návod najdu v nabídce Jak na to")}</button>
   </main>;
 }

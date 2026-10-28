@@ -10,9 +10,11 @@ import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
 import { dmy } from "@/lib/format";
 import { timeBreakdown, fmtH } from "@/lib/worktime";
+import { useLanguage } from "@/lib/language";
 
 export default function Records({ all = false }) {
   const s = useSync();
+  const { t } = useLanguage();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [emp, setEmp] = useState("all");
@@ -28,19 +30,19 @@ export default function Records({ all = false }) {
 
   return (
     <div>
-      <PageHeader title={all ? "Všechny zápisy" : "Moje zápisy"} subtitle={all ? "Zápisy zaměstnanců se zobrazí automaticky po přijetí serverem – bez posílání PDF." : "Deník stroje a šichtovnice. Stav ukazuje, zda je zápis jen v telefonu, nebo už na serveru."}
-        actions={!all && <div className="flex flex-wrap gap-2"><Link to="/zapis/novy"><Button className="btn-primary h-12 font-semibold" data-testid="records-new-button"><Plus className="mr-1 h-5 w-5" />Nový zápis</Button></Link><Link to="/zapisy/import"><Button variant="outline" className="h-12 font-semibold" data-testid="records-import-button"><FileJson className="mr-1 h-5 w-5" />Import JSON</Button></Link></div>} />
+      <PageHeader title={t(all ? "Všechny zápisy" : "Moje zápisy")} subtitle={all ? "Zápisy zaměstnanců se zobrazí automaticky po přijetí serverem – bez posílání PDF." : "Deník stroje a šichtovnice. Stav ukazuje, zda je zápis jen v telefonu, nebo už na serveru."}
+        actions={!all && <div className="flex flex-wrap gap-2"><Link to="/zapis/novy"><Button className="btn-primary h-12 font-semibold" data-testid="records-new-button"><Plus className="mr-1 h-5 w-5" />{t("Nový zápis")}</Button></Link><Link to="/zapisy/import"><Button variant="outline" className="h-12 font-semibold" data-testid="records-import-button"><FileJson className="mr-1 h-5 w-5" />{t("Import JSON")}</Button></Link></div>} />
       <div className="mb-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-5" data-testid="records-filters">
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11" aria-label="Od" data-testid="records-filter-from" />
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-11" aria-label="Do" data-testid="records-filter-to" />
         <Input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="Stroj…" className="h-11" data-testid="records-filter-machine" />
         <Select value={status} onValueChange={setStatus}><SelectTrigger className="h-11" data-testid="records-filter-status"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">Všechny stavy</SelectItem><SelectItem value="draft">Koncepty</SelectItem><SelectItem value="confirmed">Potvrzené</SelectItem></SelectContent></Select>
+          <SelectContent><SelectItem value="all">{t("Všechny stavy")}</SelectItem><SelectItem value="draft">{t("Koncepty")}</SelectItem><SelectItem value="confirmed">{t("Potvrzené")}</SelectItem></SelectContent></Select>
         {all && <Select value={emp} onValueChange={setEmp}><SelectTrigger className="h-11" data-testid="records-filter-employee"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">Všichni zaměstnanci</SelectItem>{(users.data || []).map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent></Select>}
       </div>
-      {recs.fromCache && <p className="mb-3 text-xs font-medium text-amber-800">Offline – zobrazena poslední stažená data.</p>}
-      {!recs.loading && list.length === 0 && <Empty icon={ClipboardList} title="Žádné zápisy" text="Pro zvolený filtr zatím nic není." />}
+      {recs.fromCache && <p className="mb-3 text-xs font-medium text-amber-800">{t("Offline – zobrazena poslední stažená data.")}</p>}
+      {!recs.loading && list.length === 0 && <Empty icon={ClipboardList} title={t("Žádné zápisy")} text={t("Pro zvolený filtr zatím nic není.")} />}
       <div className="space-y-2">
         {list.map(({ record: r, state }) => {
           const b = timeBreakdown(r);

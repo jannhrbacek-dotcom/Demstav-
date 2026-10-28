@@ -14,8 +14,10 @@ import { useCached } from "@/lib/data";
 import { addAttendanceRequest, useSync } from "@/lib/sync";
 import { newId, KIND_LABELS, REASON_LABELS, dateTime, pragueDate } from "@/lib/format";
 import { fmtHM } from "@/lib/worktime";
+import { useLanguage } from "@/lib/language";
 
 export default function Attendance() {
+  const { t } = useLanguage();
   const s = useSync();
   const att = useCached("/attendance/me?days=31");
   const wps = useCached("/workplaces");
@@ -39,11 +41,11 @@ export default function Attendance() {
           <AttendanceActions workplaces={wps.data} serverState={att.data?.projection?.state} onDone={() => att.reload()} />
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-600">Dnes</div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-600">{t("Dnes")}</div>
           <div className="mt-1 grid grid-cols-3 gap-3">
-            <div><div className="text-xs text-slate-600">Přítomnost</div><div className="font-heading text-2xl font-bold">{fmtHM(att.data?.today_projection?.presenceHours)}</div></div>
-            <div><div className="text-xs text-slate-600">Přestávky</div><div className="font-heading text-2xl font-bold">{fmtHM(att.data?.today_projection?.breakHours)}</div></div>
-            <div><div className="text-xs text-slate-600">Čistá doba</div><div className="font-heading text-2xl font-bold" data-testid="attendance-net-today">{fmtHM(att.data?.today_projection?.netHours)}</div></div>
+            <div><div className="text-xs text-slate-600">{t("Přítomnost")}</div><div className="font-heading text-2xl font-bold">{fmtHM(att.data?.today_projection?.presenceHours)}</div></div>
+            <div><div className="text-xs text-slate-600">{t("Přestávky")}</div><div className="font-heading text-2xl font-bold">{fmtHM(att.data?.today_projection?.breakHours)}</div></div>
+            <div><div className="text-xs text-slate-600">{t("Čistá doba")}</div><div className="font-heading text-2xl font-bold" data-testid="attendance-net-today">{fmtHM(att.data?.today_projection?.netHours)}</div></div>
           </div>
           <p className="mt-3 text-xs text-slate-600">Docházka eviduje přítomnost na pracovišti. Neověřené záznamy (offline, mimo okruh, ruční) se nevydávají za prokázanou přítomnost – schvaluje je vedoucí.</p>
           {(att.data?.projection?.issues || []).length > 0 && <div className="mt-2 rounded-lg bg-orange-50 p-2 text-xs text-orange-950">{att.data.projection.issues.join(" · ")}</div>}
@@ -51,34 +53,34 @@ export default function Attendance() {
       </div>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="attendance-corrections">
-        <h2 className="font-heading text-lg font-semibold">Opravy docházky</h2>
+        <h2 className="font-heading text-lg font-semibold">{t("Opravy docházky")}</h2>
         <p className="text-sm text-slate-600">Chybí příchod nebo potřebujete opravit čas? Žádost schvaluje vedoucí.</p>
-        <Button variant="outline" className="h-12 w-full sm:w-auto" onClick={() => openFix(null)} data-testid="attendance-manual-entry-button"><PencilLine className="mr-2 h-4 w-4" />Požádat o opravu</Button>
+        <Button variant="outline" className="h-12 w-full sm:w-auto" onClick={() => openFix(null)} data-testid="attendance-manual-entry-button"><PencilLine className="mr-2 h-4 w-4" />{t("Požádat o opravu")}</Button>
       </section>
       <BreakRequests />
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2 font-heading font-semibold"><History className="h-5 w-5" />Historie (31 dní)</div>
+        <div className="mb-3 flex items-center gap-2 font-heading font-semibold"><History className="h-5 w-5" />{t("Historie (31 dní)")}</div>
         {queued.map((o) => (
           <div key={o.opId} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-3" data-testid="attendance-history-item">
-            <div><div className="font-semibold">{KIND_LABELS[o.payload.kind]} · {dateTime(o.payload.deviceAt)}</div><div className="text-xs text-slate-600">čas zařízení; {o.error || "zatím nepřijato serverem"}</div></div>
+            <div><div className="font-semibold">{t(KIND_LABELS[o.payload.kind])} · {dateTime(o.payload.deviceAt)}</div><div className="text-xs text-slate-600">čas zařízení; {o.error || "zatím nepřijato serverem"}</div></div>
             <StatusBadge status={o.state === "needs_reason" ? "needs_reason" : o.state === "error" ? "error" : "queued"} />
           </div>))}
-        {!att.loading && (att.data?.events || []).length === 0 && queued.length === 0 && <Empty title="Zatím žádné události" text="První záznam vytvoříte tlačítkem Příchod." />}
+        {!att.loading && (att.data?.events || []).length === 0 && queued.length === 0 && <Empty title={t("Zatím žádné události")} text={t("První záznam vytvoříte tlačítkem Příchod.")} />}
         {(att.data?.events || []).map((e) => (
           <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-3" data-testid="attendance-history-item">
             <div className="min-w-0">
-              <div className="font-semibold">{KIND_LABELS[e.kind]} · {dateTime(e.effective_at)} · {e.workplace_name}</div>
+              <div className="font-semibold">{t(KIND_LABELS[e.kind])} · {dateTime(e.effective_at)} · {e.workplace_name}</div>
               <div className="text-xs text-slate-600">{e.verification_method === "gps" ? "Ověření GPS · " : e.verification_method === "qr" ? "Ověření QR · " : ""}zařízení {dateTime(e.device_at)} · server {dateTime(e.received_at)}{e.reasons?.length ? ` · ${e.reasons.map((r) => REASON_LABELS[r] || r).join(", ")}` : ""}{e.decision?.note ? ` · vedoucí: ${e.decision.note}` : ""}</div>
             </div>
-            <div className="flex items-center gap-2"><StatusBadge status={e.status} /><Button variant="ghost" size="sm" onClick={() => openFix(e)} data-testid="attendance-fix-event">Oprava</Button></div>
+            <div className="flex items-center gap-2"><StatusBadge status={e.status} /><Button variant="ghost" size="sm" onClick={() => openFix(e)} data-testid="attendance-fix-event">{t("Oprava")}</Button></div>
           </div>))}
-        {(att.data?.requests || []).length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-semibold">Moje žádosti o opravu</div>{att.data.requests.map((r) => (
-          <div key={r.id} className="flex items-center justify-between border-b border-slate-100 py-2 text-sm" data-testid="attendance-request-item"><span>{KIND_LABELS[r.kind]} {dateTime(r.at)} – {r.reason}{r.decision?.note ? ` (vedoucí: ${r.decision.note})` : ""}</span><StatusBadge status={r.status} /></div>))}</div>}
+        {(att.data?.requests || []).length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-semibold">{t("Moje žádosti o opravu")}</div>{att.data.requests.map((r) => (
+          <div key={r.id} className="flex items-center justify-between border-b border-slate-100 py-2 text-sm" data-testid="attendance-request-item"><span>{t(KIND_LABELS[r.kind])} {dateTime(r.at)} – {r.reason}{r.decision?.note ? ` (vedoucí: ${r.decision.note})` : ""}</span><StatusBadge status={r.status} /></div>))}</div>}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md" data-testid="attendance-request-dialog">
-          <DialogHeader><DialogTitle className="font-heading">Žádost o opravu docházky</DialogTitle><DialogDescription>{form.eventId ? "Oprava času existující události." : "Doplnění chybějící události."} Schvaluje vedoucí; původní záznam zůstává v auditu.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{t("Žádost o opravu docházky")}</DialogTitle><DialogDescription>{form.eventId ? "Oprava času existující události." : "Doplnění chybějící události."} Schvaluje vedoucí; původní záznam zůstává v auditu.</DialogDescription></DialogHeader>
           <div className="space-y-3">
             <Field label="Událost"><Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })} disabled={!!form.eventId}><SelectTrigger className="h-12" data-testid="request-kind-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent></Select></Field>
             <div className="grid grid-cols-2 gap-3"><Field label="Datum"><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="h-12" data-testid="request-date-input" /></Field>
