@@ -206,6 +206,27 @@ const uk = {
   "Pravidelný servis": "Плановий сервіс",
   "Provozní deník stroje": "Журнал роботи машини",
 
+  "Pro automatický přepis vyberte JPG/PNG/WEBP do 10 MB.": "Для розпізнавання виберіть JPG/PNG/WEBP до 10 МБ.",
+  "Fotografie nebyla čitelná. Zkuste ostrý snímek při dobrém světle.": "Фото нечітке. Зробіть чіткий знімок при хорошому освітленні.",
+  "Text byl přečten, ale hodnoty nebyly bezpečně rozpoznány. Zkontrolujte původní text níže.": "Текст зчитано, але поля розпізнано ненадійно. Перевірте вихідний текст нижче.",
+  "Přepis fotografie se nezdařil. Příloha zůstává v zápisu.": "Не вдалося розпізнати фото. Додаток залишився в записі.",
+  "Čas směny použijte pouze při potvrzeném začátku i konci.": "Час зміни вводьте лише коли перевірено початок і кінець.",
+  "Datum musí být ve formátu RRRR-MM-DD.": "Дата має бути у форматі РРРР-ММ-ДД.",
+  "Čas musí být ve formátu HH:MM.": "Час має бути у форматі ГГ:ХХ.",
+  "Údaje byly vloženy do rozepsaného formuláře. Před potvrzením zápisu zkontrolujte MTH, čas a datum.": "Дані вставлено в чернетку. Перевірте MTH, час і дату перед підтвердженням.",
+  "Vyfoťte jednu stránku nebo nahrajte její fotku. Originál se přiloží k zápisu, rozpoznané údaje nejdříve zkontrolujete. Nic se samo nepotvrdí.": "Сфотографуйте одну сторінку або завантажте фото. Оригінал додається до запису, розпізнані дані спочатку потрібно перевірити. Нічого не підтверджується автоматично.",
+  "Zaškrtnutá pole se vloží až po klepnutí na tlačítko. Již vyplněná pole se automaticky neoznačují.": "Позначені поля буде вставлено після натискання кнопки. Уже заповнені поля не позначаються автоматично.",
+  "Ukládám fotografii a rozpoznávám text…": "Зберігаю фото й розпізнаю текст…",
+  "Fotografie:": "Фото:",
+  "· uložena jako příloha konceptu": "· збережено як додаток до чернетки",
+  "· nebyla přiložena": "· не додано",
+  "Opravit:": "Виправити:",
+  "OCR může chybovat zejména u rukopisu, MTH a časů. Před použitím vše zkontrolujte.": "OCR може помилятися, особливо в рукописі, MTH та часі. Перевірте всі дані перед використанням.",
+  "Začátek směny": "Початок зміни",
+  "Konec směny": "Кінець зміни",
+  "Pracoviště": "Робоче місце",
+
+
 };
 const Context = createContext({ language: "cs", setLanguage: () => {}, t: value => value });
 export function LanguageProvider({ children }) {
