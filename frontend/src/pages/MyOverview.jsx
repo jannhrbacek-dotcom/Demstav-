@@ -39,9 +39,9 @@ export default function MyOverview() {
     <div className="space-y-4">
       <PageHeader title={t("Moje přehledy")} subtitle={t("Šichtovnice, deník stroje a směny za vybraný týden. Vidíte jen svá data.")} />
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" className="h-12 w-12" onClick={() => setFrom(shift(from, -7))} aria-label=t("Předchozí týden") data-testid="overview-prev-week"><ChevronLeft className="h-5 w-5" /></Button>
+        <Button variant="outline" className="h-12 w-12" onClick={() => setFrom(shift(from, -7))} aria-label={t("Předchozí týden")} data-testid="overview-prev-week"><ChevronLeft className="h-5 w-5" /></Button>
         <div className="min-w-[200px] text-center font-heading text-lg font-semibold" data-testid="overview-week-label">{dmy(from)} – {dmy(to)}</div>
-        <Button variant="outline" className="h-12 w-12" onClick={() => setFrom(shift(from, 7))} aria-label=t("Další týden") data-testid="overview-next-week"><ChevronRight className="h-5 w-5" /></Button>
+        <Button variant="outline" className="h-12 w-12" onClick={() => setFrom(shift(from, 7))} aria-label={t("Další týden")} data-testid="overview-next-week"><ChevronRight className="h-5 w-5" /></Button>
         {mgr && <Select value={emp || "me"} onValueChange={(v) => setEmp(v === "me" ? "" : v)}><SelectTrigger className="h-12 w-56" data-testid="overview-employee-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="me">Já ({user.name})</SelectItem>{(users.data || []).filter((u) => u.id !== user.id).map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent></Select>}
       </div>
       {!d ? <p className="text-slate-600">{t("Načítám…")}</p> : (<>
