@@ -9,6 +9,7 @@ jest.mock("@/lib/sync", () => ({useSync: () => mockSync, saveRecordLocal: (...ar
 jest.mock("@/lib/data", () => ({useCached: () => ({data: [], loading: false}), mergedRecords: () => []}));
 jest.mock("@/lib/api", () => ({http: {get: async () => ({data: []})}}));
 jest.mock("@/components/BreakRequests", () => () => null);
+jest.mock("@/components/DiaryAssistant", () => ({ DiaryAssistant: ({ onApply }) => <button data-testid="test-proposal" onClick={() => onApply({ machine: "DEMO-new", start: "07:00" })}>Návrh</button> }));
 jest.mock("@/components/DictateTextarea", () => ({DictateTextarea: ({value, onChange, testid}) => <textarea value={value} onChange={e => onChange(e.target.value)} data-testid={testid} />}));
 const mockRecord = {id: "draft-1", date: "2026-10-28", revision: 0, shift: "Denní", operator: "Test employee",
   machine: "TEST-2", customer: "", site: "Test site", job: "", drive: "", crew: "", vehiclesTo: "", vehiclesFrom: "", accommodation: "",
@@ -31,4 +32,23 @@ test("essential fields precede service; hiding sections preserves data on save",
   expect(mockSave.mock.calls[0][0].serviceDescription).toBe("Zachovaný servis");
   expect(mockSave.mock.calls[0][0].service).toHaveLength(1);
   act(() => root.unmount()); el.remove();
+});
+
+test("a reviewed proposal preserves other shift sections and clears MTH from a different machine", async () => {
+  global.IS_REACT_ACT_ENVIRONMENT = true;
+  window.scrollTo = () => {};
+  const el = document.createElement("div"); document.body.appendChild(el); const root = createRoot(el);
+  await act(async () => root.render(<RecordForm />));
+  await act(async () => {
+    const panel = el.querySelector('[data-testid="record-ai-panel"]');
+    panel.open = true; panel.dispatchEvent(new Event("toggle"));
+  });
+  await act(async () => el.querySelector('[data-testid="test-proposal"]').click());
+  await act(async () => el.querySelector('[data-testid="record-save-draft-button"]').click());
+  const saved = mockSave.mock.calls.at(-1)[0];
+  expect(saved.machine).toBe("DEMO-new");
+  expect(saved.mthStart).toBe(""); expect(saved.mthEnd).toBe("");
+  expect(saved.billing).toEqual([{ start: "07:00", end: "17:00" }]);
+  expect(saved.service).toEqual([{ start: "11:00", end: "12:00" }]);
+  await act(async () => root.unmount()); el.remove();
 });

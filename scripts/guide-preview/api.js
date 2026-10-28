@@ -1,0 +1,12 @@
+import { fixtureFor, user } from "./fixtures";
+const blocked = async () => { throw new Error("DEMO je pouze ke čtení. Síťové požadavky jsou vypnuté."); };
+export const http = { get: async path => ({ data: fixtureFor(path) }), post: blocked, put: blocked, delete: blocked, patch: blocked };
+export const errText = (error, fallback) => error?.message || fallback || "DEMO je pouze ke čtení.";
+export const API = "";
+export const getToken = () => null;
+export const cachedUser = () => user;
+export const setSession = () => {};
+export const clearSession = () => {};
+export const clearToken = () => {};
+export const setUnauthorizedHandler = () => {};
+export const downloadFile = blocked;

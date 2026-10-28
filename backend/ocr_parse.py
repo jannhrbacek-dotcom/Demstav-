@@ -25,10 +25,10 @@ def _search(lines, patterns):
     return ""
 
 def _date(value):
-    parts = re.match(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$", value)
+    parts = re.fullmatch(r"([0-9]{1,2})\s*([./-])\s*([0-9]{1,2})\s*\2\s*([0-9]{4})", value)
     if parts:
         try:
-            return date(int(parts[3]), int(parts[2]), int(parts[1])).isoformat()
+            return date(int(parts[4]), int(parts[3]), int(parts[1])).isoformat()
         except ValueError:
             pass
     if re.match(r"^\d{4}-\d{2}-\d{2}$", value):
@@ -39,17 +39,31 @@ def _date(value):
     return ""
 
 def _mth(value):
-    if not re.fullmatch(r"\d{1,6}(?:[.,]\d{1,2})?", value):
+    # Accept only complete values, with unambiguous three-digit space groups.
+    # A partial match would silently turn e.g. "8 440" into 8 or "844O" into 844.
+    match = re.fullmatch(r"([0-9]{1,6}|[0-9]{1,3} [0-9]{3})([.,][0-9]{1,2})?(?:\s*MTH)?", value, re.IGNORECASE)
+    if not match:
         return ""
-    return value.replace(",", ".")
+    return (match[1].replace(" ", "") + (match[2] or "")).replace(",", ".")
+
+
+def _labeled_value(lines, label, normalize):
+    """Never accept a prefix or choose between conflicting labeled readings."""
+    values = []
+    for line in lines:
+        match = re.search(r"\b(?:" + label + r")\s*[:=]\s*(.*)$", line, re.IGNORECASE)
+        if match:
+            values.append(normalize(match[1].strip()))
+    if not values or not all(values) or len(set(values)) != 1:
+        return ""
+    return values[0]
 
 def extract_fields(text: str) -> list:
     lines = [re.sub(r"\s+", " ", v).strip() for v in text.splitlines() if v.strip()]
     found = {}
-    day = _search(lines, [r"\bDatum\s*[:=]\s*(\d{1,2}[./-]\d{1,2}[./-]\d{4})",
-                           r"\bDatum\s*[:=]\s*(\d{4}-\d{2}-\d{2})"])
-    if _date(day):
-        found["date"] = _date(day)
+    day = _labeled_value(lines, r"Datum", _date)
+    if day:
+        found["date"] = day
     machine = _search(lines, [r"\b(?:Stroj|Mechanismus)\s*[:=]\s*([\w\s./-]{2,32})"])
     if machine:
         found["machine"] = machine[:32]
@@ -59,12 +73,12 @@ def extract_fields(text: str) -> list:
     work = _search(lines, [r"\b(?:Popis práce|Provedená práce|Činnost)\s*[:=]\s*(.{3,240})"])
     if work:
         found["work"] = work[:240]
-    begin = _search(lines, [r"\b(?:MTH\s*(?:začátek|od|počáteční)|Počáteční\s*(?:stav\s*)?MTH)\s*[:=]\s*(\d{1,6}(?:[.,]\d{1,2})?)"])
-    finish = _search(lines, [r"\b(?:MTH\s*(?:konec|do|koncový)|Konečný\s*(?:stav\s*)?MTH)\s*[:=]\s*(\d{1,6}(?:[.,]\d{1,2})?)"])
-    if _mth(begin):
-        found["mthStart"] = _mth(begin)
-    if _mth(finish):
-        found["mthEnd"] = _mth(finish)
+    begin = _labeled_value(lines, r"MTH\s*(?:začátek|od|počáteční)|Počáteční\s*(?:stav\s*)?MTH", _mth)
+    finish = _labeled_value(lines, r"MTH\s*(?:konec|do|koncový)|Konečný\s*(?:stav\s*)?MTH", _mth)
+    if begin:
+        found["mthStart"] = begin
+    if finish:
+        found["mthEnd"] = finish
     start = _search(lines, [r"\b(?:Směna\s*od|Práce\s*od|Začátek\s*směny)\s*[:=]\s*([0-2]?\d:[0-5]\d)"])
     end = _search(lines, [r"\b(?:Směna\s*do|Práce\s*do|Konec\s*směny)\s*[:=]\s*([0-2]?\d:[0-5]\d)"])
     for key, val in [("start", start), ("end", end)]:
