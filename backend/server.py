@@ -254,6 +254,8 @@ async def startup():
     await seed_owner()
     await seed_attendance_workplace()
     await ensure_operations_manager()
+    from migrate_l576_5 import register_l576_5
+    await register_l576_5()
     try:
         init_storage()
         logger.info("Storage initialized")
