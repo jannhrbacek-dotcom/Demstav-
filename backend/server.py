@@ -15,6 +15,7 @@ from routes_users import router as users_router, seed_owner, ensure_operations_m
 from routes_records import router as records_router  # noqa: E402
 from routes_stt import router as stt_router  # noqa: E402
 from routes_leave import router as leave_router  # noqa: E402
+from routes_leave import absence_overview
 from routes_exceptions import router as exceptions_router  # noqa: E402
 from routes_push import router as push_router  # noqa: E402
 from routes_admin import router as admin_router  # noqa: E402
@@ -101,9 +102,11 @@ async def overview(date: str = "", days: int = 7, user: dict = Depends(require_r
     pending_leave = await db.leave_requests.count_documents(leave_q) if user["role"] in ("manager", "owner", "operations_manager") else 0
     today_exceptions = await db.planned_exceptions.find({"date": {"$gte": day, "$lte": (date_cls.fromisoformat(day) + timedelta(days=7)).isoformat()}}, {"_id": 0}).sort("date", 1).to_list(200)
     service_alerts = [m for m in await machines_with_status() if m.get("active", True) and m["service_state"] in ("soon", "due")]
+    absences = await absence_overview(day, (date_cls.fromisoformat(day) + timedelta(days=7)).isoformat(), user=user)
     return {"date": day, "present": present, "comparison": comparison, "missing": missing[:200], "open_drafts": open_drafts,
             "faults": faults, "pending_events": pending_events, "pending_requests": pending_requests, "service_alerts": service_alerts, "pending_leave": pending_leave,
             "upcoming_exceptions": [{**r, "kind_label": {"late_arrival": "Pozdní příchod", "early_departure": "Dřívější odchod", "other": "Jiná výjimka"}.get(r.get("kind"), r.get("kind"))} for r in today_exceptions],
+            "absences": absences,
             "chart": [{**v, "attendance": round(v["attendance"], 2), "timesheet": round(v["timesheet"], 2)} for v in chart.values()],
             "employees": len(users)}
 
