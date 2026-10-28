@@ -10,6 +10,7 @@ import { ServiceAlerts } from "@/components/ServiceAlerts";
 import { WeatherWidget } from "@/components/WeatherWidget";
 import { pragueDate, STATE_LABELS, timeOf, KIND_LABELS } from "@/lib/format";
 import { pracovniPozdrav } from "@/lib/greeting";
+import { useLanguage } from "@/lib/language";
 import { timeBreakdown, dayUnion, fmtHM, fmtH } from "@/lib/worktime";
 
 const STATE_CLS = { away: "bg-slate-200 text-slate-900", working: "bg-emerald-600 text-white", break: "bg-amber-400 text-slate-900" };
@@ -31,6 +32,7 @@ function Tile({ to, icon: I, label, hint, accent = false, testid }) {
 
 export default function Today() {
   const { user, simpleMode } = useAuth();
+  const { language, t } = useLanguage();
   const s = useSync();
   const att = useCached("/attendance/me?days=2");
   const wps = useCached("/workplaces");
@@ -52,17 +54,17 @@ export default function Today() {
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-sm font-medium text-slate-600">{new Date().toLocaleDateString("cs-CZ", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Prague" })}</p>
-        <h1 className="font-heading text-3xl font-bold tracking-tight text-slate-900" data-testid="today-greeting">{pracovniPozdrav(user?.name)}</h1>
+        <p className="text-sm font-medium text-slate-600">{new Date().toLocaleDateString(language === "uk" ? "uk-UA" : "cs-CZ", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Prague" })}</p>
+        <h1 className="font-heading text-3xl font-bold tracking-tight text-slate-900" data-testid="today-greeting">{language === "uk" ? `Вітаємо, ${user?.name || ""}!` : pracovniPozdrav(user?.name)}</h1>
       </div>
       <WeatherWidget workplaces={wps.data} preferredWorkplaceId={currentWorkplaceId} />
       <section className="space-y-3 rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm" data-testid="today-attendance-primary">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Příchod / odchod</p>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("Příchod / odchod")}</p>
             <div className={`mt-1 inline-flex rounded-lg px-3 py-1.5 font-heading text-lg font-semibold ${STATE_CLS[state]}`} data-testid="today-shift-state">{STATE_LABELS[state]}</div>
             {pending.length > 0 && <p className="mt-1 text-xs text-amber-800">Čeká na server: {pending.length} událostí</p>}
           </div>
-          <div className="text-right"><p className="text-xs font-semibold text-slate-600">Čistá doba dnes</p><p className="font-heading text-3xl font-bold tabular-nums" data-testid="today-hours-total">{fmtHM(net)}</p></div>
+          <div className="text-right"><p className="text-xs font-semibold text-slate-600">{t("Čistá doba dnes")}</p><p className="font-heading text-3xl font-bold tabular-nums" data-testid="today-hours-total">{fmtHM(net)}</p></div>
         </div>
         <AttendanceActions workplaces={wps.data} serverState={att.data?.projection?.state} onDone={() => att.reload()} />
         {lastEvents.length > 0 && !simpleMode && <div className="space-y-1 border-t pt-2">{lastEvents.slice(0, 2).map((e) =>
@@ -70,23 +72,23 @@ export default function Today() {
         )}</div>}
       </section>
       <Link to="/zapis/novy" className="flex min-h-[86px] items-center gap-4 rounded-xl border-2 border-[#E6BD00] bg-[#FFD200] px-5 text-slate-900 shadow-sm hover:bg-[#FFC400]" data-testid="today-new-record-button">
-        <Plus className="h-9 w-9 shrink-0" /><div><div className="font-heading text-xl font-bold">Nový denní zápis</div><p className="text-sm">Stroj · práce · motohodiny · šichtovnice</p></div>
+        <Plus className="h-9 w-9 shrink-0" /><div><div className="font-heading text-xl font-bold">{t("Nový denní zápis")}</div><p className="text-sm">{t("Stroj · práce · motohodiny · šichtovnice")}</p></div>
       </Link>
       {productionAssigned && <section className="rounded-xl border border-slate-200 bg-slate-50 p-3" data-testid="today-shared-report">
-        <p className="text-sm font-semibold">Po směně: společný výkaz práce a tonáže</p>
-        <p className="text-xs text-slate-600">Jen pověřený zaměstnanec vyplňuje společný výkaz a vážní lístky.</p>
+        <p className="text-sm font-semibold">{t("Po směně: společný výkaz práce a tonáže")}</p>
+        <p className="text-xs text-slate-600">{t("Jen pověřený zaměstnanec vyplňuje společný výkaz a vážní lístky.")}</p>
         <div className="mt-2 flex gap-2">
           <Link to="/vykazy-vazeni" onClick={() => { localStorage.setItem(`demstav:shared:${user?.id}:${today}`, "yes"); setSharedAnswer("yes"); }}
-            className={`flex min-h-11 flex-1 items-center justify-center rounded-lg border-2 text-sm font-bold ${sharedAnswer === "yes" ? "border-emerald-600 bg-emerald-100" : "border-slate-300 bg-white"}`} data-testid="shared-report-yes">ANO · otevřít výkaz</Link>
-          <button type="button" onClick={markNo} className={`min-h-11 flex-1 rounded-lg border-2 text-sm font-bold ${sharedAnswer === "no" ? "border-slate-600 bg-slate-200" : "border-slate-300 bg-white"}`} data-testid="shared-report-no">NE</button>
+            className={`flex min-h-11 flex-1 items-center justify-center rounded-lg border-2 text-sm font-bold ${sharedAnswer === "yes" ? "border-emerald-600 bg-emerald-100" : "border-slate-300 bg-white"}`} data-testid="shared-report-yes">{t("ANO · otevřít výkaz")}</Link>
+          <button type="button" onClick={markNo} className={`min-h-11 flex-1 rounded-lg border-2 text-sm font-bold ${sharedAnswer === "no" ? "border-slate-600 bg-slate-200" : "border-slate-300 bg-white"}`} data-testid="shared-report-no">{t("NE")}</button>
         </div>
       </section>}
       <ServiceAlerts />
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-heading text-lg font-bold">Dnešní zápisy</h2><span className="text-sm text-slate-600">{fmtH(ts.t)} h · servis {fmtH(ts.s)} h</span></div>
-        {todays.length === 0 && <p className="text-sm text-slate-600" data-testid="today-no-records">Zatím žádný zápis.</p>}
+        <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-heading text-lg font-bold">{t("Dnešní zápisy")}</h2><span className="text-sm text-slate-600">{fmtH(ts.t)} h · servis {fmtH(ts.s)} h</span></div>
+        {todays.length === 0 && <p className="text-sm text-slate-600" data-testid="today-no-records">{t("Zatím žádný zápis.")}</p>}
         <div className="space-y-2">{todays.map((x) => <Link key={x.record.id} to={`/zapis/${x.record.id}`} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-3" data-testid="today-record-item">
-          <div><div className="font-semibold">{x.record.machine || "Bez stroje"}</div><div className="text-xs text-slate-600">{x.record.site} · {fmtH(timeBreakdown(x.record).totalHours)} h</div></div><StatusBadge status={x.state} />
+          <div><div className="font-semibold">{x.record.machine || t("Bez stroje")}</div><div className="text-xs text-slate-600">{x.record.site} · {fmtH(timeBreakdown(x.record).totalHours)} h</div></div><StatusBadge status={x.state} />
         </Link>)}</div>
         {state === "away" && net > 0 && !todays.length && <p className="mt-2 text-sm text-amber-800" data-testid="today-missing-timesheet">Máte docházku bez zápisu šichtovnice.</p>}
       </section>
