@@ -35,26 +35,30 @@ export default function Records({ all = false }) {
       <div className="mb-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-5" data-testid="records-filters">
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11" aria-label="Od" data-testid="records-filter-from" />
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-11" aria-label="Do" data-testid="records-filter-to" />
-        <Input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="Stroj…" className="h-11" data-testid="records-filter-machine" />
+        <Input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder={t("Stroj…")} className="h-11" data-testid="records-filter-machine" />
         <Select value={status} onValueChange={setStatus}><SelectTrigger className="h-11" data-testid="records-filter-status"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">{t("Všechny stavy")}</SelectItem><SelectItem value="draft">{t("Koncepty")}</SelectItem><SelectItem value="confirmed">{t("Potvrzené")}</SelectItem></SelectContent></Select>
         {all && <Select value={emp} onValueChange={setEmp}><SelectTrigger className="h-11" data-testid="records-filter-employee"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">Všichni zaměstnanci</SelectItem>{(users.data || []).map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent></Select>}
+          <SelectContent><SelectItem value="all">{t("Všichni zaměstnanci")}</SelectItem>{(users.data || []).map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent></Select>}
       </div>
       {recs.fromCache && <p className="mb-3 text-xs font-medium text-amber-800">{t("Offline – zobrazena poslední stažená data.")}</p>}
       {!recs.loading && list.length === 0 && <Empty icon={ClipboardList} title={t("Žádné zápisy")} text={t("Pro zvolený filtr zatím nic není.")} />}
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {list.map(({ record: r, state }) => {
           const b = timeBreakdown(r);
           const stop = (r.faults || []).some((f) => f.severity === "stop" && !f.resolved);
           return (
-            <Link key={r.id} to={all ? `/detail/${r.id}` : state === "confirmed" || state === "draft" ? `/detail/${r.id}` : `/zapis/${r.id}`} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors duration-150 hover:bg-slate-50" data-testid="records-item-card">
-              <div className="w-16 shrink-0 text-center"><div className="font-heading text-lg font-bold">{dmy(r.date).slice(0, 6)}</div><div className="text-xs text-slate-600">{r.date?.slice(0, 4)}</div></div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-semibold text-slate-900">{r.machine || "Bez stroje"} {all && <span className="font-normal text-slate-600">· {r.owner_name}</span>}</div>
-                <div className="truncate text-sm text-slate-600">{r.site || "—"} · {fmtH(b.totalHours)} h{b.serviceHours ? ` (servis ${fmtH(b.serviceHours)} h)` : ""}{r.revision > 1 ? ` · revize ${r.revision}` : ""}</div>
+            <Link key={r.id} to={all ? `/detail/${r.id}` : state === "confirmed" || state === "draft" ? `/detail/${r.id}` : `/zapis/${r.id}`}
+              className="flex min-h-[54px] items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm transition-colors hover:bg-slate-50" data-testid="records-item-card">
+              <div className="w-[49px] shrink-0 text-center" data-testid="records-card-date">
+                <div className="font-heading text-[13px] font-bold leading-4">{dmy(r.date).slice(0, 6)}</div>
+                <div className="text-[10px] leading-3 text-slate-500">{r.date?.slice(0, 4)}</div>
               </div>
-              <div className="flex flex-col items-end gap-1">{stop && <StatusBadge status="stop" />}<StatusBadge status={state} testid="records-item-status-badge" /></div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold leading-[18px] text-slate-900">{r.machine || t("Bez stroje")} {all && <span className="font-normal text-slate-600">· {r.owner_name}</span>}</div>
+                <div className="truncate text-xs leading-[17px] text-slate-600">{r.site || "—"} · {fmtH(b.totalHours)} h{b.serviceHours ? ` · ${t("Servis")} ${fmtH(b.serviceHours)} h` : ""}{r.revision > 1 ? ` · ${t("revize")} ${r.revision}` : ""}</div>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-0.5" data-testid="records-card-status">{stop && <StatusBadge status="stop" />}<StatusBadge status={state} testid="records-item-status-badge" /></div>
             </Link>
           );
         })}
