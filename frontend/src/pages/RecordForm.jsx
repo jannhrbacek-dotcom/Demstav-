@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DictateTextarea } from "@/components/DictateTextarea";
 import { PhotoDiaryOcr } from "@/components/PhotoDiaryOcr";
+import MachinePicker from "@/components/MachinePicker";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -286,14 +287,9 @@ export default function RecordForm() {
       <Section title="Datum, stroj a pracoviště" testid="section-basic">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Datum"><Input type="date" value={rec.date} onChange={(e) => set("date", e.target.value)} className="h-12" data-testid="record-date-input" /></Field>
-          <Field label="Stroj" hint="Vyberte ze seznamu strojů evidovaných správcem.">
-            <Select value={rec.machine || ""} onValueChange={setMachine}>
-              <SelectTrigger className="h-12" data-testid="record-machine-select"><SelectValue placeholder="Vyberte stroj…" /></SelectTrigger>
-              <SelectContent>
-                {activeMachines.length === 0 && <div className="px-3 py-2 text-sm text-slate-600">Žádný aktivní stroj – obraťte se na správce.</div>}
-                {activeMachines.map((m) => <SelectItem key={m.id} value={m.label} data-testid={`machine-option-${m.id}`}>{m.label}{m.internal_number ? ` · č. ${m.internal_number}` : ""}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <Field label="Stroj" hint="Začněte psát typ, značku nebo evidenční číslo. Vyberte nalezený stroj.">
+            <MachinePicker machines={activeMachines} value={rec.machine || ""} onChange={setMachine} />
+            {activeMachines.length === 0 && <p className="mt-1 text-sm text-amber-800">Žádný aktivní stroj – obraťte se na správce.</p>}
           </Field>
           <Field label="Pracoviště / dílna (stavba)">
             <Input list="site-list" value={rec.site} onChange={(e) => set("site", e.target.value)} className="h-12" data-testid="record-site-input" />
