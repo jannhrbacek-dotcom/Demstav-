@@ -69,20 +69,32 @@ export default function Overview() {
           </Card>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-5">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-3" data-testid="manager-comparison-table">
+        <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-5">
+          <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-3" data-testid="manager-comparison-table">
             <div className="mb-3 flex items-center gap-2 font-heading font-semibold"><Scale className="h-5 w-5" />Docházka vs. šichtovnice · {dmy(day)}</div>
-            <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Zaměstnanec</TableHead><TableHead className="text-right">Docházka čistá</TableHead><TableHead className="text-right">Výkaz celkem</TableHead><TableHead className="text-right">Servis</TableHead><TableHead className="text-right">Prostoje</TableHead><TableHead className="text-right">Rozdíl</TableHead></TableRow></TableHeader>
+            <div className="hidden min-w-0 overflow-x-auto md:block"><Table><TableHeader><TableRow><TableHead>Zaměstnanec</TableHead><TableHead className="text-right">Docházka čistá</TableHead><TableHead className="text-right">Výkaz celkem</TableHead><TableHead className="text-right">Servis</TableHead><TableHead className="text-right">Prostoje</TableHead><TableHead className="text-right">Rozdíl</TableHead></TableRow></TableHeader>
               <TableBody>{d.comparison.length === 0 && <TableRow><TableCell colSpan={6} className="text-slate-600">Pro tento den nejsou data.</TableCell></TableRow>}
                 {d.comparison.map((c) => { const diff = c.timesheet_total - c.attendance_net; return (
                   <TableRow key={c.id} data-testid="manager-comparison-row"><TableCell className="font-medium">{c.name}{c.drafts ? <span className="ml-2 text-xs text-amber-800">({c.drafts} koncept)</span> : null}{c.overlap > 0 && <div className="text-xs text-orange-800">překryv zápisů {fmtH(c.overlap)} h – započteno jednou</div>}</TableCell>
                     <TableCell className="text-right tabular-nums">{fmtH(c.attendance_net)} h</TableCell><TableCell className="text-right tabular-nums">{fmtH(c.timesheet_total)} h</TableCell><TableCell className="text-right tabular-nums">{fmtH(c.service)} h</TableCell><TableCell className="text-right tabular-nums">{fmtH(c.downtime)} h</TableCell>
                     <TableCell className={`text-right font-semibold tabular-nums ${Math.abs(diff) > 0.5 ? "text-red-700" : "text-emerald-800"}`}>{diff > 0 ? "+" : ""}{fmtH(diff)} h</TableCell></TableRow>); })}</TableBody></Table></div>
+            <div className="space-y-3 md:hidden" data-testid="manager-comparison-mobile">
+              {d.comparison.length === 0 && <p className="text-sm text-slate-600">Pro tento den nejsou data.</p>}
+              {d.comparison.map((c) => { const diff = c.timesheet_total - c.attendance_net; return (
+                <article key={c.id} className="rounded-lg bg-slate-50 p-3">
+                  <div className="break-words font-semibold">{c.name}{c.drafts ? <span className="ml-2 text-xs text-amber-800">({c.drafts} koncept)</span> : null}</div>
+                  {c.overlap > 0 && <p className="text-xs text-orange-800">překryv zápisů {fmtH(c.overlap)} h – započteno jednou</p>}
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                    {[["Docházka čistá", c.attendance_net], ["Výkaz celkem", c.timesheet_total], ["Servis", c.service], ["Prostoje", c.downtime]].map(([label, value]) => <div key={label}><dt className="text-slate-600">{label}</dt><dd className="font-medium tabular-nums">{fmtH(value)} h</dd></div>)}
+                    <div className="col-span-2 flex justify-between border-t border-slate-200 pt-2"><dt>Rozdíl</dt><dd className={`font-semibold tabular-nums ${Math.abs(diff) > 0.5 ? "text-red-700" : "text-emerald-800"}`}>{diff > 0 ? "+" : ""}{fmtH(diff)} h</dd></div>
+                  </dl>
+                </article>); })}
+            </div>
             <p className="mt-2 text-xs text-slate-600">Přítomnost na pracovišti není totéž co evidence pracovní doby; rozdíl nad 0,5 h je zvýrazněn ke kontrole. Docházkový přehled není úplným mzdovým podkladem.</p>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-2">
+          <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-2">
             <div className="mb-3 font-heading font-semibold">Posledních 7 dní (hodiny všech zaměstnanců)</div>
-            <div className="h-64" data-testid="manager-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={d.chart.map((c) => ({ ...c, den: dmy(c.date).slice(0, 6) }))}><CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" /><XAxis dataKey="den" fontSize={12} /><YAxis fontSize={12} /><Tooltip /><Legend />
+            <div className="h-64 w-full min-w-0" data-testid="manager-chart"><ResponsiveContainer width="100%" height="100%" minWidth={0}><BarChart margin={{ top: 8, right: 4, left: 0, bottom: 0 }} data={d.chart.map((c) => ({ ...c, den: dmy(c.date).slice(0, 6) }))}><CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" /><XAxis dataKey="den" fontSize={12} /><YAxis width={32} fontSize={12} /><Tooltip wrapperStyle={{ maxWidth: "100%" }} /><Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="attendance" name="Docházka" fill="#0B0F14" radius={[4, 4, 0, 0]} /><Bar dataKey="timesheet" name="Šichtovnice" fill="#FFD200" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
           </div>
         </div>
