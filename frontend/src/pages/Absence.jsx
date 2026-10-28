@@ -34,7 +34,7 @@ function Item({ r, onDecide, onCancel, showName }) {
         </div>
         <span className={`rounded-md px-2 py-1 text-xs font-semibold ${TONE[r.status]}`} data-testid="leave-status">{r.status_label}</span>
       </div>
-      {(r.history || []).length > 1 && <ol className="mt-2 space-y-0.5 text-xs text-slate-600">{r.history.slice(1).map((h, i) => <li key={i}>{h.action === "approve" ? "Schválil(a)" : h.action === "reject" ? "Zamítl(a)" : "Zrušeno"}: {h.by_name} ({h.role}) {h.achosenLeaveType?.slice(0, 16).replace("T", " ")}{h.note && ` – ${h.note}`}</li>)}</ol>}
+      {(r.history || []).length > 1 && <ol className="mt-2 space-y-0.5 text-xs text-slate-600">{r.history.slice(1).map((h, i) => <li key={i}>{h.action === "approve" ? "Schválil(a)" : h.action === "reject" ? "Zamítl(a)" : "Zrušeno"}: {h.by_name} ({h.role}) {h.at?.slice(0, 16).replace("T", " ")}{h.note && ` – ${h.note}`}</li>)}</ol>}
       {(r.can_decide || r.can_cancel) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {r.can_decide && <Button className="btn-primary h-11 font-semibold" onClick={() => onDecide(r, "approve")} data-testid="leave-approve-button"><Check className="mr-1 h-4 w-4" />{r.status === "pending_manager" && r.type === "vacation" ? "Schválit (posláno jednateli)" : "Schválit"}</Button>}
