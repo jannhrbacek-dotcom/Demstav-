@@ -29,7 +29,7 @@ export default function Guide() {
   const finish = (to) => { localStorage.setItem(guideKey(user.id), "1"); nav(to || loc.state?.returnTo || "/dnes", { replace: true }); };
   const current = steps[step];
   return <main className="mx-auto max-w-2xl space-y-5" data-testid="app-guide">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-600">{t("Jak na to")} · {step + 1} / {steps.length}</p><h1 className="mt-2 text-3xl font-bold">{current.title}</h1></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-slate-600">{t("Jak na to")} · {step + 1} {language === "uk" ? "/" : "z"} {steps.length}</p><h1 className="mt-2 text-3xl font-bold">{current.title}</h1></div>
       <Button variant="outline" className="h-11" onClick={() => setStep(0)} data-testid="guide-restart">{t("Celý tutoriál od začátku")}</Button></div>
     <progress className="h-3 w-full accent-yellow-500" value={step + 1} max={steps.length} aria-label="Postup průvodcem" />
     <article className="space-y-5 rounded-xl border bg-white p-5 text-lg leading-relaxed" aria-live="polite">
