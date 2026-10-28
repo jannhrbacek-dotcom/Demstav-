@@ -1,5 +1,6 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/lib/language";
 import { HardDrive, Clock, Server, CheckCircle2, BadgeCheck, AlertTriangle, OctagonAlert, XCircle, FileEdit } from "lucide-react";
 
 const MAP = {
@@ -21,12 +22,13 @@ const MAP = {
 };
 
 export function StatusBadge({ status, label, testid }) {
+  const { t } = useLanguage();
   const m = MAP[status] || MAP.local;
   const { Icon } = m;
   return (
     <Badge data-testid={testid || "status-badge"} variant="outline" className={`${m.cls} gap-1.5 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-semibold`}>
       <Icon className="h-3.5 w-3.5" aria-hidden />
-      {label || m.label}
+      {t(label || m.label)}
     </Badge>
   );
 }
