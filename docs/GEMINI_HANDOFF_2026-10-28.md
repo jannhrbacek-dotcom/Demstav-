@@ -102,3 +102,19 @@ Uživatel žádá, aby Gemini **nejprve zkontrolovala, jestli aplikace skutečn�
 **[GEMINI_AUDIT_LOGIKA_UX_UI_2026-10-28.md](GEMINI_AUDIT_LOGIKA_UX_UI_2026-10-28.md)**.
 
 **Závazný postup:** (1) audit výpočtů a návazností záznamů (deník/šichtovnice/docházka/MTH/jízda/spolujezdec/čipování/tonáž/servis/absence); (2) audit oprávnění, synchronizace a doručení; (3) UX/UI průchod rolí strojník/vedoucí/jednatel a mobil/desktop včetně zjednodušeného formuláře, kalendáře, počasí, tutoriálu a fronty; (4) seznam chyb P0–P3 s reprodukcí a důkazy; (5) izolované opravy přes větev a PR. Neslibuj výsledky živých testů nebo screenshoty bez skutečného přístupu. Audit není nasazení a nový požadavek nezakládá právo přepisovat produkční data.
+
+
+## 10. Přímé adresy: GitHub, Render, Vercel
+
+**Aktualizováno 28. 10. 2026.** Při auditu rozlišuj zdrojový kód, provozní backend/PWA a samostatné sestavení na Vercelu. Stav může mezitím změnit nové nasazení; ověř jej v poskytovatelských dashboardech.
+
+| Co | Ověřená / doložená adresa | Role a stav |
+| --- | --- | --- |
+| GitHub repozitář | https://github.com/jannhrbacek-dotcom/Demstav- | Zdrojový kód; pro aplikaci vycházej z `main-2`, ne z výchozí `main`. |
+| GitHub provozní větev | https://github.com/jannhrbacek-dotcom/Demstav-/tree/main-2 | Zdroj pro Render konfiguraci a ověřené sestavení Vercelu. |
+| Render provozní aplikace | https://demstav-operations.onrender.com | Webová služba `demstav-operations`, React/PWA + FastAPI, s interní `demstav-mongo`. Tato URL byla ověřena v předchozí kontrole 27. 10. 2026; aktuální dostupnost 28. 10. nelze z tohoto dokumentu garantovat. |
+| Render konfigurace | https://github.com/jannhrbacek-dotcom/Demstav-/blob/main-2/render.yaml | Docker web service `demstav-operations`, větev `main-2`, region Frankfurt, automatický deploy vypnutý, healthcheck `/api/ready`; MongoDB jako privátní služba. |
+| Vercel náhled větve `main-2` | https://demstav-git-main-2-jan-hrbaceks-projects.vercel.app | Projekt `demstav`: 28. 10. 2026 bylo jeho poslední sestavení `READY`, zdroj `main-2`, ale deployment `target=null` (náhled, **nikoliv potvrzená produkční verze**). Vercel projekt vykazoval `live=false`. |
+| Vercel konkrétní sestavení | https://demstav-f7tzwh7c9-jan-hrbaceks-projects.vercel.app | Build z commitu `e529ffebac07aea62fffd58aedd3f02f3b480b54`, `READY` podle Vercel; odkaz může mít přístupovou ochranu nebo se lišit od produkce. |
+
+**Důležité:** „READY“ na Vercelu znamená úspěšné sestavení, **nikoli ověření provozního API, databáze, role uživatelů či kompletního toku šichtovnic**. Před změnami zjisti, kterou URL skutečně používají zaměstnanci a kudy web volá API. Nepřesměrovávej frontend ani neměň produkční proměnné prostředí jen na základě předpokladu. Render měl poslední známé LIVE ověření 27. 10.; nové end-to-end testy se musí provést samostatně.
