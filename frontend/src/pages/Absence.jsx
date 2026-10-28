@@ -13,6 +13,7 @@ import { useCached } from "@/lib/data";
 import { http, errText } from "@/lib/api";
 import { dmy, newId, pragueDate } from "@/lib/format";
 import { LEAVE_TYPES } from "@/lib/roles";
+import { useLanguage } from "@/lib/language";
 
 const TONE = { pending_manager: "bg-amber-100 text-amber-950", pending_director: "bg-amber-200 text-amber-950", approved: "bg-emerald-100 text-emerald-950", rejected: "bg-red-100 text-red-900", cancelled: "bg-slate-100 text-slate-700" };
 
@@ -36,8 +37,8 @@ function Item({ r, onDecide, onCancel, showName }) {
       {(r.can_decide || r.can_cancel) && (
         <div className="mt-3 flex flex-wrap gap-2">
           {r.can_decide && <Button className="btn-primary h-11 font-semibold" onClick={() => onDecide(r, "approve")} data-testid="leave-approve-button"><Check className="mr-1 h-4 w-4" />{r.status === "pending_manager" && r.type === "vacation" ? "Schválit (posláno jednateli)" : "Schválit"}</Button>}
-          {r.can_decide && <Button variant="outline" className="h-11 text-red-700" onClick={() => onDecide(r, "reject")} data-testid="leave-reject-button"><X className="mr-1 h-4 w-4" />Zamítnout</Button>}
-          {r.can_cancel && <Button variant="outline" className="h-11" onClick={() => onCancel(r)} data-testid="leave-cancel-button">Zrušit žádost</Button>}
+          {r.can_decide && <Button variant="outline" className="h-11 text-red-700" onClick={() => onDecide(r, "reject")} data-testid="leave-reject-button"><X className="mr-1 h-4 w-4" />{t("Zamítnout")}</Button>}
+          {r.can_cancel && <Button variant="outline" className="h-11" onClick={() => onCancel(r)} data-testid="leave-cancel-button">{t("Zrušit žádost")}</Button>}
         </div>
       )}
     </div>
@@ -45,6 +46,7 @@ function Item({ r, onDecide, onCancel, showName }) {
 }
 
 export default function Absence() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const mgr = atLeast(user, "manager") && user.role !== "admin";
   const mine = useCached("/leave?mine=1");
@@ -96,7 +98,7 @@ export default function Absence() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Dovolená a nepřítomnost" subtitle="Dovolenou schvaluje vedoucí výroby a pak jednatel. Neplacené volno, lékaře a nemoc schvaluje vedoucí výroby. Plánovanou výjimku (pozdě / dřív) stačí oznámit." />
+      <PageHeader title={t("Dovolená a nepřítomnost")} subtitle={t("Dovolenou schvaluje vedoucí výroby a pak jednatel. Neplacené volno, lékaře a nemoc schvaluje vedoucí výroby. Plánovanou výjimku (pozdě / dřív) stačí oznámit.")} />
 
       {mgr && (todo.data || []).length > 0 && (
         <section className="space-y-2" data-testid="leave-to-decide">
@@ -106,21 +108,21 @@ export default function Absence() {
       )}
 
       {atLeast(user, "manager") && <section className="space-y-3 rounded-xl border bg-white p-4" data-testid="absence-overview">
-        <h2 className="text-lg font-bold">Přehled nepřítomností zaměstnanců</h2>
+        <h2 className="text-lg font-bold">{t("Přehled nepřítomností zaměstnanců")}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Období od"><Input type="date" value={summaryFilter.from} onChange={e => filter('from', e.target.value)} /></Field>
           <Field label="Období do"><Input type="date" value={summaryFilter.to} onChange={e => filter('to', e.target.value)} /></Field>
-          <Field label="Zaměstnanec"><select className="h-12 w-full rounded border px-3" value={summaryFilter.employee} onChange={e => filter('employee', e.target.value)}><option value="">Všichni</option>{[...new Map((allQ.data || []).map(r => [r.user_id, r.user_name])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></Field>
-          <Field label="Stav"><select className="h-12 w-full rounded border px-3" value={summaryFilter.status} onChange={e => filter('status', e.target.value)}><option value="">Čekající a schválené</option><option value="approved">Schváleno</option><option value="pending_manager">Čeká na vedoucího</option><option value="pending_director">Čeká na jednatele</option><option value="rejected">Zamítnuto</option><option value="cancelled">Zrušeno</option></select></Field>
-          <Field label="Typ"><select className="h-12 w-full rounded border px-3" value={summaryFilter.type} onChange={e => filter('type', e.target.value)}><option value="">Všechny typy</option>{LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
+          <Field label="Zaměstnanec"><select className="h-12 w-full rounded border px-3" value={summaryFilter.employee} onChange={e => filter('employee', e.target.value)}><option value="">{t("Všichni")}</option>{[...new Map((allQ.data || []).map(r => [r.user_id, r.user_name])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></Field>
+          <Field label="Stav"><select className="h-12 w-full rounded border px-3" value={summaryFilter.status} onChange={e => filter('status', e.target.value)}><option value="">{t("Čekající a schválené")}</option><option value="approved">{t("Schváleno")}</option><option value="pending_manager">{t("Čeká na vedoucího")}</option><option value="pending_director">{t("Čeká na jednatele")}</option><option value="rejected">{t("Zamítnuto")}</option><option value="cancelled">{t("Zrušeno")}</option></select></Field>
+          <Field label="Typ"><select className="h-12 w-full rounded border px-3" value={summaryFilter.type} onChange={e => filter('type', e.target.value)}><option value="">{t("Všechny typy")}</option>{LEAVE_TYPES.map(option => <option key={option.value} value={option.value}>{t(option.label)}</option>)}</select></Field>
         </div>
-        {summary.loading && <p>Načítám přehled…</p>}
+        {summary.loading && <p>{t("Načítám přehled…")}</p>}
         {summary.error && <p role="alert" className="text-red-700">Přehled nelze načíst. Zkontrolujte období a připojení.</p>}
         {!summary.loading && !summary.error && !(summary.data || []).length && <p>Pro zvolený filtr nejsou žádné nepřítomnosti.</p>}
         {(summary.data || []).map(a => <article key={a.id} className="rounded-lg border p-3 text-sm"><b>{a.user_name}</b> · {a.type_label}<br />{a.date_from} – {a.date_to} · <b>{a.status_label}</b>{a.half_day ? ' · půlden' : ''}</article>)}
       </section>}
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="leave-form">
-        <h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><CalendarPlus className="h-5 w-5" />Nová žádost</h2>
+        <h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><CalendarPlus className="h-5 w-5" />{t("Nová žádost")}</h2>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {LEAVE_TYPES.map((x) => (
             <button key={x.value} type="button" onClick={() => setF({ ...f, type: x.value })} data-testid={`leave-type-${x.value}`}
@@ -135,24 +137,24 @@ export default function Absence() {
         </div>
         {["vacation", "unpaid"].includes(f.type) && f.date_from === f.date_to && <label className="flex items-center gap-3"><Switch checked={f.half_day} onCheckedChange={(v) => setF({ ...f, half_day: v })} data-testid="leave-half-day" /><span className="text-sm font-medium">Jen půlden</span></label>}
         <Field label="Poznámka (nepovinné)"><Textarea value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} placeholder={f.type === "sick" ? "Např. neschopenka od lékaře, předpokládaný návrat…" : ""} data-testid="leave-note" /></Field>
-        <Button className="btn-primary h-14 w-full text-base font-semibold" disabled={busy} onClick={submit} data-testid="leave-submit">{busy && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}{f.type === "sick" ? "Ohlásit nemoc" : "Odeslat žádost"}</Button>
+        <Button className="btn-primary h-14 w-full text-base font-semibold" disabled={busy} onClick={submit} data-testid="leave-submit">{busy && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}{t(f.type === "sick" ? "Ohlásit nemoc" : "Odeslat žádost")}</Button>
       </section>
 
       <section className="space-y-2" data-testid="leave-mine">
-        <h2 className="font-heading text-lg font-semibold">Moje žádosti</h2>
+        <h2 className="font-heading text-lg font-semibold">{t("Moje žádosti")}</h2>
         {(mine.data || []).length === 0 && <p className="text-sm text-slate-600">Zatím žádné žádosti.</p>}
         {(mine.data || []).map((r) => <Item key={r.id} r={r} onDecide={decide} onCancel={cancel} />)}
       </section>
 
       {atLeast(user, "manager") && (
         <section className="space-y-2" data-testid="leave-all">
-          <h2 className="font-heading text-lg font-semibold">Všechny žádosti zaměstnanců</h2>
+          <h2 className="font-heading text-lg font-semibold">{t("Všechny žádosti zaměstnanců")}</h2>
           {(allQ.data || []).filter((r) => r.user_id !== user.id).slice(0, 60).map((r) => <Item key={r.id} r={r} showName onDecide={decide} onCancel={cancel} />)}
         </section>
       )}
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="exception-form">
-        <h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><Clock3 className="h-5 w-5" />Plánovaná výjimka / zkrácená směna</h2>
+        <h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><Clock3 className="h-5 w-5" />{t("Plánovaná výjimka / zkrácená směna")}</h2>
         <p className="text-xs text-slate-600">Rychlé oznámení pro vedení – pozdní příchod, dřívější odchod nebo jiný důvod. Neschvaluje se, slouží jako informace, aby s tím vedení počítalo.</p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {[["late_arrival", "Přijdu později"], ["early_departure", "Odejdu dřív"], ["other", "Jiná výjimka"]].map(([v, l]) => (
@@ -175,7 +177,7 @@ export default function Absence() {
       </section>
 
       <section className="space-y-2" data-testid="exception-mine">
-        <h2 className="font-heading text-lg font-semibold">Moje plánované výjimky</h2>
+        <h2 className="font-heading text-lg font-semibold">{t("Moje plánované výjimky")}</h2>
         {(myEx.data || []).length === 0 && <p className="text-sm text-slate-600">Zatím žádné výjimky.</p>}
         {(myEx.data || []).map((r) => (
           <div key={r.id} className="flex flex-wrap items-start justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="exception-item">
@@ -184,14 +186,14 @@ export default function Absence() {
               <div className="text-sm text-slate-700">{r.reason}</div>
               <div className="mt-1 text-xs text-slate-500">Oznámeno {r.created_at?.slice(0, 16).replace("T", " ")}</div>
             </div>
-            {r.can_delete && <Button variant="outline" size="sm" className="h-10 text-red-700" onClick={() => delEx(r)} data-testid="exception-delete"><Trash2 className="mr-1 h-4 w-4" />Smazat</Button>}
+            {r.can_delete && <Button variant="outline" size="sm" className="h-10 text-red-700" onClick={() => delEx(r)} data-testid="exception-delete"><Trash2 className="mr-1 h-4 w-4" />{t("Smazat")}</Button>}
           </div>
         ))}
       </section>
 
       {atLeast(user, "manager") && (
         <section className="space-y-2" data-testid="exception-all">
-          <h2 className="font-heading text-lg font-semibold">Výjimky zaměstnanců</h2>
+          <h2 className="font-heading text-lg font-semibold">{t("Výjimky zaměstnanců")}</h2>
           {(allEx.data || []).filter((r) => r.user_id !== user.id).length === 0 && <p className="text-sm text-slate-600">Žádné výjimky zaměstnanců.</p>}
           {(allEx.data || []).filter((r) => r.user_id !== user.id).slice(0, 100).map((r) => (
             <div key={r.id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" data-testid="exception-item-mgr">
@@ -209,9 +211,9 @@ export default function Absence() {
 
       <Dialog open={!!rej} onOpenChange={(o) => !o && setRej(null)}>
         <DialogContent className="max-w-md" data-testid="leave-reject-dialog">
-          <DialogHeader><DialogTitle className="font-heading">Zamítnout žádost</DialogTitle><DialogDescription>{rej?.user_name} · {rej?.type_label}. Uveďte důvod – zaměstnanec ho uvidí.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{t("Zamítnout žádost")}</DialogTitle><DialogDescription>{rej?.user_name} · {rej?.type_label}. Uveďte důvod – zaměstnanec ho uvidí.</DialogDescription></DialogHeader>
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} data-testid="leave-reject-note" />
-          <DialogFooter><Button className="h-12 w-full font-semibold" variant="outline" disabled={!note.trim()} onClick={() => decide(rej, "reject", note.trim())} data-testid="leave-reject-submit">Zamítnout</Button></DialogFooter>
+          <DialogFooter><Button className="h-12 w-full font-semibold" variant="outline" disabled={!note.trim()} onClick={() => decide(rej, "reject", note.trim())} data-testid="leave-reject-submit">{t("Zamítnout")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
