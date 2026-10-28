@@ -11,3 +11,7 @@ pywebpush==2.0.3
 openpyxl==3.1.5
 reportlab==4.4.4
 PyMuPDF==1.26.5
+
+# Server-side, privacy-preserving OCR on the existing Render host
+Pillow==11.3.0
+pytesseract==0.3.13
