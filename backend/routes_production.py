@@ -45,9 +45,13 @@ async def accessible(rid, user):
 @router.put('/production/{rid}')
 async def save(rid: str, body: dict, user=Depends(get_ready_user)):
     import re
+    import hashlib
     if not re.fullmatch(r'[a-zA-Z0-9_-]{8,100}', rid):
         raise HTTPException(400, 'Neplatné ID výkazu.')
     old = await accessible(rid, user)
+    settings = await db.production_settings.find_one({'id': 'main'}) or {}
+    if not is_manager(user) and user['id'] not in settings.get('responsible_ids', []):
+        raise HTTPException(403, 'Společný výkaz může zapsat pouze pověřený pracovník nebo vedení.')
     op = str(body.get('opId') or '')[:100]
     if not op:
         raise HTTPException(400, 'Chybí ID operace.')
@@ -65,11 +69,27 @@ async def save(rid: str, body: dict, user=Depends(get_ready_user)):
     if old and old['status'] == 'submitted' and not doc['note']:
         raise HTTPException(422, 'U opravy odevzdaného výkazu uveďte důvod v poznámce.')
     owner = old['owner_id'] if old else user['id']
+    shift_parts = [doc[k].strip().casefold() for k in ('date', 'customer', 'site', 'job', 'shift')]
+    if doc['customer'] and doc['site']:
+        doc['shift_key'] = hashlib.sha256('\x1f'.join(shift_parts).encode()).hexdigest()
+        duplicate = await db.production_reports.find_one({'shift_key': doc['shift_key'], 'id': {'$ne': rid}})
+        if duplicate:
+            raise HTTPException(409, 'Pro tuto zakázku a směnu již existuje společný výkaz. Obraťte se na jeho zpracovatele nebo vedení.')
     for ticket in doc['tickets']:
         att = await db.attachments.find_one({'id': ticket['attachment_id'], 'is_deleted': False, 'record_id': rid, 'owner_id': {'$in': [owner, user['id']]}}, {'_id': 0})
         if not att:
             raise HTTPException(422, {'code': 'attachments_missing', 'message': 'Fotografie lístku ještě není na serveru.'})
         ticket['name'] = att['name']
+        if not att.get('sha256'):
+            raise HTTPException(422, 'Podklad nemá ověřený otisk. Nahrajte jej znovu; původní soubor zůstává zachován.')
+        ticket['sha256'] = att['sha256']
+        ticket['dedupe_key'] = hashlib.sha256((doc['date'] + '|' + doc['customer'].casefold() + '|' + ticket['number'].strip().casefold()).encode()).hexdigest() if ticket['number'].strip() else att['sha256']
+    hashes = [t['sha256'] for t in doc['tickets']]
+    keys = [t['dedupe_key'] for t in doc['tickets']]
+    if len(hashes) != len(set(hashes)) or len(keys) != len(set(keys)):
+        raise HTTPException(422, 'Stejný vážní lístek je ve výkazu vícekrát.')
+    if hashes and await db.production_reports.find_one({'id': {'$ne': rid}, '$or': [{'tickets.sha256': {'$in': hashes}}, {'tickets.dedupe_key': {'$in': keys}}]}):
+        raise HTTPException(409, 'Některý lístek je již použitý v jiném společném výkazu.')
     doc.update(id=rid, owner_id=owner, owner_name=old['owner_name'] if old else user['name'], revision=base + 1, op_id=op, updated_at=iso_now(), updated_by=user['name'])
     try:
         if old:
@@ -82,6 +102,23 @@ async def save(rid: str, body: dict, user=Depends(get_ready_user)):
         raise HTTPException(409, 'Výkaz byl souběžně uložen. Obnovte seznam.')
     await audit(user, 'production_saved', {'report': doc, 'previous_revision': old})
     return doc
+
+
+@router.get('/production/{rid}/data')
+async def export_data(rid: str, format: str = 'xlsx', user=Depends(get_ready_user)):
+    doc = await accessible(rid, user)
+    if not doc:
+        raise HTTPException(404, 'Výkaz nenalezen.')
+    if format not in ('xlsx', 'csv'):
+        raise HTTPException(400, 'Vyberte XLSX nebo CSV.')
+    from routes_data import to_xlsx, to_csv
+    rows = [{'Datum': doc['date'], 'Odběratel': doc['customer'], 'Stavba': doc['site'], 'Zakázka': doc['job'],
+             'Posádka': doc['crew'], 'Stroje': doc['machines'], 'Od': doc['start'], 'Do': doc['end'],
+             'Hodiny společného výkazu': doc['hours'], 'Lístek': t['number'], 'Frakce': t['fraction'], 'Tuny lístku': t['tonnes'],
+             'Revize': doc['revision'], 'Stav': doc['status']} for t in doc['tickets']]
+    data = to_xlsx(rows, 'Vážní lístky') if format == 'xlsx' else to_csv(rows)
+    media = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' if format == 'xlsx' else 'text/csv; charset=utf-8'
+    return Response(data, media_type=media, headers={'Content-Disposition': f'attachment; filename="DEMSTAV_vazeni_{doc["date"]}.{format}"'})
 
 
 @router.get('/production/{rid}/pdf')

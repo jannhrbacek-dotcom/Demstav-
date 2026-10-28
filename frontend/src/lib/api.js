@@ -18,7 +18,7 @@ export const clearSession = () => { localStorage.removeItem(TOKEN_KEY); localSto
 export const http = axios.create({ baseURL: API, timeout: 30000 });
 http.interceptors.request.use((cfg) => {
   const t = getToken();
-  if (t) cfg.headers.Authorization = `Bearer ${t}`;
+  if (t && !cfg.headers.Authorization) cfg.headers.Authorization = `Bearer ${t}`;
   return cfg;
 });
 let onUnauthorized = null;

@@ -54,6 +54,7 @@ export default function TeamCalendar() {
       {!events.loading && !dayEvents(selected).length && <p className="text-sm text-slate-600">Pro tento den nejsou oznámené změny.</p>}
       <div className="space-y-2">{dayEvents(selected).map(e => <article key={e.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
         <div className="font-semibold">{e.user_name} · {e.title} {e.user_id === user?.id && <span className="text-xs text-slate-500">(moje)</span>}</div>
+        {e.status_label && <p className="text-sm font-semibold">{e.status_label}</p>}
         {(e.time_from || e.time_to) && <div className="text-sm">Čas: {e.time_from || "?"}{e.time_to ? " až " + e.time_to : ""}</div>}
         {e.note && <div className="text-sm text-slate-700">{e.note}</div>}
       </article>)}</div>

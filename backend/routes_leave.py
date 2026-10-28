@@ -10,7 +10,7 @@ from datetime import date as date_cls
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from core import db, get_ready_user, is_manager, audit, iso_now, new_id, text, ROLE_LABELS
+from core import db, get_ready_user, is_manager, require_role, audit, iso_now, new_id, text, ROLE_LABELS
 
 router = APIRouter()
 
@@ -50,7 +50,11 @@ async def create_leave(b: dict, user: dict = Depends(get_ready_user)):
     df, dt = str(b.get("date_from") or ""), str(b.get("date_to") or b.get("date_from") or "")
     if not DATE.match(df) or not DATE.match(dt) or dt < df:
         raise HTTPException(status_code=400, detail="Zadejte platné datum od–do (konec nesmí být před začátkem).")
-    if (date_cls.fromisoformat(dt) - date_cls.fromisoformat(df)).days > 366:
+    try:
+        length = (date_cls.fromisoformat(dt) - date_cls.fromisoformat(df)).days
+    except ValueError:
+        raise HTTPException(400, 'Zadejte platné kalendářní datum.')
+    if length > 366:
         raise HTTPException(status_code=400, detail="Žádost může mít nejvýše jeden rok.")
     half = b.get("half_day") is True and df == dt and t in ("vacation", "unpaid")
     tf, tt = str(b.get("time_from") or ""), str(b.get("time_to") or "")
@@ -78,12 +82,34 @@ async def create_leave(b: dict, user: dict = Depends(get_ready_user)):
         from routes_push import notify_users_by_role
         label = TYPES[t]
         when = df if df == dt else f"{df} – {dt}"
-        await notify_users_by_role(["manager", "owner", "operations_manager"], f"Nová žádost: {label}",
+        await notify_users_by_role(["manager", "owner", "operations_manager"], "Nová žádost o nepřítomnost",
                                    f"{user['name']} · {when}", url="/nepritomnost", tag=f"leave-{rid}",
                                    exclude_user_id=user["id"])
     except Exception:
         pass
     return {"status": "saved", "request": public(doc)}
+
+
+@router.get('/leave/overview')
+async def absence_overview(date_from: str, date_to: str, status: str = '', type: str = '', employee_id: str = '',
+                           user: dict = Depends(require_role('manager'))):
+    try:
+        start, end = date_cls.fromisoformat(date_from), date_cls.fromisoformat(date_to)
+    except ValueError:
+        raise HTTPException(400, 'Neplatný rozsah přehledu.')
+    if end < start or (end - start).days > 366:
+        raise HTTPException(400, 'Vyberte období nejvýše jeden rok.')
+    query = {'date_from': {'$lte': date_to}, 'date_to': {'$gte': date_from},
+             'status': status if status in STATUS_LABELS else {'$in': ['approved', 'pending_manager', 'pending_director']}}
+    if type in TYPES:
+        query['type'] = type
+    if employee_id:
+        query['user_id'] = employee_id
+    rows = await db.leave_requests.find(query, {'_id': 0}).sort('date_from', 1).to_list(2000)
+    # Deliberately omit medical/private notes and decision text from the team DTO.
+    fields = ('id', 'user_id', 'user_name', 'date_from', 'date_to', 'type', 'status', 'half_day', 'time_from', 'time_to')
+    return [{**{k: r.get(k) for k in fields}, 'type_label': TYPES[r['type']], 'status_label': STATUS_LABELS[r['status']],
+             'can_decide': _can_decide(user, r)} for r in rows]
 
 
 @router.get("/leave")
@@ -132,14 +158,19 @@ async def decide(rid: str, b: dict, user: dict = Depends(get_ready_user)):
     now = iso_now()
     step = {"action": action, "by_id": user["id"], "by_name": user["name"], "role": ROLE_LABELS.get(user["role"]), "at": now, "note": note,
             "step": "director" if r["status"] == "pending_director" or user["role"] in ("owner", "operations_manager") else "manager"}
-    await db.leave_requests.update_one({"id": rid, "status": r["status"]}, {"$set": {"status": new, "updated_at": now}, "$push": {"history": step}})
+    result = await db.leave_requests.update_one({"id": rid, "status": r["status"]}, {"$set": {"status": new, "updated_at": now}, "$push": {"history": step}})
+    if not result.modified_count:
+        raise HTTPException(409, 'O žádosti již mezitím rozhodl někdo jiný.')
     await audit(user, "leave_" + action, {"leave_id": rid, "from_status": r["status"], "to_status": new})
     try:
-        from routes_push import send_push_to_users
+        from routes_push import send_push_to_users, notify_users_by_role
+        if new == 'pending_director':
+            await notify_users_by_role(['owner', 'operations_manager'], 'Dovolená čeká na konečné schválení',
+                f"{r['user_name']} · {r['date_from']} – {r['date_to']}", url='/nepritomnost',
+                tag=f'leave-director-{rid}', exclude_user_id=r['user_id'])
         verb = "schválena" if new == "approved" else ("zamítnuta" if new == "rejected" else "posunuta jednateli")
-        await send_push_to_users([r["user_id"]], f"Žádost {TYPES[r['type']]} – {verb}",
-                                 f"{r['date_from']}{' – ' + r['date_to'] if r['date_to'] != r['date_from'] else ''}"
-                                 + (f" · {note}" if note else ""),
+        await send_push_to_users([r["user_id"]], f"Žádost o nepřítomnost – {verb}",
+                                 f"{r['date_from']}{' – ' + r['date_to'] if r['date_to'] != r['date_from'] else ''}",
                                  url="/nepritomnost", tag=f"leave-{rid}")
     except Exception:
         pass
@@ -155,8 +186,10 @@ async def cancel(rid: str, user: dict = Depends(get_ready_user)):
     if r["status"] not in ("pending_manager", "pending_director"):
         raise HTTPException(status_code=400, detail="Vyřízenou žádost nelze zrušit – obraťte se na vedoucího výroby.")
     now = iso_now()
-    await db.leave_requests.update_one({"id": rid}, {"$set": {"status": "cancelled", "updated_at": now},
+    result = await db.leave_requests.update_one({"id": rid, "status": {'$in': ['pending_manager', 'pending_director']}}, {"$set": {"status": "cancelled", "updated_at": now},
                                                     "$push": {"history": {"action": "cancelled", "by_id": user["id"], "by_name": user["name"], "at": now}}})
+    if not result.modified_count:
+        raise HTTPException(409, 'O žádosti již bylo rozhodnuto.')
     await audit(user, "leave_cancelled", {"leave_id": rid})
     return {"ok": True}
 

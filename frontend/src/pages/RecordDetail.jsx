@@ -11,9 +11,10 @@ import { http, errText, downloadFile } from "@/lib/api";
 import { useSync } from "@/lib/sync";
 import { dmy, dateTime, SERVICE_BY } from "@/lib/format";
 import { timeBreakdown, fmtH } from "@/lib/worktime";
+import { journeyText } from "@/lib/journey";
 
 const iv = (a) => (a || []).map((i) => `${i.start}–${i.end}`).join(", ") || "—";
-const Row = ({ k, v }) => (<div className="grid grid-cols-[150px_1fr] gap-2 border-b border-slate-100 py-2 text-sm"><div className="font-medium text-slate-600">{k}</div><div className="whitespace-pre-wrap text-slate-900">{v || "—"}</div></div>);
+const Row = ({ k, v }) => (<div className="grid grid-cols-1 gap-1 border-b border-slate-100 py-2 text-sm sm:grid-cols-[150px_1fr] sm:gap-2"><div className="font-medium text-slate-600">{k}</div><div className="min-w-0 whitespace-pre-wrap break-words text-slate-900">{v || "—"}</div></div>);
 
 export default function RecordDetail() {
   const { id } = useParams();
@@ -53,7 +54,7 @@ export default function RecordDetail() {
             <div><div className="text-xs text-slate-300">Prostoje</div><div className="font-heading text-xl font-bold">{fmtH(b.downtimeHours)} h</div></div>
           </div>
           <Row k="Objednatel" v={r.customer} /><Row k="Pracoviště" v={r.site} /><Row k="Zakázka" v={r.job} /><Row k="Směna / posádka" v={[r.shift, r.operator, r.crew].filter(Boolean).join(" · ")} />
-          <Row k="Jízda *" v={r.drive} /><Row k="SPZ na / z" v={`${r.vehiclesTo || "—"} / ${r.vehiclesFrom || "—"}`} /><Row k="Ubytování" v={{ yes: "ANO", no: "NE" }[r.accommodation]} />
+          <Row k="Moje doba jízdy" v={journeyText(r)} /><Row k="Čipování ve vozidle" v="neověřeno" /><Row k="SPZ na / z" v={`${r.vehiclesTo || "—"} / ${r.vehiclesFrom || "—"}`} /><Row k="Ubytování" v={{ yes: "ANO", no: "NE" }[r.accommodation]} />
           <Row k="Pracovní doba" v={iv(b.totalIntervals)} /><Row k="Servis" v={iv(b.serviceIntervals)} /><Row k="Prostoje" v={iv(b.downtimeIntervals) + (r.downtimeReason ? ` – ${r.downtimeReason}` : "")} />
           <Row k="MTH" v={`${r.mthStart || "—"} → ${r.mthEnd || "—"}`} /><Row k="Práce" v={r.work} />
           <Row k="Kontroly" v={[r.dailyCheck && "denní kontrola", r.accessoryCheck && "příslušenství", r.equipmentCheck && "vybavení", r.fit === "yes" ? "provozuschopný" : r.fit === "no" ? "NEPROVOZUSCHOPNÝ" : null].filter(Boolean).join(", ")} />

@@ -15,6 +15,7 @@ from reportlab.pdfgen import canvas
 import base64
 
 from worktime import time_breakdown, day_union, fmt_hours
+from journey import journey_text
 
 FONT_DIR = os.path.join(os.path.dirname(__file__), "fonts")
 pdfmetrics.registerFont(TTFont("DV", os.path.join(FONT_DIR, "DejaVuSans.ttf")))
@@ -172,11 +173,20 @@ def timesheet_pdf(groups: list, attachment_loader, duplex: bool = False) -> byte
     duplex=True: list 1 = výkaz, rub = popis servisů/závad; každý výkaz začíná na novém listu."""
     pdf = Pdf()
     pdf_atts = []
-    if not any(g["records"] for g in groups):
+    if not any(g["records"] or g.get('absences') for g in groups):
         pdf.page(landscape(A4))
         pdf.txt(40, 60, "Pro zvolený filtr nejsou žádné záznamy.", 12, True)
         return pdf.bytes()
     for g in groups:
+        if not g['records'] and g.get('absences'):
+            ws = date_cls.fromisoformat(g['week_start'])
+            we = date_cls.fromordinal(ws.toordinal() + 6)
+            block_start = pdf.count
+            _ts_sheet(pdf, g['employee_name'], ws, we, 1, [], [])
+            _ts_supplement(pdf, [('Schválené nepřítomnosti', [f"{a['date_from']} – {a['date_to']}: {a['type']}" for a in g['absences']])])
+            if duplex:
+                _duplex_pad(pdf, block_start, A4)
+            continue
         weeks = {}
         for r in sorted(g["records"], key=lambda r: (r["date"], r.get("updatedAt", ""))):
             weeks.setdefault(_week_key(r["date"]), []).append(r)
@@ -186,6 +196,8 @@ def timesheet_pdf(groups: list, attachment_loader, duplex: bool = False) -> byte
             sheets = [recs[i:i + ROWS_PER_SHEET] for i in range(0, len(recs), ROWS_PER_SHEET)]
             block_start = pdf.count
             supplement = []  # (title, lines)
+            if g.get('absences'):
+                supplement.append(('Schválené nepřítomnosti', [f"{a['date_from']} – {a['date_to']}: {a['type']}" for a in g['absences']]))
             for si, sheet in enumerate(sheets, 1):
                 _ts_sheet(pdf, g["employee_name"], ws, we, si, sheet, recs)
                 _ts_service(pdf, g["employee_name"], si, len(sheets), sheet, supplement, recs)
@@ -205,8 +217,8 @@ def timesheet_pdf(groups: list, attachment_loader, duplex: bool = False) -> byte
                 lines.append("Servis, prostoje i přejezdy jsou již zahrnuty v celkové pracovní době; časy se nesčítají podruhé.")
                 if r.get("work"):
                     lines.append(f"Popis práce: {r['work']}")
-                if r.get("drive"):
-                    lines.append(f"Jízda *: {r['drive']}")
+                if journey_text(r):
+                    lines.append(f"Jízda *: {journey_text(r)}; čipování neověřeno")
                 lines.append(f"Stav zápisu: {'Potvrzený' if r['status'] == 'confirmed' else 'Pracovní verze'}; revize {r['revision']}")
                 if r.get("confirmedAt"):
                     lines.append(f"Potvrzeno: {r['confirmedAt']} (účet {r.get('author_name', '')})")
@@ -272,7 +284,7 @@ def _ts_sheet(pdf: Pdf, name, ws, we, list_no, sheet, all_recs):
         vals = [""] * 13
         if r:
             bd = time_breakdown(r)
-            vals = [dmy(r["date"], False), r.get("machine", ""), r.get("customer", ""), r.get("site", ""), r.get("drive", ""),
+            vals = [dmy(r["date"], False), r.get("machine", ""), r.get("customer", ""), r.get("site", ""), journey_text(r),
                     r.get("vehiclesTo", ""), ivs(bd["totalIntervals"]), ivs(bd["serviceIntervals"]), r.get("vehiclesFrom", ""),
                     {"yes": "ANO", "no": "NE"}.get(r.get("accommodation"), ""), r.get("mthStart", ""), r.get("mthEnd", ""), r.get("job", "")]
         for i, w in enumerate(widths):

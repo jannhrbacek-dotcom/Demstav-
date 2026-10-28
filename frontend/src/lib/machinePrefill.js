@@ -4,7 +4,7 @@ export function prefillMachine(previous, machine, histories = [], registry = [])
   const next = { ...previous, machine };
   const label = (machine || "").trim().toLocaleLowerCase("cs-CZ");
   const records = histories
-    .filter(x => (x.machine || "").trim().toLocaleLowerCase("cs-CZ") === label)
+    .filter(x => x.status === "confirmed" && (!previous.date || x.date <= previous.date) && (x.machine || "").trim().toLocaleLowerCase("cs-CZ") === label)
     .sort((a, b) => (b.date + (b.updatedAt || b.updated_at || "")).localeCompare(a.date + (a.updatedAt || a.updated_at || "")));
   const prev = records.find(x => x.mthEnd);
   const known = registry.find(x => (x.label || "").trim().toLocaleLowerCase("cs-CZ") === label);

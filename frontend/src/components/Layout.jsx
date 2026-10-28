@@ -85,6 +85,12 @@ export default function Layout({ children }) {
     <CircleHelp className="h-5 w-5" /><span className="hidden min-[390px]:inline">Jak na to</span>
   </Link>;
   const isMgr = atLeast(user, "manager");
+  const mobileNav = isMgr ? [
+    {to: '/prehled', label: 'Přehled', icon: LayoutDashboard, testid: 'nav-overview'},
+    {to: '/kontrola', label: 'Ke kontrole', icon: ShieldCheck, testid: 'nav-review'},
+    {to: '/kalendar', label: 'Tým', icon: CalendarDays, testid: 'nav-team'},
+    employeeNav[0], employeeNav[4],
+  ] : employeeNav;
   const item = (n) => (
     <NavLink key={n.to} to={n.to} data-testid={n.testid}
       className={({ isActive }) => `flex min-h-[48px] items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${isActive ? "bg-[#FFD200] text-slate-900" : "text-slate-200 hover:bg-white/10"}`}>
@@ -125,7 +131,7 @@ export default function Layout({ children }) {
       </main>
 
       <nav className="dark safe-bottom fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav">
-        {employeeNav.filter((n) => n.to !== "/fronta" || s.queue.length > 0).map((n) => (
+        {mobileNav.filter((n) => n.to !== "/fronta" || s.queue.length > 0).map((n) => (
           <NavLink key={n.to} to={n.to} data-testid={`m-${n.testid}`} className={({ isActive }) => `relative flex min-h-[64px] flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${isActive ? "text-[#FFD200]" : "text-slate-300"}`}>
             {({ isActive }) => (<>{isActive && <span className="absolute top-0 h-1 w-10 rounded-b bg-[#FFD200]" />}<n.icon className="h-6 w-6" />{n.label}
               {n.to === "/fronta" && s.queue.length > 0 && <span className="absolute right-3 top-2 rounded bg-amber-400 px-1 text-[10px] text-slate-900">{s.queue.length}</span>}</>)}

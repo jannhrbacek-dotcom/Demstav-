@@ -40,7 +40,7 @@ function Guard({ children, role, bare }) {
 function Home() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={atLeast(user, "manager") && window.innerWidth >= 1024 ? "/prehled" : "/dnes"} replace />;
+  return <Navigate to={atLeast(user, "manager") ? "/prehled" : "/dnes"} replace />;
 }
 
 export default function App() {

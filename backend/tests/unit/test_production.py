@@ -17,18 +17,18 @@ import routes_production as routes
 
 
 def raw():
-    return dict(date='2026-10-26', customer='JEKAER a.s.', site='Struskárna', crew='Schmidt, Hynčicová, Hrbáček', machines='METSO S4.9, L546/4', work='Třídění strusky', start='16:30', end='18:00', tonnes='183,45', note='Zbývající lístky budou doplněny.', tickets=[dict(attachment_id='ticket-123', number='206', fraction='25-35', tonnes='31,35')])
+    return dict(date='2026-10-26', customer='JEKAER a.s.', site='Struskárna', crew='Schmidt, Hynčicová, Hrbáček', machines='METSO S4.9, L546/4', work='Třídění strusky', start='16:30', end='18:00', tonnes='183,45', note='Test', shift_closed=True, tickets=[dict(attachment_id='ticket-123', number='206', fraction='25-35', tonnes='31,35')])
 
 
 def test_hours_and_tonnage_independent():
     d = clean_report(raw(), True)
-    assert d['hours'] == 1.5 and d['tonnes'] == 183.45 and d['ticket_total'] == 31.35
-    assert d['tonnage_warning']
+    assert d['hours'] == 1.5 and d['tonnes'] == 31.35 and d['ticket_total'] == 31.35
+    assert not d['tonnage_warning']
 
 
 @pytest.mark.parametrize('value', ['-1', 'NaN', 'Infinity', 'abc', '1000001'])
 def test_invalid_tonnes(value):
-    r = raw(); r['tonnes'] = value
+    r = raw(); r['tickets'][0]['tonnes'] = value
     with pytest.raises(HTTPException): clean_report(r)
 
 
@@ -38,11 +38,12 @@ def test_required_photo_only_on_submission():
     with pytest.raises(HTTPException): clean_report(r, True)
 
 
-def test_mismatch_explanation_required():
-    r = raw(); r['note'] = ''
+def test_manual_total_cannot_override_ticket_sum():
+    r = raw(); r['note'] = ''; r['tonnes'] = '999'
+    assert clean_report(r, True)['tonnes'] == 31.35
+    r['tickets'][0]['tonnes'] = None
+    r['note'] = 'An explanation cannot replace missing weights'
     with pytest.raises(HTTPException): clean_report(r, True)
-    r['tonnes'] = '31.35'
-    assert not clean_report(r, True)['tonnage_warning']
 
 
 def test_duplicate_photo_rejected():
@@ -50,26 +51,17 @@ def test_duplicate_photo_rejected():
     with pytest.raises(HTTPException): clean_report(r)
 
 
-class Reports:
-    def __init__(self, doc=None): self.doc = doc
-    async def find_one(self, *a, **kw): return copy.deepcopy(self.doc)
-    async def insert_one(self, doc): self.doc = copy.deepcopy(doc)
-    async def find_one_and_replace(self, q, doc, **kw):
-        if self.doc['revision'] != q['revision']: return None
-        self.doc = copy.deepcopy(doc)
-        return doc
-
-
-class Attachments:
-    async def find_one(self, *a, **kw): return {'name': 'listek.jpg'}
-
-
 def setup(monkeypatch, doc=None):
-    reports = Reports(doc)
-    monkeypatch.setattr(routes, 'db', SimpleNamespace(production_reports=reports, attachments=Attachments()))
+    from mongomock_motor import AsyncMongoMockClient
+    db = AsyncMongoMockClient().test
+    monkeypatch.setattr(routes, 'db', db)
+    async def seed():
+        await db.production_settings.insert_one({'id': 'main', 'responsible_ids': ['marcel']})
+        await db.attachments.insert_one({'id': 'ticket-123', 'record_id': 'report-123', 'owner_id': 'marcel', 'name': 'ticket.jpg', 'sha256': 'synthetic-hash', 'is_deleted': False})
+    asyncio.run(seed())
     async def audit(*args): pass
     monkeypatch.setattr(routes, 'audit', audit)
-    return reports
+    return db.production_reports
 
 
 def test_ownership_idempotency_and_revision(monkeypatch):
@@ -99,7 +91,7 @@ def test_pdf_all_attachments_in_order():
     pdf = fitz.open(stream=production_pdf(r, files), filetype='pdf')
     assert pdf.page_count == 6
     assert 'ticket-A' in pdf[2].get_text() and 'ticket-B' in pdf[5].get_text()
-    assert '183.45' in pdf[0].get_text()
+    assert '31.35' in pdf[0].get_text()
 
 
 def test_pdf_long_work_stays_on_page():
