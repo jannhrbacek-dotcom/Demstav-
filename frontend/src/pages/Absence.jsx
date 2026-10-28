@@ -185,7 +185,7 @@ export default function Absence() {
             <div className="min-w-0">
               <div className="font-semibold">{r.kind_label} · {dmy(r.date)}{r.time_from && ` · od ${r.time_from}`}{r.time_to && ` · do ${r.time_to}`}</div>
               <div className="text-sm text-slate-700">{r.reason}</div>
-              <div className="mt-1 text-xs text-slate-500">Oznámeno {r.created_achosenLeaveType?.slice(0, 16).replace("T", " ")}</div>
+              <div className="mt-1 text-xs text-slate-500">Oznámeno {r.created_at?.slice(0, 16).replace("T", " ")}</div>
             </div>
             {r.can_delete && <Button variant="outline" size="sm" className="h-10 text-red-700" onClick={() => delEx(r)} data-testid="exception-delete"><Trash2 className="mr-1 h-4 w-4" />{t("Smazat")}</Button>}
           </div>
