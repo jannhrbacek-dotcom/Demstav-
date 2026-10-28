@@ -1,5 +1,7 @@
 """Datové exporty (XLSX/CSV), přehledy pro zaměstnance a automatické týdenní exporty šichtovnic."""
 import csv
+import hashlib
+import json
 import hmac
 import io
 import logging
@@ -12,12 +14,13 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-from core import db, get_ready_user, is_manager, require_role, iso_now, ROLE_LABELS, POSITIONS, role_label
+from core import db, get_ready_user, is_manager, require_role, iso_now, new_id, audit, ROLE_LABELS, POSITIONS, role_label
 from routes_attendance import projection, day_bounds_ms, prague_date, KIND_LABELS, PRAGUE
 from routes_leave import leaves_in_range, TYPES as LEAVE_TYPES, STATUS_LABELS as LEAVE_STATUS
 from storage import put_object, get_object
 from break_policy import hydrate_records, hydrate_events
 from worktime import time_breakdown, fmt_hours, day_union
+from journey import journey_text
 
 log = logging.getLogger("data")
 router = APIRouter()
@@ -84,6 +87,8 @@ async def timesheet_rows(user, f: dict):
             "Datum": r["date"], "Zaměstnanec": u.get("name") or r.get("owner_name", ""), "Zařazení": role_label(u) if u else "",
             "Stroj": r.get("machine", ""), "Objednatel": r.get("customer", ""), "Pracoviště": r.get("site", ""), "Zakázka": r.get("job", ""),
             "Směna": r.get("shift", ""), "Pracovní doba": ", ".join(f"{i['start']}–{i['end']}" for i in bd["totalIntervals"]),
+            "Jízda": journey_text(r), "SPZ na pracoviště": r.get("vehiclesTo", ""), "SPZ z pracoviště": r.get("vehiclesFrom", ""),
+            "Řidič / spolujezdec": r.get("journeyRole", ""), "Čipování": "neověřeno",
             "Celkem h": _h(bd["totalHours"]), "Práce bez servisu h": _h(bd["workHours"]), "Servis h": _h(bd["serviceHours"]),
             "Prostoje h": _h(bd["downtimeHours"]), "Přejezdy h": _h(bd.get("travelHours")), "K fakturaci h": _h(bd.get("billableHours", bd["totalHours"])),
             "Přejezdy trasa": "; ".join(f"{t.get('from', '')} → {t.get('to', '')}" for t in r.get("travel") or []),
@@ -136,7 +141,7 @@ async def attendance_rows(user, f: dict):
             if f.get("status") == "pending" and not pend:
                 continue
             rows.append({
-                "Datum": d, "Zaměstnanec": u.get("name", ""), "Zařazení": role_label(u),
+                "Datum": d, "Zaměstnanec": u.get("name", ""), "ID zaměstnance": u['id'], "Zařazení": role_label(u),
                 "Pracoviště": ", ".join(wps.get(w, "") for w in wp_ids), "Příchod": _hm(arr[0]) if arr else "", "Odchod": _hm(dep[-1]) if dep else "",
                 "Přítomnost h": _h(p["presenceHours"]), "Přestávky h": _h(p["breakHours"]), "Přejezdy h": _h(p.get("travelHours")),
                 "Odpracováno h": _h(p["netHours"]),
@@ -305,6 +310,7 @@ async def machine_log_data(user, f: dict):
     if not f.get("include_drafts"):
         q["status"] = "confirmed"
     recs = await db.records.find(q, {"_id": 0}).sort([("machine", 1), ("date", 1)]).to_list(50000)
+    recs = await hydrate_records(recs)
     by_machine: dict = {}
     for r in recs:
         label = (r.get("machine") or "Bez stroje").strip() or "Bez stroje"
@@ -411,17 +417,71 @@ def week_bounds(d: date_cls):
     return ws, ws + timedelta(days=6)
 
 
-async def generate_week(week_start: str, actor_name: str = "automaticky"):
+async def weekly_fingerprint(start, end):
+    """Revision manifest, including approval changes outside signed source records."""
+    records = await db.records.find({'date': {'$gte': start, '$lte': end}},
+        {'_id': 0, 'id': 1, 'owner_id': 1, 'revision': 1, 'integrity_hash': 1, 'status': 1}).sort('id', 1).to_list(50000)
+    events = await db.attendance_events.find({}, {'_id': 0, 'id': 1, 'employee_id': 1, 'status': 1, 'effective_at': 1, 'kind': 1}).sort('id', 1).to_list(100000)
+    breaks = await db.break_requests.find({'date': {'$gte': start, '$lte': end}, 'status': 'approved'},
+        {'_id': 0, 'id': 1, 'employee_id': 1, 'date': 1, 'breaks': 1, 'decision.at': 1}).sort('id', 1).to_list(20000)
+    leaves = await db.leave_requests.find({'date_from': {'$lte': end}, 'date_to': {'$gte': start}},
+        {'_id': 0, 'id': 1, 'user_id': 1, 'status': 1, 'type': 1, 'date_from': 1, 'date_to': 1, 'half_day': 1, 'time_from': 1, 'time_to': 1}).sort('id', 1).to_list(10000)
+    manifest = {'records': records, 'attendance': events, 'break_approvals': breaks, 'absences': leaves}
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest(), manifest
+
+
+def weekly_validation(records, attendance, leaves):
+    blockers, by_day = [], {}
+    for r in records:
+        key = (r['owner_id'], r['date'])
+        by_day.setdefault(key, []).append(r)
+        if r['status'] != 'confirmed':
+            blockers.append({'code': 'draft', 'record_id': r['id'], 'date': r['date']})
+        ms, me = _num(r.get('mthStart')), _num(r.get('mthEnd'))
+        if ms is None or me is None or me < ms or me - ms > 24:
+            blockers.append({'code': 'mth', 'record_id': r['id'], 'date': r['date']})
+        b = time_breakdown(r)
+        if b['ambiguousDay'] or b['serviceOutsideShift'] or b['downtimeOutsideShift'] or b.get('travelOutsideShift'):
+            blockers.append({'code': 'invalid_intervals', 'record_id': r['id'], 'date': r['date']})
+        if r.get('driveMinutes') is None:
+            blockers.append({'code': 'personal_journey_unknown', 'record_id': r['id'], 'date': r['date']})
+    for (uid, day), rs in by_day.items():
+        if day_union(rs)['overlapHours'] > 0:
+            blockers.append({'code': 'overlap', 'employee_id': uid, 'date': day})
+    for a in attendance:
+        if a.get('Výjimky'):
+            blockers.append({'code': 'attendance_pending', 'employee': a['Zaměstnanec'], 'date': a['Datum']})
+        # An absence-only day has no positive attendance, so it is never called missing work.
+        if a.get('Odpracováno h', 0) > 0 and (a['ID zaměstnance'], a['Datum']) not in by_day:
+            blockers.append({'code': 'attendance_without_record', 'employee': a['Zaměstnanec'], 'date': a['Datum']})
+    return {'blockers': blockers, 'limitations': ['Kontrola zahrnuje pouze podklady přijaté serverem. Neodeslané fronty v telefonech nelze ověřit.',
+        'Čipování není propojeno s palubním systémem; stav zůstává neověřeno.']}
+
+
+async def generate_week(week_start: str, actor_name: str = "automaticky", job_key=None):
     from exports import timesheet_pdf
     ws = date_cls.fromisoformat(week_start)
     ws, we = week_bounds(ws)
+    if job_key:
+        existing = await db.weekly_export_versions.find_one({'job_key': job_key}, {'_id': 0})
+        if existing:
+            return existing
     sys_user = {"id": "system", "name": "Systém", "role": "owner"}
-    f = {"date_from": ws.isoformat(), "date_to": we.isoformat()}
+    before, manifest = await weekly_fingerprint(ws.isoformat(), we.isoformat())
+    f = {"date_from": ws.isoformat(), "date_to": we.isoformat(), "status": "confirmed"}
     rows, recs, users = await timesheet_rows(sys_user, f)
     att_rows = await attendance_rows(sys_user, f)
+    all_records = await db.records.find({'date': {'$gte': ws.isoformat(), '$lte': we.isoformat()}}, {'_id': 0}).to_list(50000)
+    all_records = await hydrate_records(all_records)
+    leaves = await leaves_in_range(ws.isoformat(), we.isoformat(), statuses=('approved',))
+    validation = weekly_validation(all_records, att_rows, leaves)
     groups = {}
     for r in recs:
         groups.setdefault(r["owner_id"], {"employee_name": users.get(r["owner_id"], {}).get("name") or r.get("owner_name", ""), "records": []})["records"].append(r)
+    for lv in leaves:
+        g = groups.setdefault(lv['user_id'], {'employee_name': users.get(lv['user_id'], {}).get('name') or lv.get('user_name', ''), 'records': []})
+        g.setdefault('absences', []).append({'date_from': lv['date_from'], 'date_to': lv['date_to'], 'type': LEAVE_TYPES[lv['type']]})
+        g['week_start'] = ws.isoformat()
     att_ids = [a["id"] for r in recs for a in (r.get("attachments") or [])]
     atts = {a["id"]: a for a in await db.attachments.find({"id": {"$in": att_ids}, "is_deleted": False}, {"_id": 0}).to_list(5000)}
 
@@ -431,6 +491,11 @@ async def generate_week(week_start: str, actor_name: str = "automaticky"):
             return get_object(doc["storage_path"])[0] if doc else None
         except Exception:
             return None
+    for a in atts.values():
+        if loader(a) is None:
+            validation['blockers'].append({'code': 'attachment_unavailable', 'attachment_id': a['id']})
+    if set(att_ids) - set(atts):
+        validation['blockers'].append({'code': 'attachments_missing'})
     pdf = timesheet_pdf(sorted(groups.values(), key=lambda g: g["employee_name"]) or [{"employee_name": "—", "records": []}], loader, duplex=True)
     wb = Workbook()
     wb.remove(wb.active)
@@ -450,20 +515,61 @@ async def generate_week(week_start: str, actor_name: str = "automaticky"):
     xb = io.BytesIO()
     wb.save(xb)
     key = ws.isoformat()
+    export_id = new_id()
     files = {}
     for fmt, data, ct in (("pdf", pdf, "application/pdf"), ("xlsx", xb.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
                           ("csv", to_csv(rows), "text/csv")):
-        res = put_object(f"demstav/weekly/{key}/DEMSTAV_sichtovnice_tyden_{key}.{fmt}", data, ct)
-        files[fmt] = {"path": res["path"], "size": len(data)}
+        res = put_object(f"demstav/weekly/{key}/{export_id}/DEMSTAV_sichtovnice_tyden_{key}.{fmt}", data, ct)
+        files[fmt] = {"path": res["path"], "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    after, _ = await weekly_fingerprint(ws.isoformat(), we.isoformat())
+    if before != after:
+        validation['blockers'].append({'code': 'sources_changed_during_generation'})
+    from pymongo import ReturnDocument
+    counter = await db.weekly_counters.find_one_and_update({'week': key}, {'$inc': {'sequence': 1}}, upsert=True, return_document=ReturnDocument.AFTER)
     doc = {"week": key, "week_end": we.isoformat(), "files": files, "records": len(recs), "employees": len(groups),
+           "export_id": export_id, "version": counter['sequence'], "status": 'draft', 'validation': validation,
+           'source_fingerprint': before, 'source_manifest': {k: v for k, v in manifest.items() if k != 'attendance'},
+           'source_attendance_count': len(manifest['attendance']), 'history': [],
            "generated_at": iso_now(), "generated_by": actor_name}
+    previous = await db.weekly_exports.find_one({'week': key}, {'_id': 0})
+    if previous and not previous.get('export_id'):
+        legacy = {**previous, 'export_id': 'legacy-' + key, 'version': 0, 'status': 'legacy'}
+        await db.weekly_export_versions.update_one({'export_id': legacy['export_id']}, {'$setOnInsert': legacy}, upsert=True)
+    if job_key:
+        doc['job_key'] = job_key
+    from pymongo.errors import DuplicateKeyError
+    try:
+        await db.weekly_export_versions.insert_one(dict(doc))
+    except DuplicateKeyError:
+        if not job_key:
+            raise
+        existing = await db.weekly_export_versions.find_one({'job_key': job_key}, {'_id': 0})
+        if not existing:
+            raise
+        return existing
     await db.weekly_exports.update_one({"week": key}, {"$set": doc}, upsert=True)
     return doc
 
 
 @router.get("/exports/weekly")
 async def list_weekly(user: dict = Depends(require_role("manager"))):
-    return await db.weekly_exports.find({}, {"_id": 0}).sort("week", -1).to_list(200)
+    versions = await db.weekly_export_versions.find({}, {'_id': 0, 'source_manifest': 0}).sort([('week', -1), ('version', -1)]).to_list(500)
+    legacy = await db.weekly_exports.find({'export_id': {'$exists': False}}, {'_id': 0}).sort('week', -1).to_list(200)
+    return versions + legacy
+
+
+@router.get('/exports/weekly/schedule')
+async def weekly_schedule(user: dict = Depends(require_role('manager'))):
+    from weekly_scheduler import configuration
+    try:
+        config = configuration()
+    except (ValueError, TypeError):
+        return {'configured': False, 'configuration_error': True, 'timezone': 'Europe/Prague'}
+    health = await db.weekly_scheduler_health.find_one({'id': 'weekly'}, {'_id': 0}) or {}
+    jobs = await db.weekly_jobs.find({}, {'_id': 0, 'token': 0}).sort('week', -1).to_list(20)
+    return {'configured': bool(config), 'timezone': 'Europe/Prague',
+        'schedule': {k: config[k] for k in ('weekday', 'hour', 'minute')} if config else None,
+        'last_poll': health.get('last_poll'), 'jobs': jobs}
 
 
 @router.post("/exports/weekly/generate")
@@ -478,12 +584,70 @@ async def gen_weekly(b: dict, user: dict = Depends(require_role("manager"))):
     return await generate_week(wk, user["name"])
 
 
+@router.post('/exports/weekly/{week}/handover')
+async def weekly_handover(week: str, body: dict, user: dict = Depends(require_role('manager'))):
+    eid = str(body.get('export_id') or '')
+    doc = await db.weekly_export_versions.find_one({'week': week, 'export_id': eid}, {'_id': 0})
+    if not doc or doc.get('status') == 'legacy':
+        raise HTTPException(404, 'Verze výkazu nebyla nalezena; původní archiv nejprve nově vygenerujte.')
+    action = body.get('action')
+    stamp = {'by_id': user['id'], 'by_name': user['name'], 'at': iso_now(), 'action': action}
+    if action == 'submit':
+        if doc['status'] != 'draft':
+            raise HTTPException(409, 'Tato verze již byla předána. Pro opravu vytvořte novou verzi.')
+        if doc['validation']['blockers']:
+            raise HTTPException(422, {'message': 'Před předáním opravte nedostatky podkladů.', 'blockers': doc['validation']['blockers']})
+        fingerprint, _ = await weekly_fingerprint(doc['week'], doc['week_end'])
+        if fingerprint != doc['source_fingerprint']:
+            raise HTTPException(409, 'Podklady se od vytvoření změnily. Připravte novou verzi.')
+        recipients = body.get('recipients')
+        if not isinstance(recipients, list) or not recipients or len(recipients) > 30 or any(not isinstance(i, str) for i in recipients):
+            raise HTTPException(400, 'Vyberte konkrétní příjemce z vedení.')
+        recipients = list(set(recipients))
+        if user['id'] in recipients:
+            raise HTTPException(400, 'Příjemcem převzetí musí být jiný oprávněný člověk.')
+        people = await db.users.find({'id': {'$in': recipients}, 'active': True,
+            'role': {'$in': ['manager', 'owner', 'operations_manager']}}, {'_id': 0, 'id': 1}).to_list(30)
+        if len(people) != len(recipients):
+            raise HTTPException(400, 'Příjemci musí být aktivní vedoucí, vedoucí provozu nebo jednatel.')
+        update = {'status': 'submitted', 'submitted_by': user['id'], 'submitted_at': stamp['at'], 'recipients': recipients}
+    elif action in ('accept', 'return'):
+        if doc['status'] != 'submitted':
+            raise HTTPException(409, 'Výkaz nyní není ve stavu k převzetí.')
+        if user['id'] not in doc.get('recipients', []) or user['id'] == doc.get('submitted_by'):
+            raise HTTPException(403, 'Převzetí provádí pouze určený příjemce.')
+        note = str(body.get('note') or '').strip()[:2000]
+        if action == 'return' and not note:
+            raise HTTPException(400, 'U vrácení uveďte důvod opravy.')
+        stamp['note'] = note
+        update = {'status': 'accepted' if action == 'accept' else 'returned', 'decision': stamp}
+    else:
+        raise HTTPException(400, 'Neplatná akce předání.')
+    result = await db.weekly_export_versions.update_one({'export_id': eid, 'status': doc['status']},
+        {'$set': update, '$push': {'history': stamp}})
+    if not result.modified_count:
+        raise HTTPException(409, 'O této verzi již mezitím někdo rozhodl.')
+    await db.weekly_exports.update_one({'week': week, 'export_id': eid}, {'$set': update})
+    await audit(user, 'weekly_' + action, {'week': week, 'export_id': eid, 'version': doc['version'], **stamp})
+    if action == 'submit':
+        try:
+            from routes_push import send_push_to_users
+            await send_push_to_users(update['recipients'], 'Týdenní výkazy jsou připravené',
+                f"Týden {week} · verze {doc['version']}", url='/exporty', tag='weekly-' + eid)
+        except Exception:
+            log.exception('Weekly notification failed for export %s', eid)
+    return {**doc, **update, 'history': doc.get('history', []) + [stamp]}
+
+
 @router.get("/exports/weekly/{week}/{fmt}")
-async def get_weekly(week: str, fmt: str, user: dict = Depends(require_role("manager"))):
-    doc = await db.weekly_exports.find_one({"week": week}, {"_id": 0})
+async def get_weekly(week: str, fmt: str, version: str = '', user: dict = Depends(require_role("manager"))):
+    doc = await db.weekly_export_versions.find_one({'week': week, 'export_id': version}, {'_id': 0}) if version else await db.weekly_exports.find_one({"week": week}, {"_id": 0})
     if not doc or fmt not in doc["files"]:
         raise HTTPException(status_code=404, detail="Export nenalezen.")
     data, ct = get_object(doc["files"][fmt]["path"])
+    expected_hash = doc['files'][fmt].get('sha256')
+    if expected_hash and hashlib.sha256(data).hexdigest() != expected_hash:
+        raise HTTPException(503, 'Otisk archivního souboru nesouhlasí. Výkaz vyžaduje kontrolu; nebyl vydán poškozený soubor.')
     mt = {"pdf": "application/pdf", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "csv": "text/csv; charset=utf-8"}[fmt]
     return Response(content=data, media_type=mt, headers={"Content-Disposition": f'attachment; filename="DEMSTAV_sichtovnice_tyden_{week}.{fmt}"'})
 
@@ -491,7 +655,7 @@ async def get_weekly(week: str, fmt: str, user: dict = Depends(require_role("man
 async def _cron_weekly_job(run_id: str):
     try:
         wk = week_bounds(date_cls.fromisoformat(prague_date()) - timedelta(days=7))[0].isoformat()
-        await generate_week(wk, "automaticky (týdenní plán)")
+        await generate_week(wk, "automaticky (týdenní plán)", job_key='weekly:' + wk)
         await db.cron_runs.update_one({"run_id": run_id}, {"$set": {"status": "done", "week": wk, "finished_at": iso_now()}})
     except Exception as e:  # noqa: BLE001
         log.exception("weekly export failed")

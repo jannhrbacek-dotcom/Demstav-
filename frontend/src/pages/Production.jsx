@@ -9,7 +9,7 @@ import { http, errText, downloadFile } from "@/lib/api";
 import { addAttachment, saveProduction, useSync, localBlob, removeOp } from "@/lib/sync";
 import { newId, pragueDate } from "@/lib/format";
 
-const blank = () => ({ id: newId(), date: pragueDate(), customer: "", site: "", job: "", crew: "", machines: "", equipment: "", work: "", start: "", end: "", tonnes: "", customer_name: "", note: "", tickets: [], revision: 0 });
+const blank = () => ({ id: newId(), date: pragueDate(), customer: "", site: "", job: "", crew: "", machines: "", equipment: "", work: "", start: "", end: "", tonnes: "", shift: "Denní", shift_closed: false, customer_name: "", note: "", tickets: [], revision: 0 });
 const inputClass = "mt-1 min-h-[48px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base";
 function Field({ label, value, onChange, type = "text", multiline = false }) {
   const Tag = multiline ? "textarea" : "input";
@@ -34,6 +34,7 @@ export default function Production() {
   queued.forEach((op) => all.set(op.refId, { ...op.payload.report, pending: true, queueError: op.error }));
   const responsible = settings.data?.responsible_ids || [];
   const selectedIds = ids ?? responsible;
+  const permitted = atLeast(user, "manager") || responsible.includes(user.id);
   const start = () => setReport({ ...blank(), crew: user.name });
   const upload = async (files) => {
     setBusy(true);
@@ -53,9 +54,9 @@ export default function Production() {
     } else await downloadFile(`/attachments/${ticket.attachment_id}`, ticket.name || "vazni-listek.jpg");
   };
   const save = async (submit) => {
-    if (submit && (!report.tickets.length || !report.start || !report.end || !report.customer || !report.site || !report.crew || !report.machines || !report.work || report.tonnes === "")) { toast.error("Doplňte povinné údaje a přiložte vážní lístek."); return; }
+    if (submit && (!report.tickets.length || !report.start || !report.end || !report.customer || !report.site || !report.crew || !report.machines || !report.work || !report.shift_closed)) { toast.error("Doplňte povinné údaje a přiložte vážní lístek."); return; }
     setBusy(true);
-    try { await saveProduction(report, submit); await del(key); setReport(null); toast.success("Uloženo do fronty. Stav přijetí serverem najdete níže nebo ve Frontě odesílání."); }
+    try { await saveProduction({ ...report, tonnes: known.length === report.tickets.length && known.length ? total : null }, submit); await del(key); setReport(null); toast.success("Uloženo do fronty. Stav přijetí serverem najdete níže nebo ve Frontě odesílání."); }
     catch { toast.error("Uložení selhalo. Výkaz zůstává rozepsaný."); }
     finally { setBusy(false); }
   };
@@ -68,7 +69,8 @@ export default function Production() {
       <p className="font-semibold">Máte dnes na starost společný výkaz?</p>
       <p className="text-sm text-slate-600">Pokud jej vede kolega, nic dalšího nevyplňujete. Výkaz nenahrazuje osobní šichtovnici ani deník stroje.</p>
       {responsible.includes(user.id) && <p className="text-sm font-semibold">Jste mezi obvyklými zpracovateli. Výkaz založte jen tehdy, když jej dnes vedete vy.</p>}
-      {!report && <Button className="btn-primary h-14 w-full" disabled={!loaded} onClick={start}>Ano, dnes vedu společný výkaz</Button>}
+      {!permitted && <p>Výkaz zadává pověřený pracovník po skončení směny. Pověření nastavuje vedení.</p>}
+      {!report && <Button className="btn-primary h-14 w-full" disabled={!loaded || !permitted} onClick={start}>Ano, dnes vedu společný výkaz</Button>}
     </div>
     {atLeast(user, "manager") && <details className="rounded-xl border bg-white p-4"><summary className="cursor-pointer font-semibold">Obvyklí zpracovatelé výkazu</summary>
       <p className="my-3 text-sm">Vyberte skutečné účty, například Marcela Schmidta a Hanu Hynčicovou. Pověření připomene výkaz; nezakládá nové účty.</p>
@@ -78,7 +80,7 @@ export default function Production() {
     {report && <div className="rounded-xl border bg-white p-4 space-y-4">
       <p className="text-sm text-slate-600">Rozepsané údaje se průběžně ukládají v tomto telefonu. Fotografie lze přidávat i bez internetu.</p>
       <div className="grid gap-4 sm:grid-cols-2">
-        {[['Datum *', 'date', 'date'], ['Odběratel *', 'customer'], ['Pracoviště *', 'site'], ['Stavba / akce / zakázka', 'job'], ['Posádka *', 'crew'], ['Stroje *', 'machines'], ['Přídavné pracovní zařízení', 'equipment'], ['Začátek práce *', 'start', 'time'], ['Konec práce *', 'end', 'time'], ['Tonáž celkem (t) *', 'tonnes'], ['Jméno zástupce odběratele', 'customer_name']].map(([label, k, type]) => <Field key={k} label={label} type={type} value={report[k]} onChange={(v) => change(k, v)} />)}
+        {[['Datum *', 'date', 'date'], ['Odběratel *', 'customer'], ['Pracoviště *', 'site'], ['Stavba / akce / zakázka', 'job'], ['Posádka *', 'crew'], ['Stroje *', 'machines'], ['Přídavné pracovní zařízení', 'equipment'], ['Začátek práce *', 'start', 'time'], ['Konec práce *', 'end', 'time'], ['Směna (stejný název pro celou posádku)', 'shift'], ['Jméno zástupce odběratele', 'customer_name']].map(([label, k, type]) => <Field key={k} label={label} type={type} value={report[k]} onChange={(v) => change(k, v)} />)}
       </div>
       <Field label="Popis práce *" multiline value={report.work} onChange={(v) => change('work', v)} />
       <div className="rounded-lg border p-3 space-y-3"><h2 className="font-semibold">Fotografie vážních lístků *</h2>
@@ -89,10 +91,11 @@ export default function Production() {
           <div className="grid gap-3 sm:grid-cols-3">{[['Číslo lístku', 'number'], ['Frakce / materiál', 'fraction'], ['Celkem na lístku (t)', 'tonnes']].map(([label, k]) => <Field key={k} label={label} value={t[k]} onChange={(v) => change('tickets', report.tickets.map((ticket, j) => j === i ? { ...ticket, [k]: v } : ticket))} />)}</div>
           <Button variant="ghost" onClick={() => change('tickets', report.tickets.filter((_, j) => j !== i))}>Odebrat z výkazu</Button>
         </div>)}
-        <p className="font-semibold">Součet vyplněných lístků: {total.toLocaleString('cs-CZ', { maximumFractionDigits: 2 })} t</p>
-        {(known.length !== report.tickets.length || !known.length || Math.abs(total - number(report.tonnes)) > 0.01) && <p className="rounded-lg bg-amber-50 p-3 text-sm">Součet je neúplný nebo se liší od tonáže výkazu. Zkontrolujte údaje a vysvětlete rozdíl v poznámce.</p>}
+        <p className="font-semibold">Automatická celková tonáž z vyplněných lístků: {total.toLocaleString('cs-CZ', { maximumFractionDigits: 2 })} t</p>
+        {(known.length !== report.tickets.length || !known.length) && <p className="rounded-lg bg-amber-50 p-3 text-sm">Součet je neúplný. Doplňte hmotnost každého lístku; zatím lze uložit jen koncept.</p>}
       </div>
-      <Field label="Poznámka / vysvětlení rozdílu / důvod opravy" multiline value={report.note} onChange={(v) => change('note', v)} />
+      <Field label="Poznámka / důvod opravy" multiline value={report.note} onChange={(v) => change('note', v)} />
+      <label className="flex min-h-12 items-center gap-3 rounded border p-3 font-semibold"><input type="checkbox" checked={!!report.shift_closed} onChange={e => change('shift_closed', e.target.checked)} />Směna skončila a sesbíral(a) jsem všechny vážní lístky.</label>
       <p className="text-sm text-slate-600">Odevzdání není podpis odběratele. PDF obsahuje místo pro jeho podpis.</p>
       <div className="flex flex-wrap gap-3"><Button variant="outline" className="h-14" disabled={busy} onClick={() => save(false)}>Uložit koncept</Button><Button className="btn-primary h-14" disabled={busy} onClick={() => save(true)}>Odevzdat s lístky</Button>
         <Button variant="ghost" className="h-14" disabled={busy} onClick={async () => { if (window.confirm('Zahodit rozepsanou verzi v tomto telefonu?')) { await del(key); setReport(null); } }}>Zahodit rozepsanou verzi</Button></div>
@@ -112,7 +115,7 @@ export default function Production() {
           for (const op of queued.filter((item) => item.refId === r.id)) await removeOp(op.opId);
           list.reload(); setReport(latest);
         } catch (e) { toast.error(errText(e)); }
-      }}>Načíst serverovou verzi</Button>}<Button variant="outline" className="h-12" disabled={r.pending} onClick={() => downloadFile(`/production/${r.id}/pdf`, `DEMSTAV_vykaz_${r.date}.pdf`).catch((e) => toast.error(errText(e)))}>PDF včetně lístků</Button></div>
+      }}>Načíst serverovou verzi</Button>}<Button variant="outline" className="h-12" disabled={r.pending} onClick={() => downloadFile(`/production/${r.id}/pdf`, `DEMSTAV_vykaz_${r.date}.pdf`).catch((e) => toast.error(errText(e)))}>PDF včetně lístků</Button>{['xlsx', 'csv'].map(format => <Button key={format} variant="outline" className="h-12" disabled={r.pending} onClick={() => downloadFile(`/production/${r.id}/data?format=${format}`, `DEMSTAV_vazeni_${r.date}.${format}`).catch(e => toast.error(errText(e)))}>{format.toUpperCase()}</Button>)}</div>
     </div>)}
   </div>;
 }

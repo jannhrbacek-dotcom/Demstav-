@@ -15,6 +15,7 @@ from routes_users import router as users_router, seed_owner, ensure_operations_m
 from routes_records import router as records_router  # noqa: E402
 from routes_stt import router as stt_router  # noqa: E402
 from routes_leave import router as leave_router  # noqa: E402
+from routes_leave import absence_overview
 from routes_exceptions import router as exceptions_router  # noqa: E402
 from routes_push import router as push_router  # noqa: E402
 from routes_admin import router as admin_router  # noqa: E402
@@ -30,6 +31,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("demstav")
 
 app = FastAPI(title="DEMSTAV OPERATIONS")
+weekly_scheduler_task = None
 api = APIRouter(prefix="/api")
 
 
@@ -101,9 +103,11 @@ async def overview(date: str = "", days: int = 7, user: dict = Depends(require_r
     pending_leave = await db.leave_requests.count_documents(leave_q) if user["role"] in ("manager", "owner", "operations_manager") else 0
     today_exceptions = await db.planned_exceptions.find({"date": {"$gte": day, "$lte": (date_cls.fromisoformat(day) + timedelta(days=7)).isoformat()}}, {"_id": 0}).sort("date", 1).to_list(200)
     service_alerts = [m for m in await machines_with_status() if m.get("active", True) and m["service_state"] in ("soon", "due")]
+    absences = await absence_overview(day, (date_cls.fromisoformat(day) + timedelta(days=7)).isoformat(), user=user)
     return {"date": day, "present": present, "comparison": comparison, "missing": missing[:200], "open_drafts": open_drafts,
             "faults": faults, "pending_events": pending_events, "pending_requests": pending_requests, "service_alerts": service_alerts, "pending_leave": pending_leave,
             "upcoming_exceptions": [{**r, "kind_label": {"late_arrival": "Pozdní příchod", "early_departure": "Dřívější odchod", "other": "Jiná výjimka"}.get(r.get("kind"), r.get("kind"))} for r in today_exceptions],
+            "absences": absences,
             "chart": [{**v, "attendance": round(v["attendance"], 2), "timesheet": round(v["timesheet"], 2)} for v in chart.values()],
             "employees": len(users)}
 
@@ -203,6 +207,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    global weekly_scheduler_task
     # Retain uniqueness for real email addresses, while allowing many username-only users.
     # Create the replacement index FIRST; only then remove the legacy index which treats all missing emails as duplicate null.
     await db.users.create_index("email", unique=True, name="email_present_unique", partialFilterExpression={"email": {"$type": "string"}})
@@ -221,12 +226,22 @@ async def startup():
     await db.push_subscriptions.create_index("endpoint", unique=True)
     await db.push_subscriptions.create_index([("user_id", 1)])
     await db.weekly_exports.create_index("week", unique=True)
+    await db.weekly_export_versions.create_index("export_id", unique=True)
+    await db.weekly_export_versions.create_index("job_key", unique=True, sparse=True)
+    await db.weekly_counters.create_index("week", unique=True)
     await db.production_reports.create_index("id", unique=True)
+    # Only newly saved reports have these fields. Existing reports are not migrated.
+    await db.production_reports.create_index("shift_key", unique=True, sparse=True)
+    await db.production_reports.create_index("tickets.sha256", unique=True, sparse=True)
+    await db.production_reports.create_index("tickets.dedupe_key", unique=True, sparse=True)
     await db.production_reports.create_index([("owner_id", 1), ("date", -1)])
     await db.production_settings.create_index("id", unique=True)
     await db.records.create_index("id", unique=True)
     await db.records.create_index([("owner_id", 1), ("date", -1)])
     await db.record_versions.create_index([("record_id", 1), ("revision", 1)], unique=True)
+    await db.record_versions.create_index("projection_pending")
+    from routes_records import recover_record_writes
+    await recover_record_writes()
     await db.attendance_events.create_index("id", unique=True)
     await db.attendance_events.create_index([("employee_id", 1), ("sequence", 1)], unique=True)
     await db.attendance_requests.create_index("id", unique=True)
@@ -242,8 +257,19 @@ async def startup():
         logger.info("Storage initialized")
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
+    from weekly_scheduler import start
+    try:
+        weekly_scheduler_task = await start()
+    except (ValueError, TypeError):
+        logger.error('Weekly scheduler disabled: invalid configuration')
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    if weekly_scheduler_task:
+        import asyncio
+        from contextlib import suppress
+        weekly_scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await weekly_scheduler_task
     client.close()

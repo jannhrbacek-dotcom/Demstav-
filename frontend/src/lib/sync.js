@@ -6,6 +6,8 @@ import { newId } from "./format";
 
 const PRIORITY = { attachment: 0, record: 1, event: 2, request: 3, production: 1 };
 let uid = null;
+let generation = 0;
+let writes = Promise.resolve();
 let state = { queue: [], records: {}, serverRecords: [], online: typeof navigator !== "undefined" ? navigator.onLine : true, syncing: false, needsLogin: false, lastSync: null, lastVerifiedAt: null, lastError: null, ready: false };
 const listeners = new Set();
 const emit = () => listeners.forEach((l) => l(state));
@@ -14,18 +16,27 @@ const patch = (p) => { state = { ...state, ...p }; emit(); };
 
 async function persist() {
   if (!uid) return;
-  await set(k("queue"), state.queue);
-  await set(k("records"), state.records);
+  const key = k("sync-v2");
+  const snapshot = structuredClone({ queue: state.queue, records: state.records });
+  const write = writes.catch(() => {}).then(() => set(key, snapshot));
+  writes = write;
+  await write;
 }
 
 export async function initSync(userId) {
   if (uid === userId && state.ready) return;
+  const epoch = ++generation;
   uid = userId;
-  const [queue, records, serverRecords] = await Promise.all([get(k("queue")), get(k("records")), get(k("serverRecords"))]);
-  patch({ queue: queue || [], records: records || {}, serverRecords: serverRecords || [], ready: true, needsLogin: false });
+  await writes.catch(() => {});
+  const [saved, queue, records, serverRecords] = await Promise.all([get(k("sync-v2")), get(k("queue")), get(k("records")), get(k("serverRecords"))]);
+  if (epoch !== generation) return;
+  const local = saved?.records || records || {};
+  const pending = (saved?.queue || queue || []).map(op => ({ ...op, state: op.state === "sending" ? "queued" : op.state,
+    payload: op.type === "record" && !op.payload.record ? { ...op.payload, record: local[op.refId]?.record } : op.payload }));
+  patch({ queue: pending, records: local, serverRecords: serverRecords || [], ready: true, needsLogin: false });
   syncNow();
 }
-export function resetSync() { uid = null; state = { ...state, queue: [], records: {}, serverRecords: [], ready: false }; emit(); }
+export function resetSync() { generation++; uid = null; state = { ...state, queue: [], records: {}, serverRecords: [], syncing: false, ready: false }; emit(); }
 export const getState = () => state;
 export function setNeedsLogin(v) { patch({ needsLogin: v }); }
 
@@ -53,10 +64,12 @@ export async function saveRecordLocal(record, { confirm = false, correctionReaso
   const now = new Date().toISOString();
   const prev = state.records[record.id];
   const base = baseRevision ?? prev?.serverRevision ?? record.revision ?? 0;
-  const entry = { record: { ...record, updatedAt: now }, serverRevision: base, localState: "queued", confirm, correctionReason, savedAt: now, error: null };
+  const opId = newId();
+  const snapshot = structuredClone({ ...record, updatedAt: now });
+  const entry = { record: snapshot, opId, serverRevision: base, localState: "queued", confirm, correctionReason, savedAt: now, error: null };
   const queue = state.queue.filter((op) => !(op.type === "record" && op.refId === record.id && op.state !== "sending"));
-  queue.push({ opId: newId(), type: "record", refId: record.id, createdAt: now, attempts: 0, state: "queued", error: null,
-    payload: { confirm, correctionReason, baseRevision: base, deviceSavedAt: now } });
+  queue.push({ opId, type: "record", refId: record.id, createdAt: now, attempts: 0, state: "queued", error: null,
+    payload: { record: snapshot, confirm, correctionReason, baseRevision: base, deviceSavedAt: now } });
   patch({ records: { ...state.records, [record.id]: entry }, queue });
   await persist();
   syncNow();
@@ -80,9 +93,9 @@ export async function resolveConflict(id, choice, correctionReason = "") {
 export async function saveProduction(report, submit = false) {
   const now = new Date().toISOString();
   const previous = state.queue.find((op) => op.type === "production" && op.refId === report.id);
-  const payload = { report, submit, baseRevision: previous?.payload.baseRevision ?? report.revision ?? 0 };
+  const payload = { report: structuredClone(report), submit, baseRevision: previous?.payload.baseRevision ?? report.revision ?? 0 };
   const op = { opId: newId(), type: "production", refId: report.id, createdAt: now, attempts: 0, state: "queued", error: null, payload };
-  patch({ queue: [...state.queue.filter((q) => !(q.type === "production" && q.refId === report.id)), op] });
+  patch({ queue: [...state.queue.filter((q) => !(q.type === "production" && q.refId === report.id && q.state !== "sending")), op] });
   await persist();
   syncNow();
 }
@@ -132,35 +145,48 @@ let running = null;
 const listenersAccepted = new Set();
 export const onAccepted = (fn) => { listenersAccepted.add(fn); return () => listenersAccepted.delete(fn); };
 
-async function sendOp(op) {
+async function sendOp(op, epoch, account, token) {
+  const active = () => epoch === generation && uid === account;
+  const config = { headers: { Authorization: `Bearer ${token}` } };
   if (op.type === "attachment") {
-    const blob = await get(k("blob:" + op.refId));
+    const key = `u:${account}:blob:${op.refId}`;
+    const blob = await get(key);
+    if (!active()) return;
     if (!blob) throw Object.assign(new Error("Soubor p\u0159\u00edlohy u\u017e v telefonu nen\u00ed."), { permanent: true });
     const fd = new FormData();
     fd.append("file", blob, op.payload.name);
     fd.append("id", op.refId); fd.append("kind", op.payload.kind); fd.append("km", op.payload.km || ""); fd.append("record_id", op.payload.recordId || ""); fd.append("section", op.payload.section || "general");
-    await http.post("/attachments", fd, { timeout: 120000 });
-    await del(k("blob:" + op.refId));
+    await http.post("/attachments", fd, { ...config, timeout: 120000 });
+    await del(key);
     return;
   }
   if (op.type === "record") {
     const loc = state.records[op.refId];
     if (!loc) return;
-    const { data } = await http.put(`/records/${op.refId}`, { opId: op.opId, record: loc.record, ...op.payload });
+    const { data } = await http.put(`/records/${op.refId}`, { opId: op.opId, record: op.payload.record || loc.record, ...op.payload }, config);
+    if (!active()) return;
     const rec = data.record;
-    patch({ records: { ...state.records, [op.refId]: { ...loc, localState: rec.status === "confirmed" ? "confirmed" : "received", serverRevision: rec.revision, record: rec, error: null } } });
+    const latest = state.records[op.refId];
+    const newer = state.queue.some(q => q.type === "record" && q.refId === op.refId && q.opId !== op.opId);
+    patch({ records: { ...state.records, [op.refId]: newer ? { ...latest, serverRevision: rec.revision } : { ...loc, localState: rec.status === "confirmed" ? "confirmed" : "received", serverRevision: rec.revision, record: rec, error: null } },
+      queue: state.queue.map(q => q.type === "record" && q.refId === op.refId && q.opId !== op.opId ? { ...q, payload: { ...q.payload, baseRevision: rec.revision } } : q) });
     return;
   }
   if (op.type === "production") {
-    await http.put(`/production/${op.refId}`, { ...op.payload, opId: op.opId });
+    const { data } = await http.put(`/production/${op.refId}`, { ...op.payload, opId: op.opId }, config);
+    if (!active()) return;
+    patch({ queue: state.queue.map(q => q.type === "production" && q.refId === op.refId && q.opId !== op.opId
+      ? { ...q, payload: { ...q.payload, baseRevision: data.revision } } : q) });
     return;
   }
-  if (op.type === "event") { await http.post("/attendance/events", op.payload); return; }
-  if (op.type === "request") { await http.post("/attendance/requests", op.payload); return; }
+  if (op.type === "event") { await http.post("/attendance/events", op.payload, config); return; }
+  if (op.type === "request") { await http.post("/attendance/requests", op.payload, config); return; }
 }
 
 export function syncNow() {
   if (running) return running;
+  const epoch = generation, account = uid, token = getToken();
+  const active = () => epoch === generation && uid === account;
   running = (async () => {
     if (!uid) return;
     if (!getToken()) { patch({ needsLogin: true }); return; }
@@ -171,11 +197,17 @@ export function syncNow() {
       const op = state.queue.find((o) => o.opId === op0.opId);
       if (!op) continue;
       try {
-        await sendOp(op);
+        if (!active()) return;
+        patch({ queue: state.queue.map(q => q.opId === op.opId ? { ...q, state: "sending" } : q) });
+        await persist();
+        await sendOp(op, epoch, account, token);
+        if (!active()) return;
         accepted++;
         patch({ queue: state.queue.filter((o) => o.opId !== op.opId) });
         await persist();
       } catch (e) {
+        if (!active()) return;
+        patch({ queue: state.queue.map(q => q.opId === op.opId ? { ...q, state: "retry" } : q) });
         const st = e?.response?.status;
         const detail = e?.response?.data?.detail;
         if (!e.response && !e.permanent) {
@@ -208,13 +240,15 @@ export function syncNow() {
     }
     // Zelený indikátor jen po skutečné odpovědi serveru, nikoliv podle navigator.onLine.
     let verified = false;
+    if (!active()) return;
     if (navigator.onLine && !state.needsLogin) {
       try { await http.get("/auth/me", { timeout: 8000 }); verified = true; } catch { verified = false; }
     }
+    if (!active()) return;
     patch({ syncing: false, lastSync: new Date().toISOString(), lastVerifiedAt: verified ? new Date().toISOString() : null, lastError: verified && !state.queue.length ? null : state.lastError, online: verified });
 
     if (accepted) listenersAccepted.forEach((fn) => fn());
-  })().finally(() => { running = null; });
+  })().finally(() => { running = null; if (!active() && uid && state.ready) syncNow(); });
   return running;
 }
 

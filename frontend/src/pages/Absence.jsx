@@ -50,6 +50,10 @@ export default function Absence() {
   const mine = useCached("/leave?mine=1");
   const todo = useCached("/leave?status=to_decide", { enabled: mgr });
   const allQ = useCached("/leave", { enabled: atLeast(user, "manager") });
+  const [summaryFilter, setSummaryFilter] = useState({from: pragueDate(), to: pragueDate(new Date(Date.now() + 30 * 86400000)), status: "", type: "", employee: ""});
+  const summary = useCached(`/leave/overview?${new URLSearchParams({date_from: summaryFilter.from, date_to: summaryFilter.to, status: summaryFilter.status, type: summaryFilter.type, employee_id: summaryFilter.employee})}`, {enabled: atLeast(user, "manager")});
+  const filter = (key, value) => setSummaryFilter(f => ({...f, [key]: value}));
+
   const myEx = useCached("/exceptions?mine=1");
   const allEx = useCached("/exceptions", { enabled: atLeast(user, "manager") });
   const today = pragueDate();
@@ -59,7 +63,7 @@ export default function Absence() {
   const [note, setNote] = useState("");
   const [ex, setEx] = useState({ kind: "late_arrival", date: today, time_from: "09:00", time_to: "15:00", reason: "", share_with_team: false });
   const [exBusy, setExBusy] = useState(false);
-  const reload = () => { mine.reload(); todo.reload?.(); allQ.reload?.(); };
+  const reload = () => { mine.reload(); todo.reload?.(); allQ.reload?.(); summary.reload?.(); };
   const reloadEx = () => { myEx.reload(); allEx.reload?.(); };
   const t = LEAVE_TYPES.find((x) => x.value === f.type);
 
@@ -101,6 +105,20 @@ export default function Absence() {
         </section>
       )}
 
+      {atLeast(user, "manager") && <section className="space-y-3 rounded-xl border bg-white p-4" data-testid="absence-overview">
+        <h2 className="text-lg font-bold">Přehled nepřítomností zaměstnanců</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Období od"><Input type="date" value={summaryFilter.from} onChange={e => filter('from', e.target.value)} /></Field>
+          <Field label="Období do"><Input type="date" value={summaryFilter.to} onChange={e => filter('to', e.target.value)} /></Field>
+          <Field label="Zaměstnanec"><select className="h-12 w-full rounded border px-3" value={summaryFilter.employee} onChange={e => filter('employee', e.target.value)}><option value="">Všichni</option>{[...new Map((allQ.data || []).map(r => [r.user_id, r.user_name])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></Field>
+          <Field label="Stav"><select className="h-12 w-full rounded border px-3" value={summaryFilter.status} onChange={e => filter('status', e.target.value)}><option value="">Čekající a schválené</option><option value="approved">Schváleno</option><option value="pending_manager">Čeká na vedoucího</option><option value="pending_director">Čeká na jednatele</option><option value="rejected">Zamítnuto</option><option value="cancelled">Zrušeno</option></select></Field>
+          <Field label="Typ"><select className="h-12 w-full rounded border px-3" value={summaryFilter.type} onChange={e => filter('type', e.target.value)}><option value="">Všechny typy</option>{LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
+        </div>
+        {summary.loading && <p>Načítám přehled…</p>}
+        {summary.error && <p role="alert" className="text-red-700">Přehled nelze načíst. Zkontrolujte období a připojení.</p>}
+        {!summary.loading && !summary.error && !(summary.data || []).length && <p>Pro zvolený filtr nejsou žádné nepřítomnosti.</p>}
+        {(summary.data || []).map(a => <article key={a.id} className="rounded-lg border p-3 text-sm"><b>{a.user_name}</b> · {a.type_label}<br />{a.date_from} – {a.date_to} · <b>{a.status_label}</b>{a.half_day ? ' · půlden' : ''}</article>)}
+      </section>}
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="leave-form">
         <h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><CalendarPlus className="h-5 w-5" />Nová žádost</h2>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

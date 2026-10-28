@@ -30,7 +30,7 @@ COMPANY_NAME = os.environ.get("COMPANY_NAME", "DEMSTAV GROUP")
 ROLE_RANK = {"employee": 1, "manager": 2, "admin": 3, "operations_manager": 4, "owner": 4}
 ROLE_LABELS = {"employee": "Strojník", "manager": "Vedoucí výroby", "operations_manager": "Vedoucí provozu", "admin": "Admin", "owner": "Jednatel"}
 # Pracovní zařazení zaměstnanců (role "employee" – vidí jen svá data).
-POSITIONS = {"strojnik": "Strojník", "mechanik": "Mechanik", "ridic": "Řidič", "strojnik_phm": "Strojník pohonných hmot"}
+POSITIONS = {"strojnik": "Strojník", "mechanik": "Mechanik", "strojnik_mechanik": "Strojník / mechanik", "externi_servis": "Externí servis", "ridic": "Řidič", "strojnik_phm": "Strojník pohonných hmot"}
 USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,29}$")
 
 

@@ -30,10 +30,12 @@ export default function Exports() {
   const [drafts, setDrafts] = useState(true);
   const [duplex, setDuplex] = useState(true);
   const [busy, setBusy] = useState("");
+  const [recipient, setRecipient] = useState("");
   const users = useCached("/users", { enabled: mgr });
   const machines = useCached("/machines");
   const wps = useCached("/workplaces");
   const weekly = useCached("/exports/weekly", { enabled: mgr });
+  const schedule = useCached("/exports/weekly/schedule", {enabled: mgr});
   const base = () => new URLSearchParams({ date_from: from, date_to: to, ...(mgr && emp !== ALL ? { employee_id: emp } : {}) });
 
   const run = async (key, path, name) => {
@@ -58,8 +60,20 @@ export default function Exports() {
   };
   const genWeek = async () => {
     setBusy("gen");
-    try { await http.post("/exports/weekly/generate", {}, { timeout: 120000 }); toast.success("Týdenní export připraven"); weekly.reload(); } catch (e) { toast.error(errText(e)); } finally { setBusy(""); }
+    try { await http.post("/exports/weekly/generate", {week: from}, { timeout: 120000 }); toast.success("Týdenní export připraven"); weekly.reload(); } catch (e) { toast.error(errText(e)); } finally { setBusy(""); }
   };
+  const handover = async (w, action) => {
+    const note = action === "return" ? window.prompt("Důvod vrácení k opravě:") : "";
+    if (action === "return" && !note?.trim()) return;
+    setBusy("handover");
+    try {
+      await http.post(`/exports/weekly/${w.week}/handover`, {export_id: w.export_id, action, note, recipients: recipient ? [recipient] : []});
+      toast.success(action === "submit" ? "Předáno v aplikaci. Push sám o sobě nepotvrzuje doručení." : action === "accept" ? "Převzetí zaznamenáno" : "Vráceno k opravě");
+      weekly.reload();
+    } catch (e) { toast.error(errText(e)); } finally { setBusy(""); }
+  };
+  const statusLabel = {draft: "Návrh", submitted: "Předáno v aplikaci", accepted: "Převzato", returned: "Vráceno k opravě", legacy: "Původní archiv bez převzetí"};
+  const problemLabel = {draft: "Nepotvrzený koncept", mth: "Neúplné nebo rozporné MTH", invalid_intervals: "Neplatné časové úseky", personal_journey_unknown: "Neověřená osobní doba jízdy", overlap: "Překryv času", attendance_pending: "Docházka čeká na schválení", attendance_without_record: "Docházka bez denního zápisu", attachment_unavailable: "Nedostupná příloha", attachments_missing: "Chybějící příloha", sources_changed_during_generation: "Podklady se změnily během přípravy"};
   const Btn = ({ k, onClick, children, testid, primary }) => (
     <Button className={primary ? "btn-primary h-14 font-semibold" : "h-14 border-2 border-slate-900 font-semibold"} variant={primary ? "default" : "outline"} disabled={!!busy || !s.online} onClick={onClick} data-testid={testid}>
       {busy === k ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileDown className="mr-2 h-5 w-5" />}{children}
@@ -114,14 +128,22 @@ export default function Exports() {
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="weekly-exports">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><CalendarClock className="h-5 w-5" />Automatické týdenní exporty</h2>
-            <Button variant="outline" className="h-11" disabled={!!busy || !s.online} onClick={genWeek} data-testid="weekly-generate-button">{busy === "gen" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}Připravit minulý týden teď</Button>
+            <Button variant="outline" className="h-11" disabled={!!busy || !s.online} onClick={genWeek} data-testid="weekly-generate-button">{busy === "gen" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}Připravit zvolený týden</Button>
           </div>
-          <p className="text-xs text-slate-600">Každé pondělí v 5:00 se samo připraví: šichtovnice všech zaměstnanců za minulý týden (PDF oboustranně, XLSX, CSV).</p>
+          <p className="text-xs text-slate-600">Vytvoří se návrh za pondělí–neděli podle data Od. Automatický plánovač ani doručení nejsou tímto potvrzené. Oprava vytvoří novou verzi; původní soubory zůstanou dostupné.</p>
+          <div className="rounded-lg border p-3 text-sm"><b>Plán automatické přípravy: {schedule.data?.configured ? 'nastaven' : 'nenastaven'}</b><p>Časová zóna: Europe/Prague{schedule.data?.last_poll ? ` · poslední kontrola ${dateTime(schedule.data.last_poll)}` : ''}</p>
+            {(schedule.data?.jobs || []).map(j => <p key={j.slot}>{dmy(j.week)} · {{done: 'Příprava dokončena', blocked: 'Vyžaduje opravu podkladů', failed: 'Příprava se nezdařila', running: 'Připravuje se', queued: 'Čeká na přípravu'}[j.status] || 'Ke kontrole'}</p>)}
+          </div>
+          <Field label="Příjemce předání"><select className="h-12 w-full rounded border px-3" value={recipient} onChange={e => setRecipient(e.target.value)}><option value="">Vyberte jiného vedoucího nebo jednatele</option>{(users.data || []).filter(u => u.id !== user.id && u.active !== false && ['manager', 'operations_manager', 'owner'].includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
           {(weekly.data || []).length === 0 && <p className="text-sm text-slate-600">Zatím žádný připravený týden.</p>}
           {(weekly.data || []).map((w) => (
-            <div key={w.week} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 p-3" data-testid="weekly-export-item">
-              <div className="min-w-0 flex-1"><div className="font-semibold">Týden {dmy(w.week)} – {dmy(w.week_end)}</div><div className="text-xs text-slate-600">{w.records} zápisů · {w.employees} zaměstnanců · připraveno {dateTime(w.generated_at)} ({w.generated_by})</div></div>
-              {["pdf", "xlsx", "csv"].map((f) => <Button key={f} variant="outline" className="h-10" disabled={!!busy} onClick={() => run(`w-${w.week}-${f}`, `/exports/weekly/${w.week}/${f}`, `DEMSTAV_sichtovnice_tyden_${w.week}.${f}`)} data-testid={`weekly-download-${f}`}><FileDown className="mr-1 h-4 w-4" />{f.toUpperCase()}</Button>)}
+            <div key={w.export_id || w.week} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 p-3" data-testid="weekly-export-item">
+              <div className="min-w-0 flex-1"><div className="font-semibold">Týden {dmy(w.week)} – {dmy(w.week_end)}</div><div className="text-xs text-slate-600">verze {w.version ?? 0} · {statusLabel[w.status] || statusLabel.legacy} · {w.records} zápisů · {w.employees} zaměstnanců · připraveno {dateTime(w.generated_at)} ({w.generated_by})</div></div>
+              {(w.validation?.blockers || []).length > 0 && <div className="w-full rounded border border-amber-300 bg-amber-50 p-3 text-sm"><b>Nejdříve opravit:</b><ul>{w.validation.blockers.map((p, i) => <li key={i}>{problemLabel[p.code] || "Podklad vyžaduje kontrolu"}{p.date ? ` · ${dmy(p.date)}` : ''}{p.employee ? ` · ${p.employee}` : ''}</li>)}</ul></div>}
+              {w.status === 'draft' && <Button className="h-12" disabled={!!busy || !recipient || !!w.validation?.blockers?.length} onClick={() => handover(w, 'submit')}>Předat příjemci</Button>}
+              {w.status === 'submitted' && (w.recipients || []).includes(user.id) && w.submitted_by !== user.id && <><Button className="h-12" disabled={!!busy} onClick={() => handover(w, 'accept')}>Převzít tuto verzi</Button><Button variant="outline" className="h-12" disabled={!!busy} onClick={() => handover(w, 'return')}>Vrátit k opravě</Button></>}
+              {(w.history || []).map((h, i) => <p key={i} className="w-full text-xs">{dateTime(h.at)} · {h.by_name} · {h.action === 'submit' ? 'Předáno' : h.action === 'accept' ? 'Převzato' : 'Vráceno'}{h.note ? ` · ${h.note}` : ''}</p>)}
+              {["pdf", "xlsx", "csv"].map((f) => <Button key={f} variant="outline" className="h-10" disabled={!!busy} onClick={() => run(`w-${w.week}-${f}`, `/exports/weekly/${w.week}/${f}${w.export_id ? `?version=${encodeURIComponent(w.export_id)}` : ""}`, `DEMSTAV_sichtovnice_tyden_${w.week}.${f}`)} data-testid={`weekly-download-${f}`}><FileDown className="mr-1 h-4 w-4" />{f.toUpperCase()}</Button>)}
             </div>
           ))}
         </section>

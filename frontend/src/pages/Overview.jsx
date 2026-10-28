@@ -31,6 +31,13 @@ export default function Overview() {
         actions={<Input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="h-11 w-44" data-testid="overview-date-input" />} />
       {o.fromCache && <p className="text-xs font-medium text-amber-800">Offline – poslední stažený stav.</p>}
       {!d ? <p className="text-slate-600">Načítám…</p> : (<>
+        <section className="rounded-xl border bg-white p-4" data-testid="manager-absences">
+          <h2 className="mb-3 text-lg font-bold">Nepřítomnosti · dnes a příštích 7 dní</h2>
+          {!(d.absences || []).length && <p className="text-sm text-slate-600">Žádná schválená ani čekající nepřítomnost.</p>}
+          <div className="grid gap-2 sm:grid-cols-2">{(d.absences || []).map(a => <Link key={a.id} to="/nepritomnost" className="min-h-14 rounded-lg border p-3 text-sm">
+            <b>{a.user_name}</b> · {a.type_label}<br />{dmy(a.date_from)} – {dmy(a.date_to)} · <b>{a.status_label}</b>{a.half_day ? ' · půlden' : ''}
+          </Link>)}</div>
+        </section>
         {(d.service_alerts || []).length > 0 && <ServiceAlerts alerts={d.service_alerts} />}
         {d.pending_leave > 0 && <Link to="/nepritomnost" className="flex items-center justify-between rounded-xl border-2 border-[#E6BD00] bg-amber-50 p-4 font-semibold text-amber-950 hover:bg-amber-100" data-testid="manager-pending-leave">Žádosti o dovolenou / nepřítomnost ke schválení: {d.pending_leave}<span className="underline">Otevřít →</span></Link>}
         {(d.upcoming_exceptions || []).length > 0 && (

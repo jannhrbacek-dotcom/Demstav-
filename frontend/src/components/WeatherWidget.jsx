@@ -52,12 +52,12 @@ function labelFor(dateStr, idx) {
   return DAY_SHORT[d.getDay()] + " " + d.getDate() + "." + (d.getMonth() + 1) + ".";
 }
 
-function readCache(key) {
+export function readForecastCache(key) {
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    return data?.payload || null;
+    return data?.payload && Number.isFinite(data.at) ? data : null;
   } catch (_) { return null; }
 }
 function writeCache(key, payload) { try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ at: Date.now(), payload })); } catch (_) { /* ignore */ } }
@@ -124,6 +124,8 @@ export function WeatherWidget({ workplaces = [], preferredWorkplaceId = "" }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [loadedAt, setLoadedAt] = useState(null);
+  const [stale, setStale] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [selectedDay, setSelectedDay] = useState(0);
 
@@ -154,14 +156,21 @@ export function WeatherWidget({ workplaces = [], preferredWorkplaceId = "" }) {
   useEffect(() => {
     if (!location) return;
     const key = `${location.lat.toFixed(3)}:${location.lon.toFixed(3)}`;
-    const cached = readCache(key);
-    if (cached) setData(cached);
+    let active = true;
+    const cached = readForecastCache(key);
+    setData(cached?.payload || null); setLoadedAt(cached?.at || null);
+    setStale(!!cached && Date.now() - cached.at > TTL_MS);
     setLoading(true); setError("");
     fetchForecast(location.lat, location.lon)
-      .then((payload) => { setData(payload); writeCache(key, payload); })
-      .catch((e) => { if (!cached) setError(e.message || "Chyba načítání počasí."); })
-      .finally(() => setLoading(false));
+      .then((payload) => { if (!active) return; setData(payload); writeCache(key, payload); setLoadedAt(Date.now()); setStale(false); })
+      .catch((e) => { if (active) setError(e.message || "Chyba načítání počasí."); })
+      .finally(() => {if (active) setLoading(false);});
+    return () => {active = false;};
   }, [location]);
+  useEffect(() => {
+    const timer = setInterval(() => setStale(!!loadedAt && Date.now() - loadedAt > TTL_MS), 60000);
+    return () => clearInterval(timer);
+  }, [loadedAt]);
 
   const days = useMemo(() => data?.daily?.time || [], [data]);
   const hours = useMemo(() => hourlyForDay(data, days[selectedDay]), [data, days, selectedDay]);
@@ -195,7 +204,8 @@ export function WeatherWidget({ workplaces = [], preferredWorkplaceId = "" }) {
         )}
       </div>
       {loading && !data && <div className="mt-1 flex items-center gap-2 text-xs text-slate-600"><Loader2 className="h-3 w-3 animate-spin" />Načítám…</div>}
-      {error && !data && <div className="mt-1 rounded border border-rose-200 bg-rose-50 p-1 text-[11px] text-rose-900">{error}</div>}
+      {error && <div role="alert" className="mt-1 rounded border border-rose-200 bg-rose-50 p-1 text-xs text-rose-900">{error}{data ? ' Zobrazuji uloženou předpověď.' : ''}</div>}
+      {loadedAt && <p className="mt-1 text-xs text-slate-600">Načteno {new Date(loadedAt).toLocaleString('cs-CZ', {timeZone: 'Europe/Prague'})}{stale ? ' · starší předpověď, aktualizace je potřeba' : ''}</p>}
       {data && <button type="button" onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded} aria-controls="weather-details" data-testid="weather-expand"
         className="mt-1 flex min-h-11 w-full items-center justify-between gap-2 rounded-lg bg-sky-50 px-3 text-left">

@@ -129,8 +129,10 @@ async def team_calendar(date_from: str, date_to: str, user: dict = Depends(get_r
         raise HTTPException(status_code=400, detail="Kalendář zobrazí nejvýše 46 dní.")
     q = {"date": {"$gte": date_from, "$lte": date_to}}
     exceptions = await db.planned_exceptions.find(q, {"_id": 0}).to_list(2000)
+    leave_scope = {'status': {'$in': ['approved', 'pending_manager', 'pending_director']}} if is_manager(user) else {
+        '$or': [{'status': 'approved'}, {'user_id': user['id'], 'status': {'$in': ['pending_manager', 'pending_director']}}]}
     leaves = await db.leave_requests.find(
-        {"status": "approved", "date_from": {"$lte": date_to}, "date_to": {"$gte": date_from}},
+        {**leave_scope, "date_from": {"$lte": date_to}, "date_to": {"$gte": date_from}},
         {"_id": 0}
     ).to_list(2000)
     result = []
@@ -155,6 +157,7 @@ async def team_calendar(date_from: str, date_to: str, user: dict = Depends(get_r
             "title": title, "time_from": r.get("time_from", "") if r.get("type") == "doctor" else "",
             "time_to": r.get("time_to", "") if r.get("type") == "doctor" else "",
             "note": r.get("note", "") if r["user_id"] == user["id"] else "",
+            "status": r['status'], "status_label": {'approved': 'Schváleno', 'pending_manager': 'Čeká na vedoucího', 'pending_director': 'Čeká na jednatele'}.get(r['status'], r['status']),
             "kind": (r.get("type") if r["user_id"] == user["id"] or r.get("type") not in ("doctor", "sick") else "absence"), "type": "leave",
         })
     return sorted(result, key=lambda r: (r["date_from"], r["user_name"]))

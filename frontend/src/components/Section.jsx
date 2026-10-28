@@ -1,15 +1,16 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 
 export function Section({ title, subtitle, children, defaultOpen = true, testid, badge }) {
   const [open, setOpen] = useState(defaultOpen);
+  const contentId = useId();
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm" data-testid={testid}>
-      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left" data-testid={testid ? `${testid}-toggle` : undefined}>
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={contentId} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left" data-testid={testid ? `${testid}-toggle` : undefined}>
         <div><div className="font-heading text-base font-semibold text-slate-900">{title}</div>{subtitle && <div className="text-xs text-slate-600">{subtitle}</div>}</div>
         <div className="flex items-center gap-2">{badge}<ChevronDown className={`h-5 w-5 text-slate-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`} /></div>
       </button>
-      {open && <div className="space-y-4 border-t border-slate-100 px-4 pb-5 pt-4">{children}</div>}
+      <div id={contentId} hidden={!open} className="space-y-4 border-t border-slate-100 px-4 pb-5 pt-4">{open && children}</div>
     </section>
   );
 }

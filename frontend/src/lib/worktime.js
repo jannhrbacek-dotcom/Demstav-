@@ -15,11 +15,11 @@ function merge(vals) {
   return res;
 }
 const len = (vals) => vals.reduce((s, [a, b]) => s + b - a, 0);
-function workSpans(intervals) {
+function workSpans(intervals, dayAnchor = null) {
   const vals = (intervals || []).map(raw).filter(Boolean);
   const ov = vals.filter(([a, b]) => a > 0 && b >= 1440).map(([a]) => a);
-  const anchor = ov.length ? Math.min(...ov) : 0;
-  return merge(vals.map(([a, b]) => (ov.length && b <= anchor ? [a + 1440, b + 1440] : [a, b])));
+  const anchor = dayAnchor ?? (ov.length ? Math.min(...ov) : null);
+  return merge(vals.map(([a, b]) => (anchor != null && b <= anchor ? [a + 1440, b + 1440] : [a, b])));
 }
 function serviceSpans(intervals, work) {
   const res = [];
@@ -48,9 +48,9 @@ const inter = (a, b) => merge(a.flatMap(([s, e]) => b.flatMap(([c, d]) => (Math.
 const clock = (v) => { const t = ((v % 1440) + 1440) % 1440; return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
 const asIv = (sp) => sp.map(([a, b]) => ({ start: clock(a), end: clock(b) }));
 
-export function timeBreakdown(r) {
+export function timeBreakdown(r, dayAnchor = null) {
   const shift = (r.workTimeMode || "shift") === "shift";
-  const gross = workSpans(r.billing);
+  const gross = workSpans(r.billing, dayAnchor);
   const cuts = (r.date || "") >= "2026-10-27" ? serviceSpans(r.approvedBreaks ?? FIXED_BREAKS, gross) : [];
   const breaks = inter(cuts, gross), whole = subtract(gross, breaks), service = serviceSpans(r.service, whole);
   const total = shift ? whole : merge([...whole, ...service]);
@@ -72,3 +72,21 @@ export function timeBreakdown(r) {
 
 export const fmtH = (h) => (Math.round((h || 0) * 100) / 100).toString().replace(".", ",");
 export const fmtHM = (h) => { const mins = Math.round((h || 0) * 60); return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")}`; };
+
+export function dayUnion(records) {
+  const overnight = records.flatMap(r => (r.billing || []).map(raw).filter(s => s && s[0] > 0 && s[1] >= 1440).map(s => s[0]));
+  const anchor = overnight.length ? Math.min(...overnight) : null;
+  const groups = { total: [], service: [], downtime: [], travel: [] };
+  let rawMinutes = 0;
+  for (const r of records) {
+    const b = timeBreakdown(r, anchor);
+    for (const name of Object.keys(groups)) groups[name].push(...serviceSpans(b[`${name}Intervals`], workSpans(r.billing, anchor)));
+    rawMinutes += b.totalHours * 60;
+  }
+  const total = merge(groups.total), service = merge(groups.service);
+  const downtime = subtract(merge(groups.downtime), service);
+  const travel = subtract(merge(groups.travel), merge([...service, ...downtime]));
+  return {totalHours: len(total) / 60, serviceHours: len(service) / 60, downtimeHours: len(downtime) / 60,
+    travelHours: len(travel) / 60, workHours: len(subtract(total, merge([...service, ...downtime, ...travel]))) / 60,
+    overlapHours: (rawMinutes - len(total)) / 60};
+}

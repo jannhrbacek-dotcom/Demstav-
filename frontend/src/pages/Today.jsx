@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, CloudUpload, ClipboardList, Clock3, FileDown, CalendarDays, BarChart3 } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { useAuth, atLeast } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
 import { AttendanceActions, useShiftState } from "@/components/AttendanceActions";
@@ -10,7 +10,7 @@ import { ServiceAlerts } from "@/components/ServiceAlerts";
 import { WeatherWidget } from "@/components/WeatherWidget";
 import { pragueDate, STATE_LABELS, timeOf, KIND_LABELS } from "@/lib/format";
 import { pracovniPozdrav } from "@/lib/greeting";
-import { timeBreakdown, fmtHM, fmtH } from "@/lib/worktime";
+import { timeBreakdown, dayUnion, fmtHM, fmtH } from "@/lib/worktime";
 
 const STATE_CLS = { away: "bg-slate-200 text-slate-900", working: "bg-emerald-600 text-white", break: "bg-amber-400 text-slate-900" };
 
@@ -34,11 +34,14 @@ export default function Today() {
   const s = useSync();
   const att = useCached("/attendance/me?days=2");
   const wps = useCached("/workplaces");
+  const productionSettings = useCached("/production/settings");
+  const productionAssigned = atLeast(user, "manager") || (productionSettings.data?.responsible_ids || []).includes(user.id);
   const recs = useCached("/records?mine=1&limit=60");
   const today = pragueDate();
   const { state, pending } = useShiftState(att.data?.projection?.state);
   const todays = useMemo(() => mergedRecords(recs.data, s.records).filter((x) => x.record.date === today), [recs.data, s.records, today]);
-  const ts = todays.reduce((acc, x) => { const b = timeBreakdown(x.record); return { t: acc.t + b.totalHours, s: acc.s + b.serviceHours }; }, { t: 0, s: 0 });
+  const dailyTotal = dayUnion(todays.map(x => x.record));
+  const ts = { t: dailyTotal.totalHours, s: dailyTotal.serviceHours };
   const net = att.data?.today_projection?.netHours || 0;
   const lastEvents = (att.data?.events || []).filter((e) => (e.effective_at || "").startsWith(today) || pragueDate(new Date(e.effective_at)) === today).slice(0, 6);
   // Pracoviště, kde zaměstnanec aktuálně je, dostává přednost při vykreslení počasí.
@@ -69,15 +72,15 @@ export default function Today() {
       <Link to="/zapis/novy" className="flex min-h-[86px] items-center gap-4 rounded-xl border-2 border-[#E6BD00] bg-[#FFD200] px-5 text-slate-900 shadow-sm hover:bg-[#FFC400]" data-testid="today-new-record-button">
         <Plus className="h-9 w-9 shrink-0" /><div><div className="font-heading text-xl font-bold">Nový denní zápis</div><p className="text-sm">Stroj · práce · motohodiny · šichtovnice</p></div>
       </Link>
-      <section className="rounded-xl border border-slate-200 bg-slate-50 p-3" data-testid="today-shared-report">
-        <p className="text-sm font-semibold">Vedete dnes společný výkaz práce a tonáže?</p>
+      {productionAssigned && <section className="rounded-xl border border-slate-200 bg-slate-50 p-3" data-testid="today-shared-report">
+        <p className="text-sm font-semibold">Po směně: společný výkaz práce a tonáže</p>
         <p className="text-xs text-slate-600">Jen pověřený zaměstnanec vyplňuje společný výkaz a vážní lístky.</p>
         <div className="mt-2 flex gap-2">
           <Link to="/vykazy-vazeni" onClick={() => { localStorage.setItem(`demstav:shared:${user?.id}:${today}`, "yes"); setSharedAnswer("yes"); }}
             className={`flex min-h-11 flex-1 items-center justify-center rounded-lg border-2 text-sm font-bold ${sharedAnswer === "yes" ? "border-emerald-600 bg-emerald-100" : "border-slate-300 bg-white"}`} data-testid="shared-report-yes">ANO · otevřít výkaz</Link>
           <button type="button" onClick={markNo} className={`min-h-11 flex-1 rounded-lg border-2 text-sm font-bold ${sharedAnswer === "no" ? "border-slate-600 bg-slate-200" : "border-slate-300 bg-white"}`} data-testid="shared-report-no">NE</button>
         </div>
-      </section>
+      </section>}
       <ServiceAlerts />
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-heading text-lg font-bold">Dnešní zápisy</h2><span className="text-sm text-slate-600">{fmtH(ts.t)} h · servis {fmtH(ts.s)} h</span></div>
