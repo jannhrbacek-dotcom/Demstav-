@@ -222,6 +222,10 @@ async def startup():
     await db.push_subscriptions.create_index([("user_id", 1)])
     await db.weekly_exports.create_index("week", unique=True)
     await db.production_reports.create_index("id", unique=True)
+    # Only newly saved reports have these fields. Existing reports are not migrated.
+    await db.production_reports.create_index("shift_key", unique=True, sparse=True)
+    await db.production_reports.create_index("tickets.sha256", unique=True, sparse=True)
+    await db.production_reports.create_index("tickets.dedupe_key", unique=True, sparse=True)
     await db.production_reports.create_index([("owner_id", 1), ("date", -1)])
     await db.production_settings.create_index("id", unique=True)
     await db.records.create_index("id", unique=True)

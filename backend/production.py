@@ -1,6 +1,7 @@
 """Shared crew output, deliberately separate from employees' working hours."""
 import re
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
 from fastapi import HTTPException
 
@@ -39,7 +40,8 @@ def clean_report(raw, submitted=False):
             return float(n.quantize(Decimal('.01')))
         except (InvalidOperation, ValueError):
             raise HTTPException(400, 'Hmotnost musí být nezáporné číslo v tunách.')
-    result['tonnes'] = tonnes(raw.get('tonnes'))
+    result['shift'] = txt('shift', 100) or 'Denní'
+    result['shift_closed'] = raw.get('shift_closed') is True
     tickets = raw.get('tickets') or []
     if not isinstance(tickets, list) or len(tickets) > 50:
         raise HTTPException(400, 'Nejvýše 50 vážních lístků.')
@@ -57,17 +59,21 @@ def clean_report(raw, submitted=False):
     known = [Decimal(str(t['tonnes'])) for t in result['tickets'] if t['tonnes'] is not None]
     result['ticket_total'] = float(sum(known)) if known else None
     complete = bool(tickets) and len(known) == len(tickets)
+    result['tonnes'] = result['ticket_total'] if complete else None
     result['tonnage_warning'] = ''
     if not complete:
         result['tonnage_warning'] = 'Součet lístků není úplný. Zkontrolujte fotografie a doplňte celkové hmotnosti lístků.'
-    elif result['tonnes'] is not None and abs(Decimal(str(result['tonnes'])) - sum(known)) > Decimal('.01'):
-        result['tonnage_warning'] = 'Tonáž výkazu se liší od součtu lístků. Uveďte vysvětlení v poznámce.'
     if submitted:
+        if not result['shift_closed']:
+            raise HTTPException(422, 'Výkaz se odevzdává až po skončení směny a sesbírání všech lístků.')
         if not all(result[k] for k in ('customer', 'site', 'crew', 'machines', 'work', 'start', 'end')) or result['tonnes'] is None:
             raise HTTPException(422, 'Doplňte odběratele, pracoviště, posádku, stroje, práci, čas a tonáž.')
         if not tickets:
             raise HTTPException(422, 'K odevzdání přiložte alespoň jeden vážní lístek.')
-        if result['tonnage_warning'] and not result['note']:
-            raise HTTPException(422, 'Vysvětlete neúplný nebo rozdílný součet v poznámce.')
+        if not complete:
+            raise HTTPException(422, 'Doplňte hmotnost každého lístku. Neúplný součet lze uložit pouze jako koncept.')
+        end = datetime.fromisoformat(result['date'] + 'T' + result['end']).replace(tzinfo=ZoneInfo('Europe/Prague'))
+        if end > datetime.now(ZoneInfo('Europe/Prague')):
+            raise HTTPException(422, 'Směna podle uvedeného konce ještě neskončila.')
     result['status'] = 'submitted' if submitted else 'draft'
     return result

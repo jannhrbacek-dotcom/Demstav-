@@ -28,6 +28,7 @@ async def test_report_photo_pdf_and_access(monkeypatch, tmp_path):
     async def audit(*args): pass
     monkeypatch.setattr(routes_production, 'audit', audit)
     current = {'id': 'marcel-user', 'name': 'Marcel Schmidt', 'role': 'employee'}
+    await database.production_settings.insert_one({'id': 'main', 'responsible_ids': ['marcel-user']})
     app = FastAPI()
     app.include_router(routes_records.router, prefix='/api')
     app.include_router(routes_production.router, prefix='/api')
@@ -38,7 +39,7 @@ async def test_report_photo_pdf_and_access(monkeypatch, tmp_path):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='https://test') as client:
         uploaded = await client.post('/api/attachments', data={'id': 'photo-123456', 'record_id': 'report-12345'}, files={'file': ('listek.jpg', photo.getvalue(), 'image/jpeg')})
         assert uploaded.status_code == 200
-        report = dict(date='2026-10-26', customer='JEKAER a.s.', site='Struskárna', crew='Schmidt, Hynčicová', machines='L566/3', work='Třídění strusky', start='16:30', end='18:00', tonnes='31,35', tickets=[dict(attachment_id='photo-123456', number='206', fraction='25-35', tonnes='31,35')])
+        report = dict(date='2026-10-26', customer='JEKAER a.s.', site='Struskárna', crew='Schmidt, Hynčicová', machines='L566/3', work='Třídění strusky', start='16:30', end='18:00', shift_closed=True, tonnes='31,35', tickets=[dict(attachment_id='photo-123456', number='206', fraction='25-35', tonnes='31,35')])
         body = dict(opId='save-12345', baseRevision=0, submit=True, report=report)
         saved = await client.put('/api/production/report-12345', json=body)
         assert saved.status_code == 200, saved.text
@@ -59,6 +60,6 @@ async def test_report_photo_pdf_and_access(monkeypatch, tmp_path):
         assert (await client.get('/api/production/report-12345/pdf')).status_code == 200
         # A ticket from a different report cannot be attached to another report.
         current = {'id': 'marcel-user', 'name': 'Marcel Schmidt', 'role': 'employee'}
-        foreign = await client.put('/api/production/report-other', json={**body, 'opId': 'save-other'})
+        foreign = await client.put('/api/production/report-other', json={**body, 'opId': 'save-other', 'report': {**report, 'site': 'Another test site'}})
         assert foreign.status_code == 422
         assert foreign.json()['detail']['code'] == 'attachments_missing'
