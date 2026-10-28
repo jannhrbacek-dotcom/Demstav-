@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, ClipboardList, OctagonAlert } from "lucide-react";
+import { MachineFilter } from "@/components/MachineFilter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,6 +21,8 @@ export default function Records({ all = false }) {
   const [machine, setMachine] = useState("");
   const qs = new URLSearchParams({ limit: "500", ...(all ? {} : { mine: "1" }), ...(from ? { date_from: from } : {}), ...(to ? { date_to: to } : {}), ...(all && emp !== "all" ? { employee_id: emp } : {}), ...(status !== "all" ? { status } : {}) }).toString();
   const recs = useCached(`/records?${qs}`);
+  const machines = useCached("/machines");
+  const machineOptions = useMemo(() => [...new Set([...(machines.data || []).map((m) => m.label), ...(recs.data || []).map((r) => r.machine), ...(!all ? Object.values(s.records).map((entry) => entry.record?.machine) : [])].filter(Boolean))].sort((a, b) => a.localeCompare(b, "cs")), [machines.data, recs.data, s.records, all]);
   const users = useCached("/users", { enabled: all });
   const list = useMemo(() => {
     const m = all ? (recs.data || []).map((r) => ({ record: r, state: r.status === "confirmed" ? "confirmed" : "draft" })) : mergedRecords(recs.data, s.records);
@@ -33,7 +36,7 @@ export default function Records({ all = false }) {
       <div className="mb-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-5" data-testid="records-filters">
         <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11" aria-label="Od" data-testid="records-filter-from" />
         <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-11" aria-label="Do" data-testid="records-filter-to" />
-        <Input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="Stroj…" className="h-11" data-testid="records-filter-machine" />
+        <MachineFilter value={machine} onChange={setMachine} options={machineOptions} />
         <Select value={status} onValueChange={setStatus}><SelectTrigger className="h-11" data-testid="records-filter-status"><SelectValue /></SelectTrigger>
           <SelectContent><SelectItem value="all">Všechny stavy</SelectItem><SelectItem value="draft">Koncepty</SelectItem><SelectItem value="confirmed">Potvrzené</SelectItem></SelectContent></Select>
         {all && <Select value={emp} onValueChange={setEmp}><SelectTrigger className="h-11" data-testid="records-filter-employee"><SelectValue /></SelectTrigger>
