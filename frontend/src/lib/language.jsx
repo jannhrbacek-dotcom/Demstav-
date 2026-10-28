@@ -101,7 +101,6 @@ const uk = {
   "Upravit stroj": "Редагувати машину",
   "Přidat stroj": "Додати машину",
   "Stroj uložen": "Машину збережено",
-  "Datum, stroj a pracoviště": "Дата, машина і робоче місце",
   "Pracovní čas": "Робочий час",
   "Provedená práce": "Виконана робота",
   "Motohodiny (MTH)": "Мотогодини (MTH)",
@@ -265,7 +264,6 @@ const uk = {
   "OCR může chybovat zejména u rukopisu, MTH a časů. Před použitím vše zkontrolujte.": "OCR може помилятися, особливо в рукописі, MTH та часі. Перевірте всі дані перед використанням.",
   "Začátek směny": "Початок зміни",
   "Konec směny": "Кінець зміни",
-  "Pracoviště": "Робоче місце",
 
 
 };
