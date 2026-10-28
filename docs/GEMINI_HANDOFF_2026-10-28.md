@@ -80,3 +80,16 @@ Oficiální odkazy:
 ## 7. Jak poznat skutečně hotový úkol
 
 Hotovo = ověřená změna v souborech na správné větvi + automatické testy + ověření podkladů z reálného provozu bez osobních dat + PR review + bezpečné nasazení Render/Vercel + kontrola produkčního chování + stručný záznam do issue. Pouhé založení issue, textový prompt nebo vytvoření větve hotovou funkci **neznamená**.
+
+
+## 8. Nové potvrzené provozní pravidlo: „Jízda“, spolujezdec a čipování (28. 10. 2026)
+
+**Autoritativní vysvětlení přímo z provozu:** Kolonka `Jízda *` v týdenní šichtovnici znamená **celkovou dobu jízdy daného zaměstnance za směnu**. Evidovat dobu v hodinách a minutách (např. `0:45`), nikoli kilometry či MTH. Čas jízdy je součástí vykázané pracovní doby tam, kde se jako pracovní doba započítává; nikdy ho nesčítat podruhé.
+
+**Spolujezdec:** Každý zaměstnanec vyplňuje **vlastní šichtovnici**. Také spolujezdec zapisuje do kolonky `Jízda *` **vlastní dobu jízdy**, přestože neřídil. Současná cesta řidiče a spolujezdce se objeví v obou osobních výkazech, což není duplicitní záznam práce za jednoho člověka. Zachovat také SPZ všech vozidel na cestu na pracoviště a z pracoviště.
+
+**Doslovné pravidlo z dodaného firemního PDF:** „NEZAPOMEŇTE SE VE VOZIDLE ČIPOVAT COBY SPOLUJEZDCI!“ Tiskopis dále říká, že pokud chybí požadované SPZ a zaměstnanec se zapomene čipovat jako řidič či spolujezdec, nelze proplatit stravné. To je důležité firemní upozornění, nikoli oprávnění systému samostatně rozhodovat o mzdových nárocích.
+
+**Implementační zadání:** Při jízdech mít volbu řidič/spolujezdec, osobní délku jízdy a SPZ. Před odevzdáním připomenout povinnost načipování i spolujezdci. Nepovažovat zadání šichtovnice, GPS ani kliknutí v aplikaci za důkaz čipnutí v palubním systému. Integraci s čipovou evidencí nejdříve prověřit a reálné potvrzení uvádět jen z ověřeného zdroje; jinak status neověřeno. Pro skutečně nulovou jízdu zobrazit 0:00, neznámou dobu nezaměňovat za nulu. Testovat dva zaměstnance v jednom vozidle, střídání vozidel, chybějící čip a případné překryvy s pracovní dobou.
+
+**Související issue:** [#22 – týdenní šichtovnice](https://github.com/jannhrbacek-dotcom/Demstav-/issues/22). **Tato pravidla jsou potvrzené zadání; nejsou dokladem nasazení.**
