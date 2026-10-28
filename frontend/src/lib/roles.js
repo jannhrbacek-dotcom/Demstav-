@@ -21,6 +21,8 @@ export const ROLE_INFO = [
 export const POSITIONS = [
   { value: "strojnik", label: "Strojník" },
   { value: "mechanik", label: "Mechanik" },
+  { value: "strojnik_mechanik", label: "Strojník / mechanik" },
+  { value: "externi_servis", label: "Externí servis" },
   { value: "ridic", label: "Řidič" },
   { value: "strojnik_phm", label: "Strojník pohonných hmot" },
 ];

@@ -30,14 +30,9 @@ const SERVICE_ACTOR_OPTIONS = [
   { value: "workshop", label: "Dílna – výjezd" },
   { value: "external", label: "Externí servis" },
 ];
-const INTERVAL_SERVICE_ALLOWED_NAMES = ["jan hrbáček", "jan hrbacek"];
-
 function canUserDoIntervalService(user) {
-  if (!user) return false;
-  if (user.role === "operations_manager") return true;
-  if ((user.position || "") === "mechanik") return true;
-  if (INTERVAL_SERVICE_ALLOWED_NAMES.includes((user.name || "").trim().toLowerCase())) return true;
-  return false;
+  return !!user && (["owner", "operations_manager"].includes(user.role) ||
+    ["mechanik", "strojnik_mechanik", "externi_servis"].includes(user.position));
 }
 
 const blank = (user, last, date) => ({
@@ -56,8 +51,7 @@ function validate(r, confirm, user) {
   if (confirm && r.intervalService && (!r.machine || !r.mthEnd)) e.push("Pravidelný servis dle intervalu: vyplňte stroj a konečný stav MTH.");
   if (confirm && r.intervalService) {
     const okUser = canUserDoIntervalService(user);
-    const okServiceBy = r.serviceBy === "external";
-    if (!okUser && !okServiceBy) e.push("Pravidelný servis (500 mth) může zapsat jen mechanik, externí servisní firma nebo pověřený pracovník (Jan Hrbáček).");
+    if (!okUser) e.push("Pravidelný servis (500 mth) může zapsat jen oprávněný mechanik nebo vedoucí provozu.");
   }
   const b = timeBreakdown(r);
   if (r.drive && !/^\d{1,3}$/.test(r.drive)) e.push("Jízda *: zadejte celé číslo.");
@@ -240,8 +234,7 @@ export default function RecordForm() {
   const wpOptions = wps.data || [];
   // Oprávnění pro pravidelný (500 mth) servis.
   const canIntervalServiceByUser = canUserDoIntervalService(user);
-  const canIntervalServiceByActor = rec.serviceBy === "external";
-  const canIntervalService = canIntervalServiceByUser || canIntervalServiceByActor;
+  const canIntervalService = canIntervalServiceByUser;
 
   const YesNo = ({ value, onChange, labelYes = "Ano", labelNo = "Ne", testid }) => (
     <div className="grid grid-cols-2 gap-2" data-testid={testid}>

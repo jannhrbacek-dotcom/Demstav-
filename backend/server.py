@@ -227,6 +227,9 @@ async def startup():
     await db.records.create_index("id", unique=True)
     await db.records.create_index([("owner_id", 1), ("date", -1)])
     await db.record_versions.create_index([("record_id", 1), ("revision", 1)], unique=True)
+    await db.record_versions.create_index("projection_pending")
+    from routes_records import recover_record_writes
+    await recover_record_writes()
     await db.attendance_events.create_index("id", unique=True)
     await db.attendance_events.create_index([("employee_id", 1), ("sequence", 1)], unique=True)
     await db.attendance_requests.create_index("id", unique=True)

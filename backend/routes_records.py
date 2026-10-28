@@ -4,6 +4,7 @@ import json
 from datetime import date as date_cls
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
+from pymongo.errors import DuplicateKeyError
 from core import db, iso_now, new_id, get_ready_user, is_manager, audit, text
 from break_policy import hydrate_records
 from worktime import time_breakdown, TIME
@@ -11,23 +12,10 @@ from storage import put_object, get_object, APP_PREFIX
 
 router = APIRouter()
 
-INTERVAL_SERVICE_USER_NAMES = {"jan hrbáček", "jan hrbacek"}
-
-
 def can_record_interval_service(user: dict, service_by: str) -> bool:
-    """Pravidelný (interval) servis smí zapsat jen mechanik (pozice/role), externí servisní firma
-    (serviceBy=external), nebo konkrétní pověřený strojník/mechanik Jan Hrbáček."""
-    if not user:
-        return False
-    if user.get("role") == "operations_manager":
-        return True
-    if (user.get("position") or "") == "mechanik":
-        return True
-    if (user.get("name") or "").strip().lower() in INTERVAL_SERVICE_USER_NAMES:
-        return True
-    if service_by == "external":
-        return True
-    return False
+    """Permission comes from the authenticated account, never a selected supplier/name."""
+    return bool(user and (user.get("role") in ("owner", "operations_manager") or
+        user.get("position") in ("mechanik", "strojnik_mechanik", "externi_servis")))
 
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
@@ -228,6 +216,38 @@ def public_record(doc: dict) -> dict:
     return d
 
 
+async def _project_version(version):
+    """Replay an immutable committed revision without replacing a newer head.
+
+    Works on standalone MongoDB; no transaction/replica-set requirement.
+    Older journal entries without projection_pending are never rewritten.
+    """
+    rid, rev = version["record_id"], version["revision"]
+    rec = {**version["payload"], "integrity_hash": version["hash"], "prev_hash": version["prev_hash"]}
+    current = await db.records.find_one({"id": rid}, {"_id": 0})
+    if not current:
+        try:
+            await db.records.insert_one(dict(rec))
+        except DuplicateKeyError:
+            pass
+    elif current["revision"] < rev:
+        await db.records.replace_one({"id": rid, "revision": current["revision"]}, rec)
+    head = await db.records.find_one({"id": rid}, {"_id": 0})
+    if not head or head["revision"] < rev:
+        raise HTTPException(503, "Revize je bezpečně uložena, dokončení zápisu zopakujte.")
+    if head["revision"] == rev and head.get("integrity_hash") != version["hash"]:
+        raise HTTPException(503, "Nesoulad historie zápisu vyžaduje kontrolu správce.")
+    await db.record_versions.update_one({"record_id": rid, "revision": rev}, {"$set": {"projection_pending": False}})
+
+
+async def recover_record_writes(rid=None):
+    query = {"projection_pending": True}
+    if rid:
+        query["record_id"] = rid
+    async for version in db.record_versions.find(query, {"_id": 0}).sort("revision", 1):
+        await _project_version(version)
+
+
 async def _can_view(user: dict, rec: dict) -> bool:
     return rec.get("owner_id") == user["id"] or is_manager(user)
 
@@ -291,15 +311,18 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
     confirm = body.get("confirm") is True
     base = body.get("baseRevision") or 0
     payload = body.get("record") or {}
+    if not isinstance(payload, dict) or not isinstance(base, int) or isinstance(base, bool) or base < 0:
+        raise HTTPException(400, "Neplatný obsah nebo revize zápisu.")
     payload["id"] = rid
+    await recover_record_writes(rid)
+    current = await db.records.find_one({"id": rid}, {"_id": 0})
+    if current and current["owner_id"] != user["id"] and user["role"] != "operations_manager":
+        raise HTTPException(status_code=403, detail="Cizí záznam nelze upravit.")
     if op_id:
         done = await db.record_versions.find_one({"record_id": rid, "op_id": op_id}, {"_id": 0})
         if done:
             cur = await db.records.find_one({"id": rid}, {"_id": 0})
             return {"status": "duplicate", "record": public_record((await hydrate_records([cur]))[0])}
-    current = await db.records.find_one({"id": rid}, {"_id": 0})
-    if current and current["owner_id"] != user["id"] and user["role"] != "operations_manager":
-        raise HTTPException(status_code=403, detail="Cizí záznam nelze upravit.")
     cur_rev = current["revision"] if current else 0
     if base != cur_rev:
         raise HTTPException(status_code=409, detail={"code": "conflict", "message": "Záznam byl mezitím změněn na jiném zařízení.",
@@ -337,11 +360,23 @@ async def save_record(rid: str, body: dict, user: dict = Depends(get_ready_user)
     h = chain_hash(prev_hash, snapshot)
     rec["integrity_hash"] = h
     rec["prev_hash"] = prev_hash
-    await db.records.replace_one({"id": rid}, rec, upsert=True)
-    await db.record_versions.insert_one({"record_id": rid, "revision": rev, "op_id": op_id, "payload": snapshot,
+    version = {"record_id": rid, "revision": rev, "op_id": op_id, "payload": snapshot,
                                          "author_id": user["id"], "author_name": user["name"], "at": now,
                                          "status": rec["status"], "correction_reason": reason or None,
-                                         "chain": 1, "prev_hash": prev_hash, "hash": h})
+               "chain": 1, "prev_hash": prev_hash, "hash": h, "projection_pending": True}
+    # The existing unique (record_id, revision) journal is the commit point.
+    # Project ONLY the winning revision; a crash is recovered on retry/startup.
+    try:
+        await db.record_versions.insert_one(version)
+    except DuplicateKeyError:
+        await recover_record_writes(rid)
+        latest = await db.records.find_one({"id": rid}, {"_id": 0})
+        done = await db.record_versions.find_one({"record_id": rid, "op_id": op_id}) if op_id else None
+        if done and latest and (latest["owner_id"] == user["id"] or user["role"] == "operations_manager"):
+            return {"status": "duplicate", "record": public_record((await hydrate_records([latest]))[0])}
+        raise HTTPException(409, {"code": "conflict", "message": "Záznam byl souběžně změněn.",
+                                   "server": public_record(latest) if latest and await _can_view(user, latest) else None})
+    await _project_version(version)
     if current and current["status"] == "confirmed":
         await audit(user, "record_corrected", {"record_id": rid, "revision": rev, "reason": reason, "hash": h})
     elif confirm:
