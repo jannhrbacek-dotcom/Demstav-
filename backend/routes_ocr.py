@@ -2,6 +2,8 @@
 import asyncio
 import io
 import logging
+import time
+from collections import defaultdict, deque
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from core import get_ready_user
@@ -10,6 +12,7 @@ from ocr_parse import extract_fields
 router = APIRouter()
 logger = logging.getLogger("diary-ocr")
 _lock = asyncio.Semaphore(1)
+_attempts = defaultdict(deque)
 MAX_BYTES = 10 * 1024 * 1024
 CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -36,6 +39,13 @@ async def diary_photo(file: UploadFile = File(...), user: dict = Depends(get_rea
     ctype = (file.content_type or "").split(";")[0].lower()
     if ctype not in CONTENT_TYPES:
         raise HTTPException(status_code=415, detail="Použijte fotografii JPG, PNG nebo WEBP.")
+    bucket = _attempts[user['id']]
+    now = time.monotonic()
+    while bucket and now - bucket[0] > 3600:
+        bucket.popleft()
+    if len(bucket) >= 30:
+        raise HTTPException(status_code=429, detail="Limit 30 OCR fotografií za hodinu byl vyčerpán.")
+    bucket.append(now)
     raw = await file.read(MAX_BYTES + 1)
     if not raw or len(raw) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="Fotografie musí mít nejvýše 10 MB.")
