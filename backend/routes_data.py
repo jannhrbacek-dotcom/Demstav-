@@ -18,6 +18,7 @@ from routes_leave import leaves_in_range, TYPES as LEAVE_TYPES, STATUS_LABELS as
 from storage import put_object, get_object
 from break_policy import hydrate_records, hydrate_events
 from worktime import time_breakdown, fmt_hours, day_union
+from journey import journey_text
 
 log = logging.getLogger("data")
 router = APIRouter()
@@ -84,6 +85,8 @@ async def timesheet_rows(user, f: dict):
             "Datum": r["date"], "Zaměstnanec": u.get("name") or r.get("owner_name", ""), "Zařazení": role_label(u) if u else "",
             "Stroj": r.get("machine", ""), "Objednatel": r.get("customer", ""), "Pracoviště": r.get("site", ""), "Zakázka": r.get("job", ""),
             "Směna": r.get("shift", ""), "Pracovní doba": ", ".join(f"{i['start']}–{i['end']}" for i in bd["totalIntervals"]),
+            "Jízda": journey_text(r), "SPZ na pracoviště": r.get("vehiclesTo", ""), "SPZ z pracoviště": r.get("vehiclesFrom", ""),
+            "Řidič / spolujezdec": r.get("journeyRole", ""), "Čipování": "neověřeno",
             "Celkem h": _h(bd["totalHours"]), "Práce bez servisu h": _h(bd["workHours"]), "Servis h": _h(bd["serviceHours"]),
             "Prostoje h": _h(bd["downtimeHours"]), "Přejezdy h": _h(bd.get("travelHours")), "K fakturaci h": _h(bd.get("billableHours", bd["totalHours"])),
             "Přejezdy trasa": "; ".join(f"{t.get('from', '')} → {t.get('to', '')}" for t in r.get("travel") or []),
@@ -305,6 +308,7 @@ async def machine_log_data(user, f: dict):
     if not f.get("include_drafts"):
         q["status"] = "confirmed"
     recs = await db.records.find(q, {"_id": 0}).sort([("machine", 1), ("date", 1)]).to_list(50000)
+    recs = await hydrate_records(recs)
     by_machine: dict = {}
     for r in recs:
         label = (r.get("machine") or "Bez stroje").strip() or "Bez stroje"

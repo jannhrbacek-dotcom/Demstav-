@@ -7,6 +7,7 @@ from fastapi.responses import Response
 from core import db, iso_now, new_id, get_ready_user, is_manager, audit, text
 from break_policy import hydrate_records
 from worktime import time_breakdown, TIME
+from journey import duration_minutes
 from storage import put_object, get_object, APP_PREFIX
 
 router = APIRouter()
@@ -84,9 +85,25 @@ def validate_record(r: dict, confirm: bool):
     if not _valid_date(out["date"]):
         errors.append("Vyplňte platné datum.")
     drive = str(r.get("drive") or "").strip()
-    if drive and not re.match(r"^\d{1,3}$", drive):
-        errors.append("Jízda *: zadejte celé číslo (0–999).")
+    minutes = r.get("driveMinutes")
+    if drive and ":" in drive:
+        parsed = duration_minutes(drive)
+        if parsed is None:
+            errors.append("Jízda: zadejte dobu H:MM nejvýše 24:00.")
+        elif minutes is not None and minutes != parsed:
+            errors.append("Doba jízdy nesouhlasí s počtem minut.")
+        else:
+            minutes = parsed
+    elif drive and not re.fullmatch(r"\d{1,3}", drive):
+        errors.append("Jízda: zadejte dobu H:MM.")
+    if minutes is not None and (not isinstance(minutes, int) or isinstance(minutes, bool) or not 0 <= minutes <= 1440):
+        errors.append("Doba jízdy musí být počet minut od 0 do 1440.")
+        minutes = None
     out["drive"] = drive
+    out["driveMinutes"] = minutes
+    out["journeyRole"] = r.get("journeyRole") if r.get("journeyRole") in ("driver", "passenger", "mixed", "none") else ""
+    # No chip-system integration exists. A form or GPS cannot verify a chip event.
+    out["chipStatus"] = "unverified"
     acc = r.get("accommodation") or ""
     out["accommodation"] = acc if acc in ("yes", "no", "") else ""
     out["workTimeMode"] = "legacy" if r.get("workTimeMode") == "legacy" else "shift"
@@ -171,6 +188,8 @@ def validate_record(r: dict, confirm: bool):
             errors.append("Povinnost psát začátek a konec MTH.")
         elif _num(out["mthStart"]) is not None and _num(out["mthEnd"]) is not None and _num(out["mthEnd"]) < _num(out["mthStart"]):
             errors.append("Konečný stav MTH nesmí být nižší než počáteční.")
+        elif _num(out["mthStart"]) is not None and _num(out["mthEnd"]) is not None and _num(out["mthEnd"]) - _num(out["mthStart"]) > 24:
+            errors.append("Rozdíl MTH přesahuje 24 hodin za den. Ověřte stroj a odečtené hodnoty.")
         bd = time_breakdown(out)
         if bd["ambiguousDay"]:
             errors.append("Pracovní úseky zahrnují 24 hodin nebo více; rozdělte je do samostatných dnů.")

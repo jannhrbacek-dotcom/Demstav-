@@ -41,11 +41,11 @@ def length(vals) -> int:
     return sum(b - a for a, b in vals)
 
 
-def work_spans(intervals):
+def work_spans(intervals, day_anchor=None):
     vals = [s for s in (_raw(i) for i in intervals or []) if s]
     ov = [a for a, b in vals if a > 0 and b >= 1440]
-    anchor = min(ov) if ov else 0
-    return merge([[a + 1440, b + 1440] if ov and b <= anchor else [a, b] for a, b in vals])
+    anchor = day_anchor if day_anchor is not None else min(ov) if ov else None
+    return merge([[a + 1440, b + 1440] if anchor is not None and b <= anchor else [a, b] for a, b in vals])
 
 
 def service_spans(intervals, work):
@@ -100,9 +100,9 @@ def as_intervals(spans):
     return [{"start": clock(a), "end": clock(b)} for a, b in spans]
 
 
-def spans_detail(record: dict):
+def spans_detail(record: dict, day_anchor=None):
     shift = record.get("workTimeMode", "shift") == "shift"
-    gross = work_spans(record.get("billing") or [])
+    gross = work_spans(record.get("billing") or [], day_anchor)
     cuts = service_spans(breaks_for_record(record), gross)
     breaks = intersection(cuts, gross)
     whole = subtract(gross, breaks)
@@ -142,8 +142,11 @@ def day_union(records: list) -> dict:
     """Totals for one employee and one date across several records/machines.
     The same minute is never counted twice."""
     tot, srv, dwn, trv = [], [], [], []
+    spans = [s for r in records for s in (_raw(i) for i in r.get("billing") or []) if s]
+    overnight = [a for a, b in spans if a > 0 and b >= 1440]
+    anchor = min(overnight) if overnight else None
     for r in records:
-        d = spans_detail(r)
+        d = spans_detail(r, anchor)
         tot += d["total"]
         srv += d["service"]
         dwn += d["downtime"]
@@ -152,7 +155,7 @@ def day_union(records: list) -> dict:
     dwn = merge(subtract(merge(dwn), srv))
     trv = merge(subtract(merge(trv), merge(srv + dwn)))
     prod = merge(subtract(tot, merge(srv + dwn + trv)))
-    raw_sum = sum(length(spans_detail(r)["total"]) for r in records)
+    raw_sum = sum(length(spans_detail(r, anchor)["total"]) for r in records)
     return {"totalHours": length(tot) / 60, "workHours": length(prod) / 60, "serviceHours": length(srv) / 60,
             "downtimeHours": length(dwn) / 60, "travelHours": length(trv) / 60, "overlapHours": (raw_sum - length(tot)) / 60}
 

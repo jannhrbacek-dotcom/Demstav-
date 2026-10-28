@@ -23,6 +23,7 @@ import { http } from "@/lib/api";
 import { useSync, saveRecordLocal, addAttachment, discardLocalRecord } from "@/lib/sync";
 import { newId, pragueDate, ATT_KINDS } from "@/lib/format";
 import { timeBreakdown, fmtH } from "@/lib/worktime";
+import { durationMinutes, journeyText } from "@/lib/journey";
 
 const SERVICE_ACTOR_OPTIONS = [
   { value: "operator", label: "Strojník" },
@@ -42,9 +43,9 @@ function canUserDoIntervalService(user) {
 
 const blank = (user, last, date) => ({
   id: newId(), revision: 0, status: "draft", date, shift: "Denní", operator: user?.name || "", crew: "",
-  machine: last?.machine || "", customer: last?.customer || "", site: last?.site || "", job: last?.job || "", drive: last?.drive || "",
+  machine: last?.machine || "", customer: last?.customer || "", site: last?.site || "", job: last?.job || "", drive: "", driveMinutes: null, journeyRole: "", chipStatus: "unverified",
   vehiclesTo: last?.vehiclesTo || "", vehiclesFrom: last?.vehiclesFrom || "", accommodation: last?.accommodation || "",
-  billing: [{ start: "", end: "" }], service: [], downtime: [], travel: [], downtimeReason: "", workTimeMode: "shift", work: "", mthStart: last?.mthEnd || "", mthEnd: "",
+  billing: [{ start: "", end: "" }], service: [], downtime: [], travel: [], downtimeReason: "", workTimeMode: "shift", work: "", mthStart: last?.status === "confirmed" && last.date <= date ? last.mthEnd || "" : "", mthEnd: "",
   dailyCheck: false, accessoryCheck: false, equipmentCheck: false, fit: "unknown", notes: "", handover: "", handoverName: "", handoverSignature: "", operatorSignature: "",
   diesel: "", hydraulic: "", oil: "", otherFluid: "", serviceDescription: "", repairDescription: "", serviceBy: "", externalCompany: "", workshopSignature: "",
   faults: [], attachments: [], intervalService: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -60,7 +61,7 @@ function validate(r, confirm, user) {
     if (!okUser && !okServiceBy) e.push("Pravidelný servis (500 mth) může zapsat jen mechanik, externí servisní firma nebo pověřený pracovník (Jan Hrbáček).");
   }
   const b = timeBreakdown(r);
-  if (r.drive && !/^\d{1,3}$/.test(r.drive)) e.push("Jízda *: zadejte celé číslo.");
+  if (r.drive && (r.journeyEditing || r.drive.includes(":")) && durationMinutes(r.drive) == null) e.push("Jízda: zadejte dobu H:MM nejvýše 24:00.");
   for (const k of ["mthStart", "mthEnd", "diesel", "hydraulic", "oil"]) if (r[k] && num(r[k]) === null) e.push(`Pole ${k === "mthStart" ? "MTH začátek" : k === "mthEnd" ? "MTH konec" : k}: zadejte číslo.`);
   (r.travel || []).forEach((i, n) => { if (confirm && (!i.from || !i.to)) e.push(`Přejezd, řádek ${n + 1}: doplňte odkud (bod A) a kam (bod B).`); });
   for (const [k, l] of [["billing", "pracovní doba"], ["service", "servis"], ["downtime", "prostoj"], ["travel", "přejezd"]]) (r[k] || []).forEach((i, n) => { if ((confirm && (!i.start || !i.end)) || (i.start && i.end && i.start === i.end)) e.push(`Doplňte platný čas od–do (${l}, řádek ${n + 1}).`); });
@@ -273,7 +274,7 @@ export default function RecordForm() {
           <Button type="button" variant="outline" className="h-11 font-semibold" data-testid="record-copy-last-button"
             onClick={() => setRec((r) => ({ ...r,
               machine: lastRecord.machine || r.machine, customer: lastRecord.customer || r.customer, site: lastRecord.site || r.site,
-              job: lastRecord.job || r.job, drive: lastRecord.drive || r.drive, vehiclesTo: lastRecord.vehiclesTo || r.vehiclesTo,
+              job: lastRecord.job || r.job, vehiclesTo: lastRecord.vehiclesTo || r.vehiclesTo,
               vehiclesFrom: lastRecord.vehiclesFrom || r.vehiclesFrom, accommodation: lastRecord.accommodation || r.accommodation,
               crew: lastRecord.crew || r.crew, mthStart: lastRecord.mthEnd || r.mthStart, shift: lastRecord.shift || r.shift,
             }))}>Načíst z minula</Button>
@@ -309,7 +310,10 @@ export default function RecordForm() {
             <Input list="job-list" value={rec.job} onChange={(e) => set("job", e.target.value)} className="h-12" data-testid="record-job-input" />
             <datalist id="job-list">{sugg.job.map((v) => <option key={v} value={v} />)}</datalist>
           </Field>
-          <Field label="Jízda *" hint="Číslo podle původního firemního formuláře (např. počet osob ve vozidle)."><Input inputMode="numeric" value={rec.drive} onChange={(e) => set("drive", e.target.value.replace(/[^\d]/g, "").slice(0, 3))} className="h-12" data-testid="record-drive-input" /></Field>
+          <Field label="Moje doba jízdy (H:MM)" hint="Vlastní jízdu zapisuje i spolujezdec. Nulová jízda = 0:00, nevyplněno není nula. Nepřičítá se znovu k pracovní době."><Input placeholder="0:45" value={rec.journeyEditing ? rec.drive : journeyText(rec) === "neověřeno" ? "" : journeyText(rec)} onChange={e => { const value = e.target.value; setRec(r => ({ ...r, drive: value, driveMinutes: durationMinutes(value), journeyEditing: true })); }} className="h-12" data-testid="record-drive-input" /></Field>
+          {rec.drive && !rec.drive.includes(":") && rec.driveMinutes == null && <p role="alert" className="text-sm text-amber-900">Původní nejednoznačný údaj jízdy: {rec.drive}. Ověřte skutečnou dobu; údaj se automaticky nepřevádí na minuty.</p>}
+          <Field label="Jel(a) jsem jako"><select value={rec.journeyRole || ""} onChange={e => set("journeyRole", e.target.value)} className="h-12 w-full rounded border px-3"><option value="">Vyberte</option><option value="driver">Řidič</option><option value="passenger">Spolujezdec</option><option value="mixed">Řidič i spolujezdec</option><option value="none">Žádná jízda</option></select></Field>
+          <p className="text-sm font-semibold">Čipování ve vozidle: neověřeno. Nezapomeňte se čipovat i jako spolujezdec a uvést všechny SPZ. Vyplnění aplikace čipnutí nepotvrzuje.</p>
           <Field label="SPZ vozidla (na pracoviště)">
             <Input list="vto-list" value={rec.vehiclesTo} onChange={(e) => set("vehiclesTo", e.target.value.toUpperCase())} className="h-12" data-testid="record-vehicles-to-input" />
             <datalist id="vto-list">{sugg.vehiclesTo.map((v) => <option key={v} value={v} />)}</datalist>

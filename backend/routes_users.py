@@ -206,7 +206,7 @@ def service_status(m: dict, current) -> dict:
 async def machines_with_status() -> list:
     ms = await db.machines.find({}, {"_id": 0}).sort("label", 1).to_list(1000)
     best = {}
-    async for r in db.records.find({"machine": {"$in": [m["label"] for m in ms]}}, {"_id": 0, "machine": 1, "mthEnd": 1, "mthStart": 1, "date": 1}):
+    async for r in db.records.find({"status": "confirmed", "machine": {"$in": [m["label"] for m in ms]}}, {"_id": 0, "machine": 1, "mthEnd": 1, "mthStart": 1, "date": 1}):
         v = _mth(r.get("mthEnd")) or _mth(r.get("mthStart"))
         if v is not None and v > best.get(r["machine"], (-1, ""))[0]:
             best[r["machine"]] = (v, r.get("date", ""))

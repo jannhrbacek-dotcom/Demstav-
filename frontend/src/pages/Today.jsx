@@ -10,7 +10,7 @@ import { ServiceAlerts } from "@/components/ServiceAlerts";
 import { WeatherWidget } from "@/components/WeatherWidget";
 import { pragueDate, STATE_LABELS, timeOf, KIND_LABELS } from "@/lib/format";
 import { pracovniPozdrav } from "@/lib/greeting";
-import { timeBreakdown, fmtHM, fmtH } from "@/lib/worktime";
+import { timeBreakdown, dayUnion, fmtHM, fmtH } from "@/lib/worktime";
 
 const STATE_CLS = { away: "bg-slate-200 text-slate-900", working: "bg-emerald-600 text-white", break: "bg-amber-400 text-slate-900" };
 
@@ -38,7 +38,8 @@ export default function Today() {
   const today = pragueDate();
   const { state, pending } = useShiftState(att.data?.projection?.state);
   const todays = useMemo(() => mergedRecords(recs.data, s.records).filter((x) => x.record.date === today), [recs.data, s.records, today]);
-  const ts = todays.reduce((acc, x) => { const b = timeBreakdown(x.record); return { t: acc.t + b.totalHours, s: acc.s + b.serviceHours }; }, { t: 0, s: 0 });
+  const dailyTotal = dayUnion(todays.map(x => x.record));
+  const ts = { t: dailyTotal.totalHours, s: dailyTotal.serviceHours };
   const net = att.data?.today_projection?.netHours || 0;
   const lastEvents = (att.data?.events || []).filter((e) => (e.effective_at || "").startsWith(today) || pragueDate(new Date(e.effective_at)) === today).slice(0, 6);
   // Pracoviště, kde zaměstnanec aktuálně je, dostává přednost při vykreslení počasí.
