@@ -6,6 +6,7 @@ import { Plus, Trash2, Camera, OctagonAlert, History, ArrowLeft, Wrench, Info } 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DictateTextarea } from "@/components/DictateTextarea";
+import { PhotoDiaryOcr } from "@/components/PhotoDiaryOcr";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -266,6 +267,21 @@ export default function RecordForm() {
             }))}>Načíst z minula</Button>
         </div>
       )}
+
+      <PhotoDiaryOcr record={rec}
+        onAttach={async (file) => {
+          const att = await addAttachment(file, { kind: "photo", km: "", recordId: rec.id, section: "timesheet" });
+          setRec(r => ({ ...r, attachments: [...(r.attachments || []), att] }));
+        }}
+        onApply={(values) => {
+          const { start, end, ...rest } = values;
+          setRec(r => ({
+            ...r, ...rest,
+            ...(start && end ? { billing: [{ start, end }] } : {}),
+            ...(rest.date && rest.date !== r.date ? { approvedBreaks: undefined } : {}),
+          }));
+          toast.success("Údaje z fotografie vloženy. Před potvrzením je zkontrolujte.");
+        }} />
 
       <Section title="Datum, stroj a pracoviště" testid="section-basic">
         <div className="grid gap-4 sm:grid-cols-2">

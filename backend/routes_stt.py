@@ -33,6 +33,11 @@ def _rate_limit(uid: str):
     q.append(now)
 
 
+@router.get("/stt/status")
+async def stt_status(user: dict = Depends(get_ready_user)):
+    return {"available": bool(os.environ.get("EMERGENT_LLM_KEY"))}
+
+
 @router.post("/stt")
 async def transcribe(file: UploadFile = File(...), field: str = Form(""), user: dict = Depends(get_ready_user)):
     key = os.environ.get("EMERGENT_LLM_KEY")

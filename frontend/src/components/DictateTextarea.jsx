@@ -26,11 +26,13 @@ const joinText = (base, chunk) => {
 };
 
 /**
- * Textarea s diktafonem. Hlavní režim: nahrávka → přepis AI (Emergent managed OpenAI Whisper, model whisper-1).
- * Bez signálu se nahrávka podrží a přepíše automaticky po připojení. Záložně živý přepis prohlížeče.
+ * Textarea s diktováním. Priorita: dostupné české rozpoznávání v prohlížeči.
+ * Serverové nahrávání je povolené jen když je přepis na serveru skutečně nakonfigurován.
  */
 export function DictateTextarea({ value, onChange, testid, placeholder, ...rest }) {
   const [phase, setPhase] = useState("idle"); // idle | recording | transcribing | pending
+  const [serverEnabled, setServerEnabled] = useState(false);
+  const modeRef = useRef("browser");
   const [secs, setSecs] = useState(0);
   const [interim, setInterim] = useState("");
   const recRef = useRef(null);
@@ -49,6 +51,14 @@ export function DictateTextarea({ value, onChange, testid, placeholder, ...rest 
     streamRef.current = null;
   };
   useEffect(() => () => { cleanupStream(); try { recRef.current?.stop?.(); } catch { /* ignore */ } }, []);
+  useEffect(() => {
+    if (!HAS_REC) return;
+    let live = true;
+    http.get("/stt/status", { timeout: 7000 })
+      .then(({ data }) => { if (live) setServerEnabled(data?.available === true); })
+      .catch(() => { if (live) setServerEnabled(false); });
+    return () => { live = false; };
+  }, []);
 
   const transcribe = useCallback(async (blob) => {
     setPhase("transcribing");
@@ -68,6 +78,11 @@ export function DictateTextarea({ value, onChange, testid, placeholder, ...rest 
         pendingRef.current = blob;
         setPhase("pending");
         toast.message("Bez signálu – nahrávka je uložená a přepíše se po připojení.");
+      } else if ([404, 415, 503].includes(status)) {
+        pendingRef.current = null;
+        setServerEnabled(false);
+        setPhase("idle");
+        toast.error("Serverový přepis není dostupný. Použijte mikrofon klávesnice telefonu.");
       } else {
         pendingRef.current = blob;
         setPhase("pending");
@@ -88,6 +103,7 @@ export function DictateTextarea({ value, onChange, testid, placeholder, ...rest 
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
     catch { toast.error("Povolte aplikaci přístup k mikrofonu v nastavení telefonu."); return; }
     streamRef.current = stream;
+    modeRef.current = "server";
     const mime = pickMime();
     const rec = new window.MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
     chunksRef.current = [];
@@ -109,10 +125,11 @@ export function DictateTextarea({ value, onChange, testid, placeholder, ...rest 
     }), 1000);
   };
 
-  // Záložní živý přepis (jen pokud prohlížeč neumí nahrávat).
+  // Nativní diktování: přednost před serverem, nevyžaduje nakonfigurovaný STT klíč.
   const startLive = () => {
     if (!SR) { toast.error("Tento prohlížeč diktování nepodporuje. Použijte mikrofon na klávesnici telefonu."); return; }
     const rec = new SR();
+    modeRef.current = "browser";
     rec.lang = "cs-CZ"; rec.continuous = true; rec.interimResults = true;
     let base = valueRef.current || "";
     rec.onresult = (ev) => {
@@ -123,7 +140,7 @@ export function DictateTextarea({ value, onChange, testid, placeholder, ...rest 
       if (fin.trim()) { base = joinText(base, fin); onChangeRef.current(base); }
       setInterim(tmp);
     };
-    rec.onerror = (ev) => { if (!["no-speech", "aborted"].includes(ev.error)) toast.error("Diktování se nepodařilo, zkuste to znovu."); };
+    rec.onerror = (ev) => { if (!["no-speech", "aborted"].includes(ev.error)) toast.error("Diktování není dostupné. Zkuste mikrofon na klávesnici telefonu."); };
     rec.onend = () => { setPhase("idle"); setInterim(""); };
     recRef.current = rec;
     try { rec.start(); setPhase("recording"); } catch { setPhase("idle"); }
@@ -132,7 +149,9 @@ export function DictateTextarea({ value, onChange, testid, placeholder, ...rest 
   const toggle = () => {
     if (phase === "recording") { try { recRef.current?.stop(); } catch { /* ignore */ } return; }
     if (phase === "transcribing") return;
-    if (HAS_REC) startRecording(); else startLive();
+    if (SR) startLive();
+    else if (HAS_REC && serverEnabled) startRecording();
+    else toast.error("Přepis hlasu zde není dostupný. Použijte mikrofon na klávesnici telefonu.");
   };
 
   const busy = phase === "transcribing";
@@ -150,8 +169,8 @@ export function DictateTextarea({ value, onChange, testid, placeholder, ...rest 
       </div>
       {phase === "recording" && (
         <div className="rounded-lg bg-slate-900 px-3 py-2 text-sm text-white" data-testid={`${testid}-dictate-status`} aria-live="polite">
-          <span className="font-semibold text-[#FFD200]">Nahrávám {HAS_REC ? mmss : ""}</span>{" "}
-          {HAS_REC ? "– mluvte normálně, po zastavení čtverečkem se text doplní sám." : (interim || "mluvte, text se doplní sám.")}
+          <span className="font-semibold text-[#FFD200]">{modeRef.current === "server" ? `Nahrávám ${mmss}` : "Diktuji"}</span>{" "}
+          {modeRef.current === "server" ? "– po zastavení se nahrávka odešle k přepisu." : (interim || "Mluvte česky, rozpoznaný text se doplňuje průběžně.")}
         </div>
       )}
       {busy && <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800" data-testid={`${testid}-dictate-status`} aria-live="polite">Přepisuji nahrávku…</div>}

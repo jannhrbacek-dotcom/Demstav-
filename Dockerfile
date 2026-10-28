@@ -8,6 +8,7 @@ RUN CI=true DISABLE_EMERGENT_OVERLAY=true npm test -- --watchAll=false --runInBa
 
 FROM python:3.12-slim-bookworm
 WORKDIR /app/backend
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-ces tesseract-ocr-eng && rm -rf /var/lib/apt/lists/*
 COPY backend/requirements-cloud.txt ./
 RUN pip install --no-cache-dir -r requirements-cloud.txt
 COPY backend/ ./
