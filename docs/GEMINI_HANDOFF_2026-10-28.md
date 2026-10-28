@@ -93,3 +93,12 @@ Hotovo = ověřená změna v souborech na správné větvi + automatické testy 
 **Implementační zadání:** Při jízdech mít volbu řidič/spolujezdec, osobní délku jízdy a SPZ. Před odevzdáním připomenout povinnost načipování i spolujezdci. Nepovažovat zadání šichtovnice, GPS ani kliknutí v aplikaci za důkaz čipnutí v palubním systému. Integraci s čipovou evidencí nejdříve prověřit a reálné potvrzení uvádět jen z ověřeného zdroje; jinak status neověřeno. Pro skutečně nulovou jízdu zobrazit 0:00, neznámou dobu nezaměňovat za nulu. Testovat dva zaměstnance v jednom vozidle, střídání vozidel, chybějící čip a případné překryvy s pracovní dobou.
 
 **Související issue:** [#22 – týdenní šichtovnice](https://github.com/jannhrbacek-dotcom/Demstav-/issues/22). **Tato pravidla jsou potvrzené zadání; nejsou dokladem nasazení.**
+
+
+## 9. Povinný audit logiky aplikace a UX/UI před dalšími úpravami (28. 10. 2026)
+
+Uživatel žádá, aby Gemini **nejprve zkontrolovala, jestli aplikace skutečně správně funguje a správně počítá**, a **následně prošla rozvržení obrazovek, uživatelské postupy, mobilní přehlednost a design**. Přesný kontrolní seznam, scénáře, priority a formát výsledné zprávy jsou v:
+
+**[GEMINI_AUDIT_LOGIKA_UX_UI_2026-10-28.md](GEMINI_AUDIT_LOGIKA_UX_UI_2026-10-28.md)**.
+
+**Závazný postup:** (1) audit výpočtů a návazností záznamů (deník/šichtovnice/dochodázka/MTH/jízda/spolujezdec/čipování/tonáž/servis/absence); (2) audit oprávnění, synchronizace a doručení; (3) UX/UI průchod rolí strojník/vedoucí/jednatel a mobil/desktop včetně zjednodušeného formuláře, kalendáře, počasí, tutoriálu a fronty; (4) seznam chyb P0–P3 s reprodukcí a důkazy; (5) izolované opravy přes větev a PR. Neslibuj výsledky živých testů nebo screenshoty bez skutečného přístupu. Audit není nasazení a nový požadavek nezakládá právo přepisovat produkční data.
