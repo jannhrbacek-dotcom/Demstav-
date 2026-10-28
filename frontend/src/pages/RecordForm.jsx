@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DictateTextarea } from "@/components/DictateTextarea";
 import { PhotoDiaryOcr } from "@/components/PhotoDiaryOcr";
+import { DiaryAssistant } from "@/components/DiaryAssistant";
 import MachinePicker from "@/components/MachinePicker";
 import { useLanguage } from "@/lib/language";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,7 @@ export default function RecordForm() {
   const [server, setServer] = useState(null);
   const [draftRevision, setDraftRevision] = useState(null);
   const [additional, setAdditional] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const draftKey = `u:${user.id}:record-form:${id || "new"}`;
   const localDraft = useRecordDraft(draftKey, rec, draftRevision ?? server?.revision ?? 0);
   useEffect(() => { setRec(null); setServer(null); setDraftRevision(null); }, [draftKey]);
@@ -169,6 +171,21 @@ export default function RecordForm() {
     autoMth.current = next.mthStart;
     return next;
   });
+  const applyProposal = (values) => {
+    const { start, end, ...rest } = values;
+    setRec(r => {
+      const changedMachine = rest.machine && rest.machine !== r.machine;
+      const next = { ...r, ...(changedMachine ? { mthStart: "", mthEnd: "" } : {}), ...rest };
+      if (start !== undefined || end !== undefined) {
+        const billing = [...(r.billing || [])];
+        billing[0] = { ...(billing[0] || { start: "", end: "" }), ...(start !== undefined ? { start } : {}), ...(end !== undefined ? { end } : {}) };
+        next.billing = billing;
+      }
+      if (rest.date && rest.date !== r.date) delete next.approvedBreaks;
+      return next;
+    });
+    toast.success(t("Údaje vloženy do konceptu. Před potvrzením je zkontrolujte."));
+  };
   const setFault = (i, k, v) => set("faults", rec.faults.map((f, j) => (j === i ? { ...f, [k]: v } : f)));
   const recentWork = [...new Set(mergedRecords(mine.data, s.records).map(x => x.record)
     .filter(x => x.machine === rec.machine && x.work?.trim()).map(x => x.work.trim()))].slice(0, 4);
@@ -271,20 +288,17 @@ export default function RecordForm() {
         </div>
       )}
 
+      <details className="rounded-xl border border-sky-300 bg-sky-50 p-3" data-testid="record-ai-panel" onToggle={e => setAssistantOpen(e.currentTarget.open)}>
+        <summary className="min-h-11 cursor-pointer py-2 text-base font-bold">{t("AI pomocník zdarma · fotografie a vedený zápis")}</summary>
+        {assistantOpen && <DiaryAssistant record={rec} machines={activeMachines} onApply={applyProposal} />}
+      </details>
+
       <PhotoDiaryOcr record={rec}
         onAttach={async (file) => {
           const att = await addAttachment(file, { kind: "photo", km: "", recordId: rec.id, section: "timesheet" });
           setRec(r => ({ ...r, attachments: [...(r.attachments || []), att] }));
         }}
-        onApply={(values) => {
-          const { start, end, ...rest } = values;
-          setRec(r => ({
-            ...r, ...rest,
-            ...(start && end ? { billing: [{ start, end }] } : {}),
-            ...(rest.date && rest.date !== r.date ? { approvedBreaks: undefined } : {}),
-          }));
-          toast.success("Údaje z fotografie vloženy. Před potvrzením je zkontrolujte.");
-        }} />
+        onApply={applyProposal} />
 
       <Section title="Datum, stroj a pracoviště" testid="section-basic">
         <div className="grid gap-4 sm:grid-cols-2">
