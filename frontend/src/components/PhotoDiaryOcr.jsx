@@ -77,7 +77,7 @@ export function PhotoDiaryOcr({ record, onAttach, onApply }) {
     setFields(prev => prev.map(f => ({ ...f, checked: false })));
   };
 
-  return <section className="space-y-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-4" data-testid="photo-diary-ocr">
+  return <div className="space-y-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-4" data-testid="photo-diary-ocr">
     <h2 className="text-lg font-bold text-slate-900">Přepsat papírový deník / šichtovnici</h2>
     <p className="text-sm text-slate-800">Vyfoťte jednu stránku nebo nahrajte její fotku. Originál se přiloží k zápisu, rozpoznané údaje nejdříve zkontrolujete. Nic se samo nepotvrdí.</p>
     <div className="flex flex-wrap gap-2">
@@ -108,5 +108,5 @@ export function PhotoDiaryOcr({ record, onAttach, onApply }) {
     </div>}
     {warning && <p role="status" className="text-sm font-semibold text-amber-950">{warning}</p>}
     {!!raw && <details className="rounded-lg border border-slate-300 bg-white p-3 text-sm"><summary className="cursor-pointer font-semibold">Zobrazit celý rozpoznaný text</summary><pre className="mt-2 whitespace-pre-wrap break-words font-sans">{raw}</pre></details>}
-  </section>;
+  </div>;
 }
