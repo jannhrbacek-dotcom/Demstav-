@@ -30,6 +30,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("demstav")
 
 app = FastAPI(title="DEMSTAV OPERATIONS")
+weekly_scheduler_task = None
 api = APIRouter(prefix="/api")
 
 
@@ -203,6 +204,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    global weekly_scheduler_task
     # Retain uniqueness for real email addresses, while allowing many username-only users.
     # Create the replacement index FIRST; only then remove the legacy index which treats all missing emails as duplicate null.
     await db.users.create_index("email", unique=True, name="email_present_unique", partialFilterExpression={"email": {"$type": "string"}})
@@ -221,6 +223,9 @@ async def startup():
     await db.push_subscriptions.create_index("endpoint", unique=True)
     await db.push_subscriptions.create_index([("user_id", 1)])
     await db.weekly_exports.create_index("week", unique=True)
+    await db.weekly_export_versions.create_index("export_id", unique=True)
+    await db.weekly_export_versions.create_index("job_key", unique=True, sparse=True)
+    await db.weekly_counters.create_index("week", unique=True)
     await db.production_reports.create_index("id", unique=True)
     await db.production_reports.create_index([("owner_id", 1), ("date", -1)])
     await db.production_settings.create_index("id", unique=True)
@@ -242,8 +247,19 @@ async def startup():
         logger.info("Storage initialized")
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
+    from weekly_scheduler import start
+    try:
+        weekly_scheduler_task = await start()
+    except (ValueError, TypeError):
+        logger.error('Weekly scheduler disabled: invalid configuration')
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    if weekly_scheduler_task:
+        import asyncio
+        from contextlib import suppress
+        weekly_scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await weekly_scheduler_task
     client.close()

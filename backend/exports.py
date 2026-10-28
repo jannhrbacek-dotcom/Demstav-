@@ -172,11 +172,20 @@ def timesheet_pdf(groups: list, attachment_loader, duplex: bool = False) -> byte
     duplex=True: list 1 = výkaz, rub = popis servisů/závad; každý výkaz začíná na novém listu."""
     pdf = Pdf()
     pdf_atts = []
-    if not any(g["records"] for g in groups):
+    if not any(g["records"] or g.get('absences') for g in groups):
         pdf.page(landscape(A4))
         pdf.txt(40, 60, "Pro zvolený filtr nejsou žádné záznamy.", 12, True)
         return pdf.bytes()
     for g in groups:
+        if not g['records'] and g.get('absences'):
+            ws = date_cls.fromisoformat(g['week_start'])
+            we = date_cls.fromordinal(ws.toordinal() + 6)
+            block_start = pdf.count
+            _ts_sheet(pdf, g['employee_name'], ws, we, 1, [], [])
+            _ts_supplement(pdf, [('Schválené nepřítomnosti', [f"{a['date_from']} – {a['date_to']}: {a['type']}" for a in g['absences']])])
+            if duplex:
+                _duplex_pad(pdf, block_start, A4)
+            continue
         weeks = {}
         for r in sorted(g["records"], key=lambda r: (r["date"], r.get("updatedAt", ""))):
             weeks.setdefault(_week_key(r["date"]), []).append(r)
@@ -186,6 +195,8 @@ def timesheet_pdf(groups: list, attachment_loader, duplex: bool = False) -> byte
             sheets = [recs[i:i + ROWS_PER_SHEET] for i in range(0, len(recs), ROWS_PER_SHEET)]
             block_start = pdf.count
             supplement = []  # (title, lines)
+            if g.get('absences'):
+                supplement.append(('Schválené nepřítomnosti', [f"{a['date_from']} – {a['date_to']}: {a['type']}" for a in g['absences']]))
             for si, sheet in enumerate(sheets, 1):
                 _ts_sheet(pdf, g["employee_name"], ws, we, si, sheet, recs)
                 _ts_service(pdf, g["employee_name"], si, len(sheets), sheet, supplement, recs)
