@@ -317,10 +317,12 @@ export default function RecordForm() {
           <div className="col-span-2 text-xs text-slate-300 sm:col-span-4">Celkem = ostatní práce + servis + prostoje + přejezdy. {bd.serviceOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část servisu leží mimo pracovní dobu.</span>} {bd.downtimeOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část prostoje leží mimo pracovní dobu.</span>}</div>
         </div>
         <Field label="Provedená práce"><DictateTextarea value={rec.work} onChange={(v) => set("work", v)} placeholder={t("např. Třídění, nakládka… (nebo klepněte na mikrofon)")} testid="record-work-input" /></Field>
-        {recentWork.length > 0 && <div className="space-y-2">
-          <div className="text-xs font-semibold text-slate-600">Použité popisy pro {rec.machine}</div>
-          <div className="flex flex-wrap gap-2" data-testid="record-work-suggestions">{recentWork.map((w, i) => <button key={i} type="button"
-            title={w} onClick={() => set("work", w)} className="min-h-11 max-w-full truncate rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold hover:bg-amber-50">{w}</button>)}</div>
+        {recentWork.length > 0 && <div className="space-y-1.5">
+          <div className="text-xs font-semibold text-slate-600">{t("Použité popisy pro")} {rec.machine}</div>
+          <div className="grid grid-cols-1 gap-1" data-testid="record-work-suggestions">{recentWork.map((w, i) => <button key={i} type="button"
+            title={w} onClick={() => set("work", w)}
+            className="block h-11 w-full min-w-0 truncate rounded-md border border-slate-200 bg-white px-3 text-left text-sm font-medium leading-5 text-slate-800 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            data-testid="record-work-suggestion">{w}</button>)}</div>
         </div>}
         {renderPhotos("timesheet", "Fotky k šichtovnici (výkaz, dodací list, stav pracoviště)")}
       </Section>
