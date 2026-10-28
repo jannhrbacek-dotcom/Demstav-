@@ -269,6 +269,7 @@ const uk = {
   "Vyhledat stroj podle názvu nebo čísla": "Знайти машину за назвою або номером",
   "Zobrazit nabídku strojů": "Показати список машин",
   "Dostupné stroje": "Доступні машини",
+  "Všechny stroje": "Усі машини",
   "Napište typ nebo číslo stroje…": "Введіть модель або номер машини…",
   "Číslo": "Номер",
   "Žádný odpovídající stroj. Zkuste jiné číslo nebo název.": "Машину не знайдено. Спробуйте інший номер або назву.",
