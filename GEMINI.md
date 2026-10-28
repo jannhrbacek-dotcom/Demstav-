@@ -2,6 +2,11 @@
 
 **Než začneš měnit kód, přečti kompletní [předání projektu](docs/GEMINI_HANDOFF_2026-10-28.md).** Je tam stav projektu, seznam otevřených úkolů #5, #6, #7 a #17 až #23, schválená pravidla šichtovnic, tonáže, GPS, OCR, Androidu a postup připojení na GitHub.
 
+## Povinný vstupní audit (nové zadání z 28. 10. 2026)
+Než začneš větší implementaci, **proveď nejdříve audit funkční logiky a dat, následně UX/UI a rozložení na telefonu i desktopu** podle [kontrolního plánu](docs/GEMINI_AUDIT_LOGIKA_UX_UI_2026-10-28.md). Zkontroluj pracovní časy, přestávky, osobní jízdu řidiče/spolujezdce včetně čipování, MTH, tonáž, offline synchronizaci, týdenní šichtovnice, oprávnění a nepřítomnosti. V UI posuď jednoduchý formulář pro starší strojníky, navigaci, dashboard vedení, počasí, kalendář, frontu, tutoriál a responzivitu.
+
+Odevzdej **prioritizované nálezy P0–P3 s konkrétními důkazy, testy a návrhem oprav**. Odděl skutečně ověřené chování od pouhé kontroly zdrojového kódu. Nespouštěj ostré změny nebo deploy bez kontroly a schválení.
+
 ## Správná větev a pracovní postup
 - Repo: `jannhrbacek-dotcom/Demstav-`.
 - **Produkční zdrojová větev: `main-2`; výchozí GitHub `main` není totéž.**
