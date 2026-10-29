@@ -12,15 +12,18 @@ import { useCached } from "@/lib/data";
 import { http, errText } from "@/lib/api";
 import { ROLE_LABELS, dateTime } from "@/lib/format";
 import { ROLE_INFO, POSITIONS, positionLabel } from "@/lib/roles";
+import { useLanguage } from "@/lib/language";
 
 const canManage = (actor, role) => (["owner", "operations_manager"].includes(actor.role) ? role !== "owner" : actor.role === "admin" ? ["employee", "manager"].includes(role) : false);
 
 function Workplaces({ value, onChange, wps }) {
-  return <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">{(wps || []).length === 0 && <div className="text-sm text-slate-600">Zatím žádná pracoviště.</div>}
+  const { t } = useLanguage();
+  return <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">{(wps || []).length === 0 && <div className="text-sm text-slate-600">{t("Zatím žádná pracoviště.")}</div>}
     {(wps || []).map((w) => <label key={w.id} className="flex min-h-[40px] items-center gap-2"><Checkbox checked={value.includes(w.id)} onCheckedChange={(v) => onChange(v ? [...value, w.id] : value.filter((x) => x !== w.id))} />{w.name}</label>)}</div>;
 }
 
 export default function UsersPage() {
+  const { t } = useLanguage();
   const { user: me } = useAuth();
   const q = useCached("/users");
   const wps = useCached("/workplaces?all=1");
@@ -39,9 +42,9 @@ export default function UsersPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="Uživatelé a přístupy" subtitle="Správce založí účet s dočasným heslem; při prvním přihlášení je změna hesla povinná. Deaktivace zachová historii."
-        actions={admin && <Button className="btn-primary h-12 font-semibold" onClick={() => setCreate({ name: "", email: "", username: "", role: "employee", position: "strojnik", workplace_ids: [] })} data-testid="user-create-button"><UserPlus className="mr-1 h-5 w-5" />Nový uživatel</Button>} />
+        actions={admin && <Button className="btn-primary h-12 font-semibold" onClick={() => setCreate({ name: "", email: "", username: "", role: "employee", position: "strojnik", workplace_ids: [] })} data-testid="user-create-button"><UserPlus className="mr-1 h-5 w-5" />{t("Nový uživatel")}</Button>} />
       <details className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="roles-info">
-        <summary className="cursor-pointer font-heading font-semibold">Role a oprávnění</summary>
+        <summary className="cursor-pointer font-heading font-semibold">{t("Role a oprávnění")}</summary>
         <div className="mt-3 grid gap-3 md:grid-cols-2">{ROLE_INFO.map((r) => (
           <div key={r.role} className="rounded-lg border border-slate-200 p-3" data-testid={`role-info-${r.role}`}><div className="font-semibold">{r.label}</div><ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-slate-700">{r.rights.map((x) => <li key={x}>{x}</li>)}</ul></div>
         ))}</div>
@@ -51,7 +54,7 @@ export default function UsersPage() {
         return (
           <div key={u.id} className={`flex flex-wrap items-center gap-3 rounded-xl border bg-white p-4 shadow-sm ${u.active ? "border-slate-200" : "border-dashed border-slate-300 bg-slate-50"}`} data-testid="user-item">
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 font-semibold">{u.name}{u.protected && <span className="flex items-center gap-1 rounded bg-black px-2 py-0.5 text-xs text-[#FFD200]"><ShieldCheck className="h-3.5 w-3.5" />chráněný jednatel</span>}{!u.active && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-900" data-testid="user-inactive-badge">deaktivován {dateTime(u.deactivated_at)}</span>}{u.must_change_password && u.active && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">čeká na změnu hesla</span>}</div>
+              <div className="flex flex-wrap items-center gap-2 font-semibold">{u.name}{u.protected && <span className="flex items-center gap-1 rounded bg-black px-2 py-0.5 text-xs text-[#FFD200]"><ShieldCheck className="h-3.5 w-3.5" />{t("chráněný jednatel")}</span>}{!u.active && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-900" data-testid="user-inactive-badge">deaktivován {dateTime(u.deactivated_at)}</span>}{u.must_change_password && u.active && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{t("čeká na změnu hesla")}</span>}</div>
               <div className="text-sm text-slate-600">{u.username && <b className="font-mono">{u.username}</b>}{u.username && " · "}{u.email || "bez e-mailu"} · <span data-testid="user-role-label">{u.role === "employee" ? positionLabel(u.position) : ROLE_LABELS[u.role]}</span> · pracoviště: {u.workplace_ids.length ? u.workplace_ids.map((id) => (wps.data || []).find((w) => w.id === id)?.name).filter(Boolean).join(", ") : "všechna aktivní"}</div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -62,11 +65,11 @@ export default function UsersPage() {
             </div>
           </div>);
       })}</div>
-      <p className="text-xs text-slate-600">Ochrana účtu vlastníka platí v aplikaci; nechrání proti osobě s přímým přístupem k serveru či databázi.</p>
+      <p className="text-xs text-slate-600">{t("Ochrana účtu vlastníka platí v aplikaci; nechrání proti osobě s přímým přístupem k serveru či databázi.")}</p>
 
       <Dialog open={!!create} onOpenChange={(o) => !o && setCreate(null)}>
         <DialogContent className="max-w-md" data-testid="user-create-dialog">
-          <DialogHeader><DialogTitle className="font-heading">Nový uživatel</DialogTitle><DialogDescription>Dočasné heslo se zobrazí jednou – předejte ho osobně.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{t("Nový uživatel")}</DialogTitle><DialogDescription>{t("Dočasné heslo se zobrazí jednou – předejte ho osobně.")}</DialogDescription></DialogHeader>
           {create && <div className="space-y-3">
             <Field label="Jméno a příjmení"><Input value={create.name} onChange={(e) => setCreate({ ...create, name: e.target.value })} className="h-12" data-testid="user-name-input" /></Field>
             <Field label="E-mail (nepovinný)"><Input type="email" value={create.email} onChange={(e) => setCreate({ ...create, email: e.target.value })} className="h-12" data-testid="user-email-input" /></Field>
@@ -75,7 +78,7 @@ export default function UsersPage() {
             {create.role === "employee" && <Field label="Pracovní zařazení"><Select value={create.position} onValueChange={(v) => setCreate({ ...create, position: v })}><SelectTrigger className="h-12" data-testid="user-position-select"><SelectValue /></SelectTrigger><SelectContent>{POSITIONS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent></Select></Field>}
             <Field label="Přiřazená pracoviště" hint="Bez výběru vidí zaměstnanec všechna aktivní pracoviště."><Workplaces value={create.workplace_ids} onChange={(v) => setCreate({ ...create, workplace_ids: v })} wps={wps.data} /></Field>
           </div>}
-          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={doCreate} data-testid="user-create-submit">Založit účet</Button></DialogFooter>
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={doCreate} data-testid="user-create-submit">{t("Založit účet")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -89,7 +92,7 @@ export default function UsersPage() {
             {admin && <Field label="Role"><Select value={edit.role} onValueChange={(v) => setEdit({ ...edit, role: v })}><SelectTrigger className="h-12" data-testid="user-edit-role-select"><SelectValue /></SelectTrigger><SelectContent>{roles.map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}</SelectContent></Select></Field>}
             <Field label="Přiřazená pracoviště"><Workplaces value={edit.workplace_ids} onChange={(v) => setEdit({ ...edit, workplace_ids: v })} wps={wps.data} /></Field>
           </div>}
-          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={() => patch(edit, admin ? { name: edit.name, role: edit.role, workplace_ids: edit.workplace_ids, ...(edit.username ? { username: edit.username } : {}), ...(edit.role === "employee" ? { position: edit.position || "strojnik" } : {}) } : { workplace_ids: edit.workplace_ids }, "Uloženo")} data-testid="user-edit-submit">Uložit</Button></DialogFooter>
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={() => patch(edit, admin ? { name: edit.name, role: edit.role, workplace_ids: edit.workplace_ids, ...(edit.username ? { username: edit.username } : {}), ...(edit.role === "employee" ? { position: edit.position || "strojnik" } : {}) } : { workplace_ids: edit.workplace_ids }, "Uloženo")} data-testid="user-edit-submit">{t("Uložit")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

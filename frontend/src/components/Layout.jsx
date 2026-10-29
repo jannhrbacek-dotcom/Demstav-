@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, useNavigate, useLocation, Link } from "react-router-dom";
-import { Sun, ClipboardList, Clock3, Cloud, CloudAlert, CloudOff, CloudUpload, CircleHelp, Menu, LayoutDashboard, ShieldCheck, Files, MapPin, Users, Truck, FileDown, LogOut, RefreshCw, Eye, CalendarDays, BarChart3 } from "lucide-react";
+import { Sun, ClipboardList, Clock3, Plus, Cloud, CloudAlert, CloudOff, CloudUpload, CircleHelp, Menu, LayoutDashboard, ShieldCheck, Files, MapPin, Users, Truck, FileDown, LogOut, RefreshCw, Eye, CalendarDays, BarChart3 } from "lucide-react";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useSync, syncNow } from "@/lib/sync";
 import { Button } from "@/components/ui/button";
@@ -95,6 +95,14 @@ export default function Layout({ children }) {
     {to: '/kalendar', label: 'Tým', icon: CalendarDays, testid: 'nav-team'},
     employeeNav[0], employeeNav[4],
   ] : employeeNav;
+  const employeeMobile = [
+    { to: "/dnes", label: "Dnes", icon: Sun, testid: "nav-today" },
+    { to: "/dochazka", label: "Docházka", icon: Clock3, testid: "nav-attendance" },
+    { to: "/zapis/novy", label: "Nový zápis", icon: Plus, testid: "nav-new-record", prominent: true },
+    { to: "/kalendar", label: "Kalendář", icon: CalendarDays, testid: "nav-calendar" },
+    { to: "/nepritomnost", label: "Volno", icon: CalendarDays, testid: "nav-absence" },
+    { to: "/vice", label: "Více", icon: Menu, testid: "nav-more" },
+  ];
   const item = (n) => (
     <NavLink key={n.to} to={n.to} data-testid={n.testid}
       className={({ isActive }) => `flex min-h-[48px] items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${isActive ? "bg-[#FFD200] text-slate-900" : "text-slate-200 hover:bg-white/10"}`}>
@@ -108,7 +116,7 @@ export default function Layout({ children }) {
         <div className="flex items-center justify-between gap-2"><Logo />{help}</div>
         <div className="mt-6 space-y-1">
           <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t("Můj den")}</div>
-          {employeeNav.filter((n) => n.to !== "/vice" && (n.to !== "/fronta" || s.queue.length > 0)).map(item)}
+          {employeeNav.filter((n) => n.to !== "/vice" && n.to !== "/zapisy" && (n.to !== "/fronta" || s.queue.length > 0)).map(item)}
           {item({ to: "/jak-na-to", label: "Jak na to", icon: Eye, testid: "nav-guide" })}
           {item({ to: "/prehledy", label: "Moje přehledy", icon: BarChart3, testid: "nav-my-overview" })}
           {item({ to: "/nepritomnost", label: "Dovolená a absence", icon: CalendarDays, testid: "nav-absence" })}
@@ -135,12 +143,23 @@ export default function Layout({ children }) {
         <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">{children}</div>
       </main>
 
-      <nav className="dark safe-bottom fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav">
-        {mobileNav.filter((n) => n.to !== "/fronta" || s.queue.length > 0).map((n) => (
-          <NavLink key={n.to} to={n.to} data-testid={`m-${n.testid}`} className={({ isActive }) => `relative flex min-h-[64px] flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${isActive ? "text-[#FFD200]" : "text-slate-300"}`}>
-            {({ isActive }) => (<>{isActive && <span className="absolute top-0 h-1 w-10 rounded-b bg-[#FFD200]" />}<n.icon className="h-6 w-6" />{t(n.label)}
-              {n.to === "/fronta" && s.queue.length > 0 && <span className="absolute right-3 top-2 rounded bg-amber-400 px-1 text-[10px] text-slate-900">{s.queue.length}</span>}</>)}
-          </NavLink>
+      <nav className="dark safe-bottom fixed inset-x-0 bottom-0 z-30 flex items-end justify-between border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav" aria-label={t("Hlavní navigace")}>
+        {(isMgr
+          ? [{ items: mobileNav }]
+          : [{ items: employeeMobile.slice(0, 2) }, { items: [employeeMobile[2]], center: true }, { items: employeeMobile.slice(3) }]
+        ).map((group, idx) => (
+          <div key={idx} className={group.center ? "flex w-[82px] shrink-0 items-end justify-center" : "flex min-w-0 flex-1 items-end"}>
+            {group.items.map((n) => (
+              <NavLink key={n.to} to={n.to} data-testid={`m-${n.testid}`}
+                className={({ isActive }) => `relative flex min-h-[68px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 pb-1 text-center text-[10px] font-semibold sm:text-xs ${n.prominent ? "z-10" : ""} ${isActive ? "text-[#FFD200]" : "text-slate-300"}`}>
+                {({ isActive }) => n.prominent ? (
+                  <><span className={`-mt-7 flex h-[70px] w-[70px] items-center justify-center rounded-full border-[5px] border-[#0B0F14] bg-[#FFD200] text-slate-950 shadow-lg ${isActive ? "ring-2 ring-white" : ""}`}><n.icon className="h-9 w-9" strokeWidth={3} /></span><span className="-mt-1 whitespace-nowrap text-[#FFD200]">{t("Nový")}</span></>
+                ) : (
+                  <>{isActive && <span className="absolute top-0 h-1 w-8 rounded-b bg-[#FFD200]" />}<n.icon className="h-6 w-6 shrink-0" /><span className="max-w-full truncate whitespace-nowrap">{t(n.label)}</span>{n.to === "/fronta" && s.queue.length > 0 && <span className="absolute right-1 top-1 rounded bg-amber-400 px-1 text-[10px] text-slate-900">{s.queue.length}</span>}</>
+                )}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
       <ReloginDialog />

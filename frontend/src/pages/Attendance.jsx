@@ -47,14 +47,14 @@ export default function Attendance() {
             <div><div className="text-xs text-slate-600">{t("Přestávky")}</div><div className="font-heading text-2xl font-bold">{fmtHM(att.data?.today_projection?.breakHours)}</div></div>
             <div><div className="text-xs text-slate-600">{t("Čistá doba")}</div><div className="font-heading text-2xl font-bold" data-testid="attendance-net-today">{fmtHM(att.data?.today_projection?.netHours)}</div></div>
           </div>
-          <p className="mt-3 text-xs text-slate-600">Docházka eviduje přítomnost na pracovišti. Neověřené záznamy (offline, mimo okruh, ruční) se nevydávají za prokázanou přítomnost – schvaluje je vedoucí.</p>
+          <p className="mt-3 text-xs text-slate-600">{t("Docházka eviduje přítomnost na pracovišti. Neověřené záznamy (offline, mimo okruh, ruční) se nevydávají za prokázanou přítomnost – schvaluje je vedoucí.")}</p>
           {(att.data?.projection?.issues || []).length > 0 && <div className="mt-2 rounded-lg bg-orange-50 p-2 text-xs text-orange-950">{att.data.projection.issues.join(" · ")}</div>}
         </div>
       </div>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="attendance-corrections">
         <h2 className="font-heading text-lg font-semibold">{t("Opravy docházky")}</h2>
-        <p className="text-sm text-slate-600">Chybí příchod nebo potřebujete opravit čas? Žádost schvaluje vedoucí.</p>
+        <p className="text-sm text-slate-600">{t("Chybí příchod nebo potřebujete opravit čas? Žádost schvaluje vedoucí.")}</p>
         <Button variant="outline" className="h-12 w-full sm:w-auto" onClick={() => openFix(null)} data-testid="attendance-manual-entry-button"><PencilLine className="mr-2 h-4 w-4" />{t("Požádat o opravu")}</Button>
       </section>
       <BreakRequests />
@@ -88,7 +88,7 @@ export default function Attendance() {
             <Field label="Pracoviště"><Select value={form.workplaceId} onValueChange={(v) => setForm({ ...form, workplaceId: v })}><SelectTrigger className="h-12" data-testid="request-workplace-select"><SelectValue placeholder="Vyberte" /></SelectTrigger><SelectContent>{(wps.data || []).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select></Field>
             <Field label="Důvod"><Textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} data-testid="request-reason-input" /></Field>
           </div>
-          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={submit} data-testid="request-submit-button">Odeslat žádost</Button></DialogFooter>
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={submit} data-testid="request-submit-button">{t("Odeslat žádost")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

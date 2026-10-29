@@ -11,6 +11,10 @@ test("More exposes one machines link to employees and managers while administrat
   const el = document.createElement("div"), root = createRoot(el);
   await act(async () => root.render(<More />));
   expect(el.querySelector('[data-testid="more-machines"]').getAttribute("href")).toBe("/stroje");
+  expect(el.querySelector('[data-testid="more-records"]').getAttribute("href")).toBe("/zapisy");
+  expect(el.querySelector('[data-testid="more-calendar"]').getAttribute("href")).toBe("/kalendar");
+  expect(el.querySelector('[data-testid="more-absence"]').getAttribute("href")).toBe("/nepritomnost");
+  expect(el.querySelector('[data-testid="more-tiles-primary"]')).not.toBeNull();
   expect(el.querySelector('[data-testid="more-users"]')).toBeNull();
   mockRole = "manager"; await act(async () => root.render(<More />));
   expect(el.querySelectorAll('[data-testid="more-machines"]')).toHaveLength(1);

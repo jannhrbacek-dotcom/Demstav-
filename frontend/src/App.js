@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth, atLeast } from "@/lib/auth";
 import { LanguageProvider } from "@/lib/language";
+import { DeviceLockProvider } from "@/components/DeviceLock";
 import Layout from "@/components/Layout";
 import Login from "@/pages/Login";
 import ChangePassword from "@/pages/ChangePassword";
@@ -50,6 +51,7 @@ export default function App() {
     <div className="App">
       <LanguageProvider>
       <AuthProvider>
+        <DeviceLockProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -82,6 +84,7 @@ export default function App() {
           </Routes>
         </BrowserRouter>
         <Toaster position="top-center" richColors />
+        </DeviceLockProvider>
       </AuthProvider>
       </LanguageProvider>
     </div>

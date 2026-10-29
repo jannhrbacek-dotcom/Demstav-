@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { FileDown, KeyRound, LogOut, LayoutDashboard, ShieldCheck, Files, MapPin, Truck, Users, Smartphone, ChevronRight, Eye, BarChart3, CalendarDays, BellRing, BellOff } from "lucide-react";
+import { FileDown, ClipboardList, KeyRound, LogOut, LayoutDashboard, ShieldCheck, Files, MapPin, Truck, Users, Smartphone, ChevronRight, Eye, BarChart3, CalendarDays, BellRing, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/Section";
@@ -10,8 +10,14 @@ import { useSync } from "@/lib/sync";
 import { errText } from "@/lib/api";
 import { pushSupported, pushPermission, getActiveSubscription, enablePush, disablePush, sendTestPush } from "@/lib/push";
 import { LanguageSelect, useLanguage } from "@/lib/language";
+import { DeviceLockSettings } from "@/components/DeviceLock";
 
-const L = ({ to, icon: I, label, testid }) => { const { t } = useLanguage(); return (<Link to={to} className="flex min-h-[60px] items-center gap-3 border-b border-slate-100 px-4 font-semibold last:border-0 hover:bg-slate-50" data-testid={testid}><I className="h-5 w-5" /><span className="flex-1">{t(label)}</span><ChevronRight className="h-5 w-5 text-slate-400" /></Link>); };
+const L = ({ to, icon: I, label, testid }) => { const { t } = useLanguage(); return (
+  <Link to={to} className="flex min-h-[104px] min-w-0 flex-col items-start justify-between gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition-colors hover:border-[#D5B400] hover:bg-amber-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-700" data-testid={testid}>
+    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-900"><I className="h-6 w-6" /></span>
+    <span className="flex w-full items-end justify-between gap-2"><span className="text-sm font-bold leading-snug text-slate-900">{t(label)}</span><ChevronRight className="h-4 w-4 shrink-0 text-slate-500" /></span>
+  </Link>
+); };
 
 export default function More() {
   const { user, logout, simpleMode, setSimpleMode } = useAuth();
@@ -35,32 +41,48 @@ export default function More() {
   return (
     <div className="space-y-4">
       <PageHeader title={t("Více")} subtitle={`${user?.name} · ${user?.role_label}`} />
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <L to="/jak-na-to" icon={Eye} label="Jak na to – průvodce aplikací" testid="more-guide" />
-        <L to="/prehledy" icon={BarChart3} label="Moje přehledy (šichtovnice, deník, směny)" testid="more-my-overview" />
-        <L to="/stroje" icon={Truck} label="Stroje a servisní intervaly" testid="more-machines" />
-        <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
-        <L to="/kalendar" icon={CalendarDays} label="Sdílený kalendář zaměstnanců" testid="more-calendar" />
-        <L to="/vykazy-vazeni" icon={Files} label="Společný výkaz práce a vážní lístky" testid="more-production" />
-        <L to="/exporty" icon={FileDown} label="Exporty a reporty (PDF, XLSX, CSV)" testid="more-exports" />
-        <L to="/zmena-hesla" icon={KeyRound} label="Změnit heslo" testid="more-change-password" />
-        <div className="flex min-h-[60px] items-center justify-between gap-2 border-b border-slate-100 px-4" data-testid="more-language-row"><LanguageSelect /></div>
-        <div className="flex min-h-[60px] items-center gap-3 px-4" data-testid="more-simple-mode-row">
-          <Eye className="h-5 w-5" />
-          <div className="flex-1">
-            <div className="font-semibold">{t("Jednoduchý režim")}</div>
-            <div className="text-xs text-slate-600">{t("Větší tlačítka i text; skryje volitelné sekce pro snadné ovládání.")}</div>
-          </div>
-          <Switch checked={simpleMode} onCheckedChange={setSimpleMode} data-testid="more-simple-mode-switch" />
+      <section className="space-y-3" data-testid="more-shortcuts">
+        <h2 className="font-heading text-lg font-bold text-slate-900">{t("Pracovní přehled")}</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="more-tiles-primary">
+          <L to="/zapisy" icon={ClipboardList} label="Moje zápisy" testid="more-records" />
+          {s.queue.length > 0 && <L to="/fronta" icon={Files} label="Fronta neodeslaných záznamů" testid="more-queue" />}
+          <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
+          <L to="/kalendar" icon={CalendarDays} label="Sdílený kalendář zaměstnanců" testid="more-calendar" />
+          <L to="/jak-na-to" icon={Eye} label="Jak na to – průvodce aplikací" testid="more-guide" />
         </div>
-      </div>
-      {atLeast(user, "manager") && <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <L to="/prehled" icon={LayoutDashboard} label="Přehled vedení" testid="more-overview" />
-        <L to="/kontrola" icon={ShieldCheck} label="Kontrola výjimek docházky" testid="more-review" />
-        <L to="/vsechny-zapisy" icon={Files} label="Všechny zápisy" testid="more-all-records" />
-        <L to="/pracoviste" icon={MapPin} label="Pracoviště a QR" testid="more-workplaces" />
-        <L to="/uzivatele" icon={Users} label="Uživatelé a přístupy" testid="more-users" />
-      </div>}
+      </section>
+      <section className="space-y-3">
+        <h2 className="font-heading text-lg font-bold text-slate-900">{t("Evidence a výkazy")}</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="more-tiles-reports">
+          <L to="/prehledy" icon={BarChart3} label="Moje přehledy (šichtovnice, deník, směny)" testid="more-my-overview" />
+          <L to="/stroje" icon={Truck} label="Stroje a servisní intervaly" testid="more-machines" />
+          <L to="/vykazy-vazeni" icon={Files} label="Společný výkaz práce a vážní lístky" testid="more-production" />
+          <L to="/exporty" icon={FileDown} label="Exporty a reporty (PDF, XLSX, CSV)" testid="more-exports" />
+        </div>
+      </section>
+      {atLeast(user, "manager") && <section className="space-y-3" data-testid="more-management">
+        <h2 className="font-heading text-lg font-bold text-slate-900">{t("Pro vedení")}</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <L to="/prehled" icon={LayoutDashboard} label="Přehled vedení" testid="more-overview" />
+          <L to="/kontrola" icon={ShieldCheck} label="Kontrola výjimek docházky" testid="more-review" />
+          <L to="/vsechny-zapisy" icon={Files} label="Všechny zápisy" testid="more-all-records" />
+          <L to="/pracoviste" icon={MapPin} label="Pracoviště a QR" testid="more-workplaces" />
+          <L to="/uzivatele" icon={Users} label="Uživatelé a přístupy" testid="more-users" />
+        </div>
+      </section>}
+      <section className="space-y-3" data-testid="more-settings">
+        <h2 className="font-heading text-lg font-bold text-slate-900">{t("Nastavení")}</h2>
+        <div className="grid grid-cols-2 gap-3"><L to="/zmena-hesla" icon={KeyRound} label="Změnit heslo" testid="more-change-password" /></div>
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex min-h-12 items-center gap-3" data-testid="more-language-row"><LanguageSelect /></div>
+          <div className="flex min-h-[60px] items-center gap-3 border-t border-slate-100 pt-2" data-testid="more-simple-mode-row">
+            <Eye className="h-5 w-5" />
+            <div className="min-w-0 flex-1"><div className="font-semibold">{t("Jednoduchý režim")}</div><div className="text-xs text-slate-600">{t("Větší tlačítka i text; skryje volitelné sekce pro snadné ovládání.")}</div></div>
+            <Switch checked={simpleMode} onCheckedChange={setSimpleMode} data-testid="more-simple-mode-switch" />
+          </div>
+        </div>
+        <DeviceLockSettings />
+      </section>
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="push-panel">
         <div className="flex items-center gap-2 font-heading font-semibold"><BellRing className="h-5 w-5" />{t("Upozornění (push)")}</div>
         {!pushState.supported && <p className="mt-1 text-sm text-slate-700">{t("Tento prohlížeč push notifikace nepodporuje. Nainstalujte aplikaci na plochu a použijte moderní verzi Chrome/Edge/Safari.")}</p>}

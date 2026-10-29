@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { PhotoDiaryOcr } from "./PhotoDiaryOcr";
 import { http } from "@/lib/api";
 
-jest.mock("@/lib/api", () => ({ http: { post: jest.fn() }, errText: () => "Přepis se nezdařil." }));
+jest.mock("@/lib/api", () => ({ http: { get: jest.fn(), post: jest.fn() }, errText: () => "Přepis se nezdařil." }));
 let root, el;
 const attach = jest.fn(async () => ({}));
 const apply = jest.fn();
@@ -12,6 +12,7 @@ const record = { date: "2026-10-28", machine: "L566/3", work: "", billing: [{ st
 beforeEach(async () => {
   global.IS_REACT_ACT_ENVIRONMENT = true;
   jest.clearAllMocks();
+  http.get.mockResolvedValue({ data: { enabled: true } });
   el = document.createElement("div"); document.body.appendChild(el);
   root = createRoot(el);
   await act(async () => root.render(<PhotoDiaryOcr record={record} onAttach={attach} onApply={apply} />));
@@ -76,4 +77,70 @@ test("unreadable handwriting can be handed to local AI as the original file with
   expect(attach).toHaveBeenCalledTimes(1);
   expect(http.post).toHaveBeenCalledTimes(1);
   expect(apply).not.toHaveBeenCalled();
+});
+
+
+test("external vision is only called after explicit click and never saves a record", async () => {
+  const image = new File(["sample"], "page.jpg", { type: "image/jpeg" });
+  http.post.mockImplementation(async (url) => url === "/ocr/diary"
+    ? { data: { text: "necitelný rukopis", fields: [] } }
+    : { data: { text: "MTH začátek: 8440", fields: [{ key: "mthStart", label: "MTH začátek", value: "8440" }], warning: "Zkontrolujte s fotografií" } }
+  );
+  const input = el.querySelector('[data-testid="ocr-gallery-input"]');
+  await act(async () => {
+    Object.defineProperty(input, "files", { configurable: true, value: [image] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(http.post).toHaveBeenCalledTimes(1);
+  const cloud = el.querySelector('[data-testid="ocr-use-cloud-vision"]');
+  expect(cloud).not.toBeNull();
+  await act(async () => cloud.click());
+  expect(http.post).toHaveBeenCalledTimes(2);
+  const [endpoint, form] = http.post.mock.calls[1];
+  expect(endpoint).toBe("/ocr/diary/vision");
+  expect(form.get("file").name).toBe("page.jpg");
+  expect(form.get("file").type).toBe("image/jpeg");
+  expect(form.get("consent")).toBe("true");
+  expect(el.querySelector('[data-testid="ocr-check-mthStart"]').checked).toBe(false);
+  expect(apply).not.toHaveBeenCalled();
+});
+
+
+test("invalid date and declining MTH cannot enter the draft even when explicitly selected", async () => {
+  http.post.mockResolvedValue({ data: {
+    text: "Datum: 31.02.2026\nMTH začátek: 8440\nMTH konec: 8439",
+    fields: [
+      { key: "date", label: "Datum", value: "2026-02-31" },
+      { key: "mthStart", label: "MTH začátek", value: "8440" },
+      { key: "mthEnd", label: "MTH konec", value: "8439" },
+    ],
+  } });
+  const input = el.querySelector('[data-testid="ocr-gallery-input"]');
+  await act(async () => {
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["sample"], "date.jpg", { type: "image/jpeg" })] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  for (const key of ["date", "mthStart", "mthEnd"]) {
+    await act(async () => el.querySelector('[data-testid="ocr-check-' + key + '"]').click());
+  }
+  await act(async () => el.querySelector('[data-testid="ocr-apply"]').click());
+  expect(apply).not.toHaveBeenCalled();
+  expect(el.querySelector('[role="alert"]').textContent).toContain("Neplatné nebo rozporné");
+});
+
+test("machine not in the fleet registry must be rejected before import", async () => {
+  http.post.mockResolvedValue({ data: {
+    text: "Stroj: L566/99",
+    fields: [{ key: "machine", label: "Stroj", value: "L566/99" }],
+  } });
+  await act(async () => root.render(<PhotoDiaryOcr record={record} machines={[{label:"L566/3", active: true}]} onAttach={attach} onApply={apply} />));
+  const input = el.querySelector('[data-testid="ocr-gallery-input"]');
+  await act(async () => {
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["sample"], "machine.jpg", { type: "image/jpeg" })] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => el.querySelector('[data-testid="ocr-check-machine"]').click());
+  await act(async () => el.querySelector('[data-testid="ocr-apply"]').click());
+  expect(apply).not.toHaveBeenCalled();
+  expect(el.querySelector('[role="alert"]').textContent).toContain("Stroj");
 });

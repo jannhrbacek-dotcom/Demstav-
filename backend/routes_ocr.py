@@ -5,9 +5,10 @@ import logging
 import time
 from collections import defaultdict, deque
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from core import get_ready_user
 from ocr_parse import extract_fields
+from ocr_vision import enabled as vision_enabled, recognize_with_vision, InvalidPhotoError
 
 router = APIRouter()
 logger = logging.getLogger("diary-ocr")
@@ -62,3 +63,46 @@ async def diary_photo(file: UploadFile = File(...), user: dict = Depends(get_rea
         raise HTTPException(status_code=503, detail="OCR právě není dostupné. Fotografie zůstává v přílohách.") from exc
     return {"text": text[:8000], "fields": extract_fields(text), "needsReview": True,
             "warning": "OCR může chybovat zejména u rukopisu, MTH a časů. Před použitím vše zkontrolujte."}
+
+
+@router.get("/ocr/diary/vision/status")
+async def vision_ocr_status(user: dict = Depends(get_ready_user)):
+    """Do not expose keys; do not start a paid call."""
+    return {"enabled": vision_enabled(), "externalProvider": "OpenAI" if vision_enabled() else None}
+
+
+@router.post("/ocr/diary/vision")
+async def vision_diary_photo(file: UploadFile = File(...), consent: bool = Form(False),
+                             user: dict = Depends(get_ready_user)):
+    """Only a user-authorized photograph can be sent to the external vision model."""
+    if not consent:
+        raise HTTPException(status_code=400, detail="Před odesláním fotografie externí AI musíte výslovně souhlasit.")
+    if not vision_enabled():
+        raise HTTPException(status_code=503, detail="Obrazová AI není správcem zapnutá. Zůstává dostupné základní OCR.")
+    ctype = (file.content_type or "").split(";")[0].lower()
+    if ctype not in CONTENT_TYPES:
+        raise HTTPException(status_code=415, detail="Použijte fotografii JPG, PNG nebo WEBP.")
+    bucket = _attempts["vision:" + user["id"]]
+    now = time.monotonic()
+    while bucket and now - bucket[0] > 3600:
+        bucket.popleft()
+    if len(bucket) >= 20:
+        raise HTTPException(status_code=429, detail="Limit 20 AI přepisů za hodinu byl vyčerpán.")
+    raw = await file.read(MAX_BYTES + 1)
+    if not raw or len(raw) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Fotografie musí mít nejvýše 10 MB.")
+    bucket.append(now)
+    try:
+        async with _lock:
+            fields = await asyncio.to_thread(recognize_with_vision, raw)
+    except InvalidPhotoError as exc:
+        raise HTTPException(status_code=400, detail="Fotografie je poškozená nebo příliš velká.") from exc
+    except Exception as exc:
+        # Do not leak provider response, API key, content or employee data into logs.
+        logger.warning("Vision OCR request failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="Obrazová AI není dostupná. Fotografie i ruční zápis zůstávají zachované.") from exc
+    text = "\n".join(f'{item["label"]}: {item["value"]}' for item in fields)
+    return {
+        "text": text, "fields": fields, "needsReview": True,
+        "warning": "Návrh obrazové AI. Porovnejte s původní fotografií zejména datum, stroj, MTH a časy. Nic není předem potvrzené.",
+    }
