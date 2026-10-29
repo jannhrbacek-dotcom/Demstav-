@@ -11,6 +11,16 @@ export const LANGUAGES = [
   { value: "uk", label: "Українська" },
 ];
 const uk = {
+  "Frontě": "Черзі",
+  "Načíst údaje z posledního zápisu?": "Підставити дані з попереднього запису?",
+  "Pravidelný servis může zapsat jen oprávněný mechanik nebo vedení podle zařazení účtu. Výběr externí firmy oprávnění nemění.": "Планове техобслуговування може записати лише уповноважений механік або керівник згідно з роллю. Вибір зовнішньої компанії не змінює прав доступу.",
+  "Běžná": "Звичайна",
+  "STOP – vážná": "СТОП — серйозна",
+  "Další údaje a přílohy · nic se nemaže": "Додаткові дані та вкладення · нічого не видаляється",
+  "Žádná jízda": "Без поїздки",
+  "Čipování ve vozidle: neověřeno. Nezapomeňte se čipovat i jako spolujezdec a uvést všechny SPZ. Vyplnění aplikace čipnutí nepotvrzuje.": "Реєстрацію у транспортному засобі не перевірено. Не забудьте відмітитися також як пасажир і вказати всі номерні знаки. Заповнення форми не підтверджує реєстрацію.",
+  "Zápis byl mezitím změněn jinde. Konflikt vyřešte ve": "Запис було змінено на іншому пристрої. Вирішіть конфлікт у",
+  "Po uložení pokračovat druhým strojem (samostatné časy a motohodiny)": "Після збереження додати другу машину (окремі години й мотогодини)",
   "Servisní interval: aktuální MTH nejsou známé": "Інтервал сервісу: поточні мотогодини невідомі",
   "vyřazený": "виведено з експлуатації",
   "Úprava evidence stroje a pravidelného servisu.": "Редагування обліку машини та планового техобслуговування.",
