@@ -27,7 +27,7 @@ export async function notifyServiceAlerts(alerts) {
     const title = m.service_state === "due" ? `Servis po termínu: ${m.label}` : `Blíží se servis: ${m.label}`;
     const body = `${remainingText(m)[0].toUpperCase()}${remainingText(m).slice(1)} (servis při ${m.next_service_mth} mth, stav ${String(m.current_mth).replace(".", ",")} mth).`;
     try {
-      if (reg?.showNotification) await reg.showNotification(title, { body, tag: `service-${m.id}`, icon: "/icon-192.png", badge: "/icon-192.png", data: { url: "/" } });
+      if (reg?.showNotification) await reg.showNotification(title, { body, tag: `service-${m.id}`, icon: "/icon-192.png", badge: "/icon-192.png", data: { url: "/stroje" } });
       else new Notification(title, { body, tag: `service-${m.id}` });
       seen[k] = Date.now();
     } catch { /* ignore */ }

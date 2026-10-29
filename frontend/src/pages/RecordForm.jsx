@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DictateTextarea } from "@/components/DictateTextarea";
 import { PhotoDiaryOcr } from "@/components/PhotoDiaryOcr";
 import { DiaryAssistant } from "@/components/DiaryAssistant";
+import { MachineServiceReminder } from "@/components/MachineServiceReminder";
 import MachinePicker from "@/components/MachinePicker";
 import { useLanguage } from "@/lib/language";
 import { Button } from "@/components/ui/button";
@@ -305,6 +306,7 @@ export default function RecordForm() {
           setRec(r => r?.id === rec.id ? { ...r, attachments: [...(r.attachments || []), att] } : r);
         }}
         onApply={applyProposal} />
+      <MachineServiceReminder recordId={rec.id} machine={rec.machine} machines={activeMachines} />
 
       <Section title="Datum, stroj a pracoviště" testid="section-basic">
         <div className="grid gap-4 sm:grid-cols-2">

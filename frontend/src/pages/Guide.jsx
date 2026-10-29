@@ -23,6 +23,7 @@ const FEATURES = [
   ["/zapisy/import", "Import zápisů", "Hromadný import ze souboru JSON; nejdříve zkontrolujte náhled."],
   ["/fronta", "Fronta", "Neodeslané položky, opakování odeslání a řešení konfliktů."],
   ["/prehledy", "Moje přehledy", "Šichtovnice, strojní deník a směny."],
+  ["/stroje", "Seznam strojů", "Evidence strojů, motohodiny a servisní intervaly."],
   ["/vykazy-vazeni", "Společný výkaz práce a vážní lístky", "Výkazy a tonáž z úplných lístků; zadávání podle přiděleného oprávnění."],
   ["/nepritomnost", "Dovolená a absence", "Žádosti o volno, lékaře či nemoc a jejich stav."],
   ["/kalendar", "Kalendář týmu", "Sdílený přehled schválených nepřítomností."],
@@ -35,7 +36,6 @@ const MANAGER_FEATURES = [
   ["/kontrola", "Kontrola výjimek", "Schvalování oprav docházky a změn přestávek."],
   ["/vsechny-zapisy", "Všechny zápisy", "Kontrola zápisů celého týmu."],
   ["/pracoviste", "Pracoviště a QR", "Evidence pracovišť, polohy a zobrazení QR kódů."],
-  ["/stroje", "Seznam strojů", "Evidence strojů, motohodiny a servisní intervaly."],
   ["/uzivatele", "Uživatelé a přístupy", "Účty a role; změny podle oprávnění."],
 ];
 const STEPS = [

@@ -1,0 +1,21 @@
+import React, { act } from "react";
+import { createRoot } from "react-dom/client";
+import Machines from "./Machines";
+let mockRole = "employee";
+jest.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { role: mockRole } }), atLeast: user => user.role === "manager" }));
+jest.mock("@/lib/data", () => ({ useCached: () => ({ loading: false, data: [{ id: "a", label: "L576/5", active: true, current_mth: 8446, operating_hours: 8400, service_state: "soon", remaining_mth: 54, next_service_mth: 8500, service_interval_mth: 500, service_warn_mth: 100, last_service_mth: 8000 }], reload: jest.fn() }) }));
+jest.mock("@/lib/api", () => ({ http: { post: jest.fn(), put: jest.fn() }, errText: jest.fn() }));
+test("employee can read full machine and service data without management controls", async () => {
+  global.IS_REACT_ACT_ENVIRONMENT = true; mockRole = "employee";
+  const el = document.createElement("div"), root = createRoot(el);
+  await act(async () => root.render(<Machines />));
+  expect(el.textContent).toContain("54 mth");
+  expect(el.querySelector('[data-testid="machine-specs"]').textContent).toContain("MTH 8446");
+  expect(el.querySelector('[data-testid="machine-service-details"]').textContent).toContain("poslední servis při 8000 mth");
+  expect(el.querySelector('[data-testid="machine-create-button"]')).toBeNull();
+  expect(el.querySelector('[data-testid="machine-edit-button"]')).toBeNull();
+  mockRole = "manager"; await act(async () => root.render(<Machines />));
+  expect(el.querySelector('[data-testid="machine-create-button"]')).not.toBeNull();
+  expect(el.querySelector('[data-testid="machine-edit-button"]')).not.toBeNull();
+  await act(async () => root.unmount());
+});
