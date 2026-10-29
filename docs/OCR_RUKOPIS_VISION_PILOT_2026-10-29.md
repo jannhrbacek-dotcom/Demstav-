@@ -12,3 +12,13 @@ Důvod: serverový Tesseract na Renderu rozpoznává tisk, nikoliv spolehlivě �
 
 ## Kontroly před nasazením
 Spustit \`pytest -q tests/test_ocr_vision.py tests/test_ocr_parse.py\`, příslušné frontendové testy a build. Na anonymizovaných skutečných fotografiích ověřit stroj/den/MTH/čas/práci proti ručnímu přepisu. Při nedostupném API má zůstat původní OCR a ruční zápis funkční. Reálná přesnost rukopisu ani produkční nasazení tímto PR nejsou prokázané.
+
+
+## Dodatečná ochrana při kontrole formuláře
+- Každá uživatelem vybraná hodnota se před vložením validuje stejným validátorem jako lokální průvodce. Neplatné kalendářní datum, poškozené MTH, sestupné MTH a stroj mimo aktivní evidenci se odmítají, i kdyby uživatel pole zaškrtnul.
+- Originální fotografie je dostupná pro porovnání v rozbalitelném náhledu, lze ji otevřít ve větším rozlišení. Používá dočasnou URL v prohlížeči a po změně nebo zavření ji uvolní.
+- Poškozená fotografie vrací HTTP 400, nesrozumitelná odpověď externí AI se hlásí jako nedostupnost služby. Nikdy z ní nevznikne potvrzený deník.
+- Bez dostupných povolení a klíče není externí tlačítko k dispozici. Základní OCR ani ruční zápis tím nejsou ovlivněny.
+
+## Stav pilotu
+PR #42 je pracovní návrh, cílová větev je `main-2`. Dokud neprojde CI všech navazujících změn a není potvrzená záloha + firemní svolení s externím zpracováním + API projekt s účtovacím limitem, neslučovat ani nenasazovat. Pro přesnost rukopisu je nezbytná původní čitelná fotografie, nikoli náhled z brožury.
