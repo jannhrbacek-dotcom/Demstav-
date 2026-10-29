@@ -296,7 +296,7 @@ export default function RecordForm() {
         {assistantOpen && <DiaryAssistant record={rec} machines={activeMachines} onApply={applyProposal} photoRequest={assistantPhoto} />}
       </details>
 
-      <PhotoDiaryOcr record={rec}
+      <PhotoDiaryOcr record={rec} machines={activeMachines}
         onUseLocalAI={file => {
           setAssistantPhoto({ file }); setAssistantOpen(true);
           assistantPanel.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
