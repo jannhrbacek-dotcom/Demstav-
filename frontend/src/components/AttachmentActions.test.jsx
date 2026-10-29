@@ -1,0 +1,4 @@
+import React,{act} from 'react';
+import {createRoot} from 'react-dom/client';
+import AttachmentActions from './AttachmentActions';
+test('camera is separate from gallery and document picker',async()=>{global.IS_REACT_ACT_ENVIRONMENT=true;const el=document.createElement('div');const root=createRoot(el);await act(async()=>root.render(<AttachmentActions prefix="test" onChange={()=>{}}/>));expect(el.querySelector('[data-testid="test-camera-input"]').getAttribute('capture')).toBe('environment');for(const key of ['gallery','files']){const input=el.querySelector(`[data-testid="test-${key}-input"]`);expect(input.hasAttribute('capture')).toBe(false);expect(input.multiple).toBe(true);}expect(el.querySelector('[data-testid="test-files-input"]').accept).toContain('.xlsx');await act(async()=>root.unmount());});

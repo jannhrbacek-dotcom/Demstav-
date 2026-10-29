@@ -1,3 +1,5 @@
+import { AppLock } from "@/components/AppLock";
+import LaunchScreen from "@/components/LaunchScreen";
 import React from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
@@ -51,6 +53,7 @@ export default function App() {
       <LanguageProvider>
       <AuthProvider>
         <BrowserRouter>
+          <AppLock><LaunchScreen />
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -80,8 +83,9 @@ export default function App() {
             <Route path="/uzivatele" element={<Guard role="manager"><UsersPage /></Guard>} />
             <Route path="*" element={<Home />} />
           </Routes>
+            <Toaster position="top-center" richColors />
+          </AppLock>
         </BrowserRouter>
-        <Toaster position="top-center" richColors />
       </AuthProvider>
       </LanguageProvider>
     </div>

@@ -1,3 +1,4 @@
+import { LockSettings } from "@/components/AppLock";
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -50,6 +51,8 @@ export default function More() {
   const out = () => { if (s.queue.length && !window.confirm(`V telefonu je ${s.queue.length} neodeslaných položek. Zůstanou uloženy a odešlou se po dalším přihlášení stejného účtu. Odhlásit?`)) return; logout(); nav("/login"); };
   return (
     <div className="space-y-4">
+      <LockSettings />
+      <Button variant="outline" onClick={()=>window.dispatchEvent(new Event("demstav-intro"))}>Přehrát úvodní obrazovku</Button>
       <PageHeader title={t("Více")} subtitle={`${user?.name} · ${user?.role_label}`} />
       <section aria-labelledby="more-quick-title" className="space-y-3">
         <h2 id="more-quick-title" className="font-heading text-lg font-bold">{t("Rychlý přístup")}</h2>

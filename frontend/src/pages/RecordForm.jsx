@@ -1,8 +1,9 @@
+import AttachmentActions from "@/components/AttachmentActions";
 import BreakRequests from "@/components/BreakRequests";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash2, Camera, OctagonAlert, History, ArrowLeft, Wrench, Info } from "lucide-react";
+import { Plus, Trash2, OctagonAlert, History, ArrowLeft, Wrench, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DictateTextarea } from "@/components/DictateTextarea";
@@ -220,10 +221,18 @@ export default function RecordForm() {
   const onFile = async (ev, section = "general") => {
     const files = [...(ev.target.files || [])];
     ev.target.value = "";
-    for (const f of files) {
+    const recordId = rec.id;
+    const types = {pdf:'application/pdf',doc:'application/msword',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',xls:'application/vnd.ms-excel',xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',csv:'text/csv',txt:'text/plain',odt:'application/vnd.oasis.opendocument.text',ods:'application/vnd.oasis.opendocument.spreadsheet',jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',heic:'image/heic',heif:'image/heif'};
+    for (const original of files) {
+      const fallback = types[original.name.split('.').pop().toLowerCase()];
+      const type = !original.type || original.type === 'application/octet-stream' ? fallback : original.type;
+      if (!Object.values(types).includes(type)) { toast.error(`${original.name}: nepodporovaný formát.`); continue; }
+      const f = type === original.type ? original : new File([original],original.name,{type,lastModified:original.lastModified});
       if (f.size > 15 * 1024 * 1024) { toast.error(`${f.name}: soubor je větší než 15 MB.`); continue; }
+      try {
       const att = await addAttachment(f, section === "general" ? { kind: attKind, km: attKm, recordId: rec.id, section } : { kind: "photo", km: "", recordId: rec.id, section });
-      setRec((r) => ({ ...r, attachments: [...r.attachments, att] }));
+      setRec((r) => r?.id === recordId ? ({ ...r, attachments: [...r.attachments, att] }) : r);
+      } catch { toast.error(`${f.name}: nepodařilo se uložit v telefonu.`); }
     }
     if (section === "general") setAttKm("");
   };
@@ -234,10 +243,7 @@ export default function RecordForm() {
       <div className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3" data-testid={`photos-${section}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-sm font-semibold">{label} {list.length > 0 && <span className="text-slate-600" data-testid={`photos-${section}-count`}>({list.length})</span>}</div>
-          <label className="flex h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-slate-900 bg-white px-4 font-semibold hover:bg-slate-50 focus-within:ring-2 focus-within:ring-slate-900" data-testid={`photos-${section}-add`}>
-            <Camera className="h-5 w-5" />Vyfotit
-            <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={(e) => onFile(e, section)} data-testid={`photos-${section}-input`} />
-          </label>
+          <AttachmentActions prefix={`photos-${section}`} onChange={e => onFile(e, section)} />
         </div>
         {list.length > 0 && <div className="space-y-2">{list.map((a) => <AttachmentThumb key={a.id} att={a} onRemove={() => removeAtt(a.id)} />)}</div>}
       </div>
@@ -483,10 +489,10 @@ export default function RecordForm() {
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Druh přílohy"><Select value={attKind} onValueChange={setAttKind}><SelectTrigger className="h-12" data-testid="attachment-kind-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(ATT_KINDS).map(([k, l]) => <SelectItem key={k} value={k}>{t(l)}</SelectItem>)}</SelectContent></Select></Field>
           <Field label="Stav km (u tankování)"><Input inputMode="numeric" value={attKm} onChange={(e) => setAttKm(e.target.value)} className="h-12" data-testid="attachment-km-input" /></Field>
-          <div className="flex items-end"><label className="flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-slate-900 bg-white font-semibold hover:bg-slate-50" data-testid="record-add-attachment-button"><Camera className="h-5 w-5" />{t("Vyfotit / přidat")}<input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={onFile} data-testid="record-attachment-input" /></label></div>
+          <div className="sm:col-span-2"><AttachmentActions prefix="record-attachment" onChange={onFile} /></div>
         </div>
         <div className="space-y-2">{rec.attachments.filter((a) => (a.section || "general") === "general").map((a) => <AttachmentThumb key={a.id} att={a} onRemove={() => removeAtt(a.id)} />)}</div>
-        <p className="text-xs text-slate-600">{t("Max. 15 MB na soubor. Bez připojení se soubor uloží v telefonu a nahraje se později.")}</p>
+        <p className="text-xs text-slate-600">{t("Fotografie, PDF, Word, Excel, CSV, TXT, ODT a ODS. Max. 15 MB na soubor. Bez připojení se soubor uloží v telefonu a nahraje se později.")}</p>
         </div>
       </Section>
       </div>

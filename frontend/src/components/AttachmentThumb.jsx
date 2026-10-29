@@ -22,7 +22,7 @@ export function AttachmentThumb({ att, onRemove }) {
   const isImg = (att.type || "").startsWith("image/");
   return (
     <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-2" data-testid="attachment-item">
-      <a href={url || undefined} target="_blank" rel="noreferrer" className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100">
+      <a download={!isImg ? att.name : undefined} href={url || undefined} target="_blank" rel="noreferrer" className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-slate-100">
         {state === "loading" ? <Loader2 className="h-5 w-5 animate-spin text-slate-500" /> : isImg && url ? <img src={url} alt={att.name} className="h-full w-full object-cover" /> : isImg ? <ImageIcon className="h-6 w-6 text-slate-500" /> : <FileText className="h-6 w-6 text-slate-500" />}
       </a>
       <div className="min-w-0 flex-1">
