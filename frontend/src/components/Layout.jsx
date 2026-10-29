@@ -143,16 +143,23 @@ export default function Layout({ children }) {
         <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">{children}</div>
       </main>
 
-      <nav className="dark safe-bottom fixed inset-x-0 bottom-0 z-30 flex items-end justify-around border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav" aria-label={t("Hlavní navigace")}>
-        {(isMgr ? mobileNav : employeeMobile).map((n) => (
-          <NavLink key={n.to} to={n.to} data-testid={`m-${n.testid}`}
-            className={({ isActive }) => `relative flex min-h-[68px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 pb-1 text-center text-[10px] font-semibold sm:text-xs ${n.prominent ? "z-10" : ""} ${isActive ? "text-[#FFD200]" : "text-slate-300"}`}>
-            {({ isActive }) => n.prominent ? (
-              <><span className={`-mt-7 flex h-[70px] w-[70px] max-w-[95%] items-center justify-center rounded-full border-[5px] border-[#0B0F14] bg-[#FFD200] text-slate-950 shadow-lg ${isActive ? "ring-2 ring-white" : ""}`}><n.icon className="h-9 w-9" strokeWidth={3} /></span><span className="-mt-1 whitespace-nowrap text-[#FFD200]">{t("Nový")}</span></>
-            ) : (
-              <>{isActive && <span className="absolute top-0 h-1 w-8 rounded-b bg-[#FFD200]" />}<n.icon className="h-6 w-6 shrink-0" /><span className="truncate whitespace-nowrap">{t(n.label)}</span>{n.to === "/fronta" && s.queue.length > 0 && <span className="absolute right-1 top-1 rounded bg-amber-400 px-1 text-[10px] text-slate-900">{s.queue.length}</span>}</>
-            )}
-          </NavLink>
+      <nav className="dark safe-bottom fixed inset-x-0 bottom-0 z-30 flex items-end justify-between border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav" aria-label={t("Hlavní navigace")}>
+        {(isMgr
+          ? [{ items: mobileNav }]
+          : [{ items: employeeMobile.slice(0, 2) }, { items: [employeeMobile[2]], center: true }, { items: employeeMobile.slice(3) }]
+        ).map((group, idx) => (
+          <div key={idx} className={group.center ? "flex w-[82px] shrink-0 items-end justify-center" : "flex min-w-0 flex-1 items-end"}>
+            {group.items.map((n) => (
+              <NavLink key={n.to} to={n.to} data-testid={`m-${n.testid}`}
+                className={({ isActive }) => `relative flex min-h-[68px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-0.5 pb-1 text-center text-[10px] font-semibold sm:text-xs ${n.prominent ? "z-10" : ""} ${isActive ? "text-[#FFD200]" : "text-slate-300"}`}>
+                {({ isActive }) => n.prominent ? (
+                  <><span className={`-mt-7 flex h-[70px] w-[70px] items-center justify-center rounded-full border-[5px] border-[#0B0F14] bg-[#FFD200] text-slate-950 shadow-lg ${isActive ? "ring-2 ring-white" : ""}`}><n.icon className="h-9 w-9" strokeWidth={3} /></span><span className="-mt-1 whitespace-nowrap text-[#FFD200]">{t("Nový")}</span></>
+                ) : (
+                  <>{isActive && <span className="absolute top-0 h-1 w-8 rounded-b bg-[#FFD200]" />}<n.icon className="h-6 w-6 shrink-0" /><span className="max-w-full truncate whitespace-nowrap">{t(n.label)}</span>{n.to === "/fronta" && s.queue.length > 0 && <span className="absolute right-1 top-1 rounded bg-amber-400 px-1 text-[10px] text-slate-900">{s.queue.length}</span>}</>
+                )}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
       <ReloginDialog />
