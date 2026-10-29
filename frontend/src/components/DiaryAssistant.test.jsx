@@ -50,3 +50,30 @@ test("unsupported browser shows manual questions without initiating model load",
   expect(el.querySelector('[data-testid="assistant-load"]').disabled).toBe(true);
   expect(el.textContent).toContain("Na kterém stroji"); expect(createLocalAssistant).not.toHaveBeenCalled();
 });
+test("a manual answer works without GPU and still requires explicit review before applying", async () => {
+  Object.defineProperty(navigator, "gpu", { configurable: true, value: undefined });
+  await act(async () => root.render(<DiaryAssistant record={{ ...record, machine: "L576/5", site: "Stavba", billing: [{ start: "", end: "13:00" }] }} onApply={apply} machines={machines} />));
+  await typeSource("7:00"); await click('[data-testid="assistant-manual"]');
+  expect(createLocalAssistant).not.toHaveBeenCalled(); expect(apply).not.toHaveBeenCalled();
+  expect(el.querySelector('[data-testid="assistant-check-start"]').checked).toBe(false);
+  await click('[data-testid="assistant-check-start"]'); await click('[data-testid="assistant-apply"]');
+  expect(apply).toHaveBeenCalledWith({ start: "07:00" });
+});
+test("receiving the original OCR photo previews it without starting a model or uploading", async () => {
+  URL.createObjectURL = jest.fn(() => "blob:original-photo"); URL.revokeObjectURL = jest.fn();
+  const file = new File(["photo"], "denik.jpg", { type: "image/jpeg" });
+  await act(async () => root.render(<DiaryAssistant record={record} onApply={apply} machines={machines} photoRequest={{ file }} />));
+  expect(el.querySelector('img').getAttribute("src")).toBe("blob:original-photo");
+  expect(URL.createObjectURL).toHaveBeenCalledWith(file);
+  expect(createLocalAssistant).not.toHaveBeenCalled(); expect(apply).not.toHaveBeenCalled();
+  await act(async () => root.render(<DiaryAssistant record={{ ...record, id: "different" }} onApply={apply} machines={machines} />));
+  expect(el.querySelector('img')).toBeNull();
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:original-photo");
+});
+test("failure to acquire a GPU adapter is reported separately from a download failure", async () => {
+  model.load.mockRejectedValue(Object.assign(new Error("no adapter"), { code: "GPU_ADAPTER_UNAVAILABLE" }));
+  await click('[data-testid="assistant-load"]');
+  expect(el.querySelector('[role="alert"]').textContent).toContain("neposkytl grafický adaptér");
+  await typeSource("L576/5"); await click('[data-testid="assistant-manual"]');
+  expect(el.querySelector('[data-testid="assistant-review"]')).not.toBeNull();
+});

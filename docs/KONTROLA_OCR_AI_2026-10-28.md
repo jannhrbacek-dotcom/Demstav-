@@ -90,3 +90,18 @@ příchod/odchod před novým zápisem a servisní upozornění až pod nimi;
 Absence už používá useLanguage. Neimplementovaná angličtina, zbytek
 lokalizace, noční pauzy a serverový STT zůstávají oddělenými ověřovacími
 body; tato změna je nevydává za vyřešené.
+
+## Navazující oprava po výsledku ostrého OCR (29. 10. 2026)
+
+Uživatel dodal textový výstup ostrého OCR s nečitelným rukopisem a částmi
+tištěného tiskopisu. Jde o neúspěšný přepis; bez originální fotografie z něj
+nelze ověřit datum, časy ani MTH. Tato oprava nezvyšuje přesnost Tesseractu
+a neslibuje přesný přepis rukopisu malým místním modelem.
+
+Základní OCR nově výslovně popisuje omezení a nepředznačuje žádná pole.
+Tlačítko předá původní fotografii místní AI a otevře její panel bez další
+přílohy, síťového požadavku nebo automatického stažení modelu. Přesná
+hlášení rozlišují chybějící WebGPU, nedostupný adaptér, nepodporované fp16
+a ostatní chyby stažení/spuštění. Přímou odpověď na jednu průvodní otázku
+lze validovat i bez modelu; stále se musí zkontrolovat a označit k vložení.
+Tento režim fotografii nečte a nepřevádí celý volný text do více polí.

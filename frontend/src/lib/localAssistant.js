@@ -57,6 +57,20 @@ export function selectedAssistantPatch(fields, selected, machines = []) {
   if (rejected.length) throw new Error("Invalid selected fields");
   return patch;
 }
+// A direct answer to one known question needs no model. Never parse free prose
+// as multiple fields or derive engine counters from worked hours.
+export function manualAssistantAnswer(key, answer, machines = []) {
+  if (!ASSISTANT_KEYS.includes(key)) throw new Error("No question");
+  let value = answer.trim();
+  if (["start", "end"].includes(key) && /^\d:[0-5]\d$/.test(value)) value = `0${value}`;
+  if (key === "accommodation") {
+    const values = { ano: "yes", ne: "no", yes: "yes", no: "no", так: "yes", ні: "no" };
+    value = values[value.toLocaleLowerCase()] || value;
+  }
+  const result = normalizeAssistantPatch({ [key]: value }, machines);
+  if (!Object.hasOwn(result.patch, key) || result.rejected.length) throw new Error("Invalid answer");
+  return result.patch;
+}
 export function nextAssistantQuestion(record, language = "cs", skipped = []) {
   const uk = language === "uk";
   const questions = [
@@ -102,9 +116,10 @@ export function createLocalAssistant() {
       if (loading) return loading;
       stopped = false; disposed = false;
       loading = (async () => {
-        if (!navigator.gpu) throw new Error("WebGPU unavailable");
+        if (!navigator.gpu) throw Object.assign(new Error("WebGPU unavailable"), { code: "GPU_UNAVAILABLE" });
         const adapter = await navigator.gpu.requestAdapter();
-        if (!adapter || !adapter.features.has("shader-f16")) throw new Error("WebGPU fp16 unavailable");
+        if (!adapter) throw Object.assign(new Error("WebGPU adapter unavailable"), { code: "GPU_ADAPTER_UNAVAILABLE" });
+        if (!adapter.features.has("shader-f16")) throw Object.assign(new Error("WebGPU fp16 unavailable"), { code: "GPU_FP16_UNAVAILABLE" });
         runtime = await import(/* webpackChunkName: "local-assistant" */ "@huggingface/transformers");
         runtime.env.allowLocalModels = false;
         processor = await runtime.AutoProcessor.from_pretrained(LOCAL_MODEL_ID, { revision: LOCAL_MODEL_REVISION, progress_callback: onProgress });
