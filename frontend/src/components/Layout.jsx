@@ -1,3 +1,4 @@
+import ThemeSelect from "@/components/ThemeSelect";
 import React from "react";
 import { NavLink, useNavigate, useLocation, Link } from "react-router-dom";
 import { Sun, ClipboardList, Clock3, Cloud, CloudAlert, CloudOff, CloudUpload, CircleHelp, Menu, LayoutDashboard, ShieldCheck, Files, MapPin, Users, Truck, FileDown, LogOut, RefreshCw, Eye, CalendarDays, BarChart3 } from "lucide-react";
@@ -21,7 +22,7 @@ export function SimpleModeToggle({ className = "" }) {
 }
 
 const employeeNav = [
-  { to: "/dnes", label: "Dnes", icon: Sun, testid: "nav-today" },
+  { to: "/dnes", label: "Domů", icon: Sun, testid: "nav-today" },
   { to: "/zapisy", label: "Zápisy", icon: ClipboardList, testid: "nav-records" },
   { to: "/dochazka", label: "Docházka", icon: Clock3, testid: "nav-attendance" },
   { to: "/fronta", label: "Fronta", icon: CloudUpload, testid: "nav-queue" },
@@ -39,7 +40,7 @@ const managerNav = [
 function Logo() {
   return (
     <div className="leading-none">
-      <div className="font-heading text-xl font-bold tracking-tight text-white">DEMSTAV</div>
+      <svg viewBox="0 0 100 36" className="mb-1 h-7 w-20 text-amber-500" aria-hidden="true"><path d="M2 32 23 13 31 20 50 1 74 27 82 18 98 33 84 33 81 29 74 36 50 13 31 32 23 26 15 33Z" fill="currentColor" /></svg><div className="font-heading text-xl font-bold tracking-tight text-white">DEMSTAV</div>
       <div className="mt-0.5 flex items-center gap-2"><span className="text-[10px] font-semibold tracking-[0.35em] text-slate-300">OPERATIONS</span></div>
       <div className="mt-1.5 h-[3px] w-full bg-[#FFD200]" />
     </div>
@@ -89,12 +90,13 @@ export default function Layout({ children }) {
     <CircleHelp className="h-5 w-5" /><span className="hidden min-[390px]:inline">{t("Jak na to")}</span>
   </Link>;
   const isMgr = atLeast(user, "manager");
-  const mobileNav = isMgr ? [
-    {to: '/prehled', label: 'Přehled', icon: LayoutDashboard, testid: 'nav-overview'},
-    {to: '/kontrola', label: 'Ke kontrole', icon: ShieldCheck, testid: 'nav-review'},
-    {to: '/kalendar', label: 'Tým', icon: CalendarDays, testid: 'nav-team'},
-    employeeNav[0], employeeNav[4],
-  ] : employeeNav;
+  const mobileNav = [
+    employeeNav[0],
+    {to: '/stroje', label: 'Stroje', icon: Truck, testid: 'nav-machines'},
+    employeeNav[1],
+    {to: '/kalendar', label: 'Kalendář', icon: CalendarDays, testid: 'nav-team'},
+    employeeNav[4],
+  ];
   const item = (n) => (
     <NavLink key={n.to} to={n.to} data-testid={n.testid}
       className={({ isActive }) => `flex min-h-[48px] items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${isActive ? "bg-[#FFD200] text-slate-900" : "text-slate-200 hover:bg-white/10"}`}>
@@ -103,7 +105,7 @@ export default function Layout({ children }) {
     </NavLink>
   );
   return (
-    <div className="min-h-screen bg-[#F5F7FA]">
+    <div className="app-shell min-h-screen">
       <aside className="dark fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-[#0B0F14] px-4 py-5 lg:flex" data-testid="desktop-sidebar">
         <div className="flex items-center justify-between gap-2"><Logo />{help}</div>
         <div className="mt-6 space-y-1">
@@ -119,23 +121,24 @@ export default function Layout({ children }) {
         <div className="mt-auto space-y-3 border-t border-white/10 pt-4">
           <div className="px-1"><div className="truncate text-sm font-semibold text-white" data-testid="sidebar-user-name">{user?.name}</div><div className="text-xs text-slate-400" data-testid="sidebar-user-role">{user?.role_label}{user?.username && ` · ${user.username}`}</div></div>
           <SimpleModeToggle className="w-full" />
+          <ThemeSelect />
           <LanguageSelect dark />
           <Button variant="ghost" className="w-full justify-start text-slate-200 hover:bg-white/10 hover:text-white" onClick={() => { logout(); nav("/login"); }} data-testid="logout-button"><LogOut className="mr-2 h-4 w-4" />{t("Odhlásit")}</Button>
         </div>
       </aside>
 
-      <header className="dark sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#0B0F14] px-4 py-3 lg:hidden">
-        <div className="flex min-w-0 items-center gap-2"><Logo />{help}</div>
-        <div className="flex items-center gap-1.5"><LanguageSelect compact dark /><SimpleModeToggle /><SyncPill /></div>
+      <header className="app-header sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#0B0F14] px-4 py-3 lg:hidden">
+        <Logo />
+        <div className="flex items-center gap-2"><SyncPill /><details className="relative"><summary aria-label={t("Nastavení vzhledu a profilu")} className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border border-white/20 bg-white/10 font-bold text-white">{user?.name?.split(' ').map(n => n[0]).slice(0,2).join('') || '••'}</summary><div className="absolute right-0 top-14 z-50 flex w-64 flex-col gap-3 rounded-xl border border-white/20 bg-[#141e2b] p-4 shadow-xl"><span className="text-sm text-white">{user?.name}</span><ThemeSelect /><LanguageSelect compact dark /><SimpleModeToggle />{help}</div></details></div>
       </header>
 
       <main className="lg:pl-64">
-        <div className="hidden items-center justify-end gap-3 border-b border-slate-200 bg-[#0B0F14] px-8 py-2 lg:flex"><LanguageSelect compact dark /><SimpleModeToggle /><SyncPill /></div>
+        <div className="hidden items-center justify-end gap-3 border-b border-slate-200 bg-[#0B0F14] px-8 py-2 lg:flex"><ThemeSelect /><LanguageSelect compact dark /><SimpleModeToggle /><SyncPill /></div>
         {!s.online && <div className="hazard-stripe h-1.5" />}
         <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">{children}</div>
       </main>
 
-      <nav className="dark safe-bottom fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav">
+      <nav className="app-bottom-nav safe-bottom fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav">
         {mobileNav.filter((n) => n.to !== "/fronta" || s.queue.length > 0).map((n) => (
           <NavLink key={n.to} to={n.to} data-testid={`m-${n.testid}`} className={({ isActive }) => `relative flex min-h-[64px] flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${isActive ? "text-[#FFD200]" : "text-slate-300"}`}>
             {({ isActive }) => (<>{isActive && <span className="absolute top-0 h-1 w-10 rounded-b bg-[#FFD200]" />}<n.icon className="h-6 w-6" />{t(n.label)}

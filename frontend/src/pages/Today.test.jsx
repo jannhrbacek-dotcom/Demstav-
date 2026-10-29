@@ -8,13 +8,15 @@ jest.mock("@/lib/data", () => ({ useCached: () => ({ data: [], reload: jest.fn()
 jest.mock("@/components/AttendanceActions", () => ({ AttendanceActions: () => <div>Docházka</div>, useShiftState: () => ({ state: "away", pending: [] }) }));
 jest.mock("@/components/WeatherWidget", () => ({ WeatherWidget: () => <div>Počasí</div> }));
 jest.mock("@/components/ServiceAlerts", () => ({ ServiceAlerts: () => <div data-testid="service-alerts">Seznam servisů</div> }));
-test("Today keeps attendance and new record prominent without the fleet service card", async () => {
+test("Today shows quick actions before attendance without the fleet service card", async () => {
   global.IS_REACT_ACT_ENVIRONMENT = true;
   const el = document.createElement("div"), root = createRoot(el);
   await act(async () => root.render(<Today />));
   expect(el.querySelector('[data-testid="service-alerts"]')).toBeNull();
   const attendance = el.querySelector('[data-testid="today-attendance-primary"]');
   const record = el.querySelector('[data-testid="today-new-record-button"]');
-  expect(attendance.compareDocumentPosition(record) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(record.compareDocumentPosition(attendance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(record.getAttribute("href")).toBe("/zapis/novy");
+  expect(el.querySelector('a[href="/pracoviste"]')).toBeNull();
   await act(async () => root.unmount());
 });

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { LogIn, LogOut, Coffee, Play, QrCode, MapPin, Route } from "lucide-react";
+import { LogIn, LogOut, Coffee, Play, QrCode, MapPin, Route, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -112,13 +112,20 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
           <SelectTrigger className="h-14 text-base" data-testid="attendance-workplace-select"><SelectValue placeholder={workplaces?.length ? t("Vyberte pracoviště") : t("Žádné pracoviště – kontaktujte vedoucího")} /></SelectTrigger>
           <SelectContent>{(workplaces || []).map((w) => <SelectItem key={w.id} value={w.id} data-testid={`workplace-option-${w.id}`}>{w.name} · {MODE_LABELS[w.mode]}</SelectItem>)}</SelectContent>
         </Select>
+        <details className="text-sm text-slate-600" data-testid="attendance-help">
+          <summary className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg px-2 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"><Info className="h-4 w-4" aria-hidden="true" />{t("Informace k docházce")}</summary>
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <p>{t("Zahájení docházky není spuštěním stroje.")}</p>
         {wp?.mode === "gps_or_qr" && <p className="text-sm text-slate-700">Příchod i odchod potvrdíte polohou GPS v okruhu {wp.radius} m nebo QR kódem na pracovišti. Stačí jeden způsob.</p>}
         {wp && wp.mode !== "gps_or_qr" && <div className="flex items-center gap-2 text-xs text-slate-600">{wp.mode.includes("qr") && <><QrCode className="h-3.5 w-3.5" />naskenujte QR na pracovišti</>}{wp.mode.includes("gps") && <><MapPin className="h-3.5 w-3.5" />poloha se ověří jen v okamžiku záznamu a neukládá se</>}{wp.mode === "manual" && "ruční záznam – schvaluje vedoucí"}</div>}
+            <p>{t("Přestávky 12:00–12:30 a 15:30–16:00 se odečítají automaticky. Změnu žádejte v Docházce. Přejezd stačí klepnout – bez QR. Příchod a odchod potvrďte způsobem uvedeným u pracoviště.")}</p>
+          </div>
+        </details>
       </div>
       {state === "travel" && (
         <div className="rounded-xl border-2 border-[#E6BD00] bg-amber-50 p-3 text-sm text-amber-950" data-testid="attendance-travel-banner">
           <div className="font-semibold">{t("Přejezd na jinou zakázku – stále v práci")}</div>
-          <div>Po příjezdu vyberte nové pracoviště (bod B) a dejte <b>Příchod</b> s ověřením podle pracoviště. Čas přejezdu se počítá do pracovní doby, ale nefakturuje se.</div>
+          <details className="mt-1"><summary className="flex min-h-11 cursor-pointer items-center gap-2"><Info className="h-4 w-4" aria-hidden="true" />{t("Informace k přejezdu")}</summary><p>Po příjezdu vyberte nové pracoviště (bod B) a dejte <b>Příchod</b> s ověřením podle pracoviště. Čas přejezdu se počítá do pracovní doby, ale nefakturuje se.</p></details>
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -142,7 +149,6 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
         </button>
       )}
       {busy && <p role="status" className="text-sm font-semibold">{t("Ověřuji a ukládám docházku…")}</p>}
-      <p className="text-xs text-slate-600">Přestávky 12:00–12:30 a 15:30–16:00 se odečítají automaticky. Změnu žádejte v Docházce. Přejezd stačí klepnout – bez QR. Příchod a odchod potvrďte způsobem uvedeným u pracoviště.</p>
 
       <Dialog open={!!methodFor} onOpenChange={(o) => !o && setMethodFor(null)}>
         <DialogContent className="max-w-md" data-testid="attendance-method-dialog">

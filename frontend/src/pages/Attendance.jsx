@@ -35,7 +35,7 @@ export default function Attendance() {
   };
   return (
     <div className="space-y-5">
-      <PageHeader title="Docházka" subtitle="Příchod, přestávky a odchod. Zahájení docházky není spuštěním stroje." />
+      <PageHeader title="Docházka" />
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <AttendanceActions workplaces={wps.data} serverState={att.data?.projection?.state} onDone={() => att.reload()} />

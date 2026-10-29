@@ -1,6 +1,41 @@
-import React,{useEffect,useState} from 'react';
-import {useNavigate} from 'react-router-dom';
-import {useAuth} from '@/lib/auth';
-export default function LaunchScreen(){const {user}=useAuth();const nav=useNavigate();const [open,setOpen]=useState(()=>!sessionStorage.getItem('demstav:intro:v1'));useEffect(()=>{const show=()=>setOpen(true);window.addEventListener('demstav-intro',show);return()=>window.removeEventListener('demstav-intro',show);},[]);const enter=path=>{sessionStorage.setItem('demstav:intro:v1','1');setOpen(false);if(path)nav(user?path:'/login');};if(!open)return null;
- return <div className="launch" role="dialog" aria-modal="true" aria-label="Úvodní obrazovka"><header><strong>D<span> /</span></strong><small>GROUP · OPERATIONS</small><button autoFocus onClick={()=>enter()}>Přeskočit →</button></header><main><p className="launch-tag">● VÁŠ PRACOVNÍ DEN. POD KONTROLOU.</p><h1>DEMSTAV<span>OPERATIONS<b>.</b></span></h1><p className="launch-sub">Silné stroje. Přesné zápisy.<br/><span>Všechno pro práci na jednom místě.</span></p><div className="launch-loader" aria-hidden="true"><svg viewBox="0 0 640 210"><path d="M10 190H630" stroke="#738397"/><g fill="#ffd200" stroke="#ffd200" strokeWidth="7"><path d="M190 160L228 108H326L356 151V171H190Z"/><path d="M234 104L248 52H298L322 104Z" fill="#537085"/><path d="M354 142L442 72L483 151H545L526 178H467L431 105L364 161" fill="none" strokeWidth="12"/><circle cx="235" cy="164" r="30" fill="#111c27"/><circle cx="335" cy="164" r="30" fill="#111c27"/><circle cx="235" cy="164" r="9" fill="#758491" stroke="none"/><circle cx="335" cy="164" r="9" fill="#758491" stroke="none"/></g></svg></div>{user&&<nav>{[['01','Dnes','/dnes'],['02','Nový zápis','/zapis/novy'],['03','Stroje','/stroje']].map(([n,label,path])=><button key={path} onClick={()=>enter(path)}><small>{n}</small><strong>{label} ↗</strong></button>)}</nav>}<button className="launch-enter" onClick={()=>enter(user?'/dnes':'/login')}>{user?'Otevřít aplikaci':'Přihlásit se'} ↗</button></main><footer>DEMSTAV GROUP <span>ZAPIŠTE JEDNOU. MĚJTE PŘEHLED.</span></footer></div>;
+import React, { useCallback, useEffect, useState } from 'react';
+import './LaunchScreen.css';
+
+// This component stays mounted outside Routes: navigation never replays the intro.
+export default function LaunchScreen() {
+  const [open, setOpen] = useState(true);
+  const [run, setRun] = useState(0);
+  const dismiss = useCallback(() => setOpen(false), []);
+  useEffect(() => {
+    const replay = () => { setRun(value => value + 1); setOpen(true); };
+    window.addEventListener('demstav-intro', replay);
+    return () => window.removeEventListener('demstav-intro', replay);
+  }, []);
+  useEffect(() => {
+    if (!open) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const timer = window.setTimeout(dismiss, reduced ? 300 : 3500);
+    const escape = event => { if (event.key === 'Escape') dismiss(); };
+    window.addEventListener('keydown', escape);
+    return () => { window.clearTimeout(timer); window.removeEventListener('keydown', escape); };
+  }, [open, run, dismiss]);
+  if (!open) return null;
+  return (
+    <div key={run} className="demstav-launch" role="dialog" aria-modal="true" aria-label="Spouštění DEMSTAV Operations">
+      <div className="demstav-launch-scene" aria-hidden="true">
+        <div className="demstav-launch-stage">
+          <div className="demstav-launch-photo" style={{ backgroundImage: `url(${process.env.PUBLIC_URL || ""}/images/demstav-launch.webp)` }} />
+          <span className="demstav-launch-beacon" />
+        </div>
+      </div>
+      <div className="demstav-launch-shade" aria-hidden="true" />
+      <div className="demstav-launch-brand">
+        <svg viewBox="0 0 220 88" aria-hidden="true"><path d="M8 78 49 39 67 51 110 7 160 65 174 48 209 79 181 79 174 72 161 86 109 35 69 77 49 67 37 79Z" fill="currentColor" /></svg>
+        <strong>DEMSTAV</strong><span>OPERATIONS</span>
+        <p>STROJE <b>•</b> LIDÉ <b>•</b> VÝSLEDKY</p>
+      </div>
+      <div className="demstav-launch-progress" aria-hidden="true"><span /></div>
+      <button className="demstav-launch-skip" autoFocus onClick={dismiss}>Přeskočit →</button>
+    </div>
+  );
 }

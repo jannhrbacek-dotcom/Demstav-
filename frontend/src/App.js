@@ -1,6 +1,7 @@
 import { AppLock } from "@/components/AppLock";
 import LaunchScreen from "@/components/LaunchScreen";
 import React from "react";
+import { ThemeProvider } from "next-themes";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
@@ -44,12 +45,13 @@ function Guard({ children, role, bare }) {
 function Home() {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={atLeast(user, "manager") ? "/prehled" : "/dnes"} replace />;
+  return <Navigate to={"/dnes"} replace />;
 }
 
 export default function App() {
   return (
     <div className="App">
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="demstav-theme">
       <LanguageProvider>
       <AuthProvider>
         <BrowserRouter>
@@ -88,6 +90,7 @@ export default function App() {
         </BrowserRouter>
       </AuthProvider>
       </LanguageProvider>
+      </ThemeProvider>
     </div>
   );
 }

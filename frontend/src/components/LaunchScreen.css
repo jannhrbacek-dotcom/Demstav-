@@ -1,0 +1,20 @@
+.demstav-launch{position:fixed;inset:0;z-index:90;overflow:hidden;background:#10151d;color:#fff;isolation:isolate;animation:demstav-launch-exit .7s 2.8s both}
+.demstav-launch-scene{position:absolute;inset:0;animation:demstav-launch-zoom 1.5s ease-out both;transform-origin:55% 35%}
+.demstav-launch-stage{position:absolute;width:max(100vw,159.375dvh);height:max(100dvh,62.7451vw);left:50%;top:50%;transform:translate(-50%,-50%)}
+.demstav-launch-photo{position:absolute;inset:0;background-position:center;background-size:cover;background-repeat:no-repeat}
+.demstav-launch-beacon{position:absolute;left:80.8%;top:30.4%;width:18px;height:20px;border-radius:50%;background:#fff7aa;opacity:0;box-shadow:0 0 20px 10px #ffbb00,0 0 80px 35px #ff8a00;animation:demstav-beacon .5s 1.5s linear both}
+.demstav-launch-shade{position:absolute;inset:0;background:linear-gradient(0deg,#0b1018 0%,#0b1018f5 27%,#0b1018d9 48%,transparent 68%);pointer-events:none}
+.demstav-launch-brand{position:absolute;left:6%;right:6%;bottom:17%;text-align:center;animation:demstav-brand .8s 2s both;text-shadow:0 4px 26px #000}
+.demstav-launch-brand svg{display:block;width:clamp(120px,18vw,210px);height:80px;margin:0 auto 12px;color:#ffad19;filter:drop-shadow(0 0 16px #ff980050)}
+.demstav-launch-brand strong{display:block;font-size:clamp(42px,8vw,86px);font-weight:900;line-height:1;letter-spacing:-.04em}
+.demstav-launch-brand>span{display:block;letter-spacing:.45em;padding-left:.45em;font-size:clamp(12px,2vw,22px);margin-top:8px}
+.demstav-launch-brand p{margin-top:20px;font-size:clamp(11px,1.8vw,18px);letter-spacing:.1em;color:#ccd0d5}.demstav-launch-brand b{color:#ffad19;margin:0 5px}
+.demstav-launch-progress{position:absolute;bottom:9%;left:18%;right:18%;height:5px;border-radius:10px;background:#ffffff30;overflow:hidden}.demstav-launch-progress span{display:block;height:100%;background:#ffad19;box-shadow:0 0 18px #ffad19;transform-origin:left;animation:demstav-progress 3.5s linear both}
+.demstav-launch-skip{position:absolute;right:max(20px,env(safe-area-inset-right));top:max(20px,env(safe-area-inset-top));min-height:44px;padding:10px 16px;border:1px solid #ffffff50;border-radius:30px;background:#10151dbf;color:#fff;font-size:14px;cursor:pointer}.demstav-launch-skip:focus-visible{outline:3px solid #ffad19;outline-offset:4px}
+@keyframes demstav-launch-zoom{from{transform:scale(1)}to{transform:scale(1.08)}}
+@keyframes demstav-beacon{0%,35%,70%,100%{opacity:0}10%,22%,48%,60%{opacity:1}}
+@keyframes demstav-brand{from{opacity:0;transform:translateY(12px);filter:brightness(1.8)}to{opacity:1;transform:translateY(0);filter:brightness(1)}}
+@keyframes demstav-launch-exit{from{opacity:1;filter:blur(0)}to{opacity:0;filter:blur(14px);visibility:hidden;pointer-events:none}}
+@keyframes demstav-progress{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(max-width:600px){.demstav-launch-stage{width:114.75dvh;height:72dvh;top:0;left:50%;transform:translateX(-60%)}.demstav-launch-brand{bottom:21%}.demstav-launch-shade{background:linear-gradient(0deg,#0b1018 0%,#0b1018 32%,#0b1018e8 49%,transparent 72%)}}
+@media(prefers-reduced-motion:reduce){.demstav-launch,.demstav-launch *{animation:none!important}.demstav-launch-brand{opacity:1}.demstav-launch-beacon{display:none}.demstav-launch-progress span{transform:scaleX(1)}}

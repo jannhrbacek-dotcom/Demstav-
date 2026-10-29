@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, CloudUpload, ClipboardList, Clock3, FileDown, CalendarDays, BarChart3 } from "lucide-react";
+import { CloudUpload, ClipboardList, Clock3, FileDown, CalendarDays, BarChart3, Construction, Tractor, Wrench, Building2, ChevronRight, Info } from "lucide-react";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
@@ -12,21 +12,17 @@ import { pracovniPozdrav } from "@/lib/greeting";
 import { useLanguage } from "@/lib/language";
 import { timeBreakdown, dayUnion, fmtHM, fmtH } from "@/lib/worktime";
 
+import "./Today.css";
+
 const STATE_CLS = { away: "bg-slate-200 text-slate-900", working: "bg-emerald-600 text-white", break: "bg-amber-400 text-slate-900" };
 
-/** Dlaždice pro jednoduchý režim – velká, jednoznačná akce s ikonou. */
-function Tile({ to, icon: I, label, hint, accent = false, testid }) {
-  const base = "flex min-h-[128px] flex-col items-center justify-center gap-2 rounded-2xl border-2 p-5 text-center shadow-sm transition-colors";
-  const cls = accent
-    ? "border-[#E6BD00] bg-[#FFD200] text-slate-900 hover:bg-[#FFC400]"
-    : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50";
-  return (
-    <Link to={to} data-testid={testid} className={`${base} ${cls}`}>
-      <I className="h-10 w-10" strokeWidth={1.75} />
-      <div className="font-heading text-lg font-bold leading-tight">{label}</div>
-      {hint && <div className="text-xs text-slate-700">{hint}</div>}
-    </Link>
-  );
+/** Navigace je vždy skutečný odkaz; barva doplňuje text i ikonu. */
+function Tile({ to, icon: Icon, label, tone = "amber", testid }) {
+  return <Link to={to} data-testid={testid} className={`operations-tile operations-tile--${tone}`}>
+    <Icon className="operations-tile-icon" strokeWidth={1.8} aria-hidden="true" />
+    <span className="operations-tile-label">{label}</span>
+    <span className="operations-tile-arrow" aria-hidden="true"><ChevronRight size={19} /></span>
+  </Link>;
 }
 
 export default function Today() {
@@ -51,12 +47,22 @@ export default function Today() {
   const [sharedAnswer, setSharedAnswer] = useState(() => localStorage.getItem(`demstav:shared:${user?.id}:${today}`) || "");
   const markNo = () => { localStorage.setItem(`demstav:shared:${user?.id}:${today}`, "no"); setSharedAnswer("no"); };
   return (
-    <div className="space-y-4">
+    <div className="operations-home space-y-4">
       <div>
         <p className="text-sm font-medium text-slate-600">{new Date().toLocaleDateString(language === "uk" ? "uk-UA" : "cs-CZ", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Prague" })}</p>
         <h1 className="font-heading text-3xl font-bold tracking-tight text-slate-900" data-testid="today-greeting">{language === "uk" ? `Вітаємо, ${user?.name || ""}!` : pracovniPozdrav(user?.name)}</h1>
       </div>
       <WeatherWidget workplaces={wps.data} preferredWorkplaceId={currentWorkplaceId} />
+      <nav className="operations-tiles" aria-label={t("Hlavní nabídka")}>
+        <Tile to="/zapis/novy" icon={Construction} label={t("Nový denní záznam")} testid="today-new-record-button" />
+        <Tile to="/dochazka" icon={Clock3} label={t("Docházka")} tone="blue" />
+        <Tile to="/zapisy" icon={Tractor} label={t("Šichtovnice")} tone="green" />
+        <Tile to="/stroje" icon={Wrench} label={t("Servis")} tone="purple" />
+        {atLeast(user, "manager")
+          ? <Tile to="/pracoviste" icon={Building2} label={t("Pracoviště")} tone="slate" />
+          : <Tile to="/stroje" icon={Tractor} label={t("Stroje")} tone="slate" />}
+        <Tile to="/exporty" icon={FileDown} label={t("Výkazy a exporty")} tone="red" />
+      </nav>
       <section className="space-y-3 rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm" data-testid="today-attendance-primary">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("Příchod / odchod")}</p>
@@ -70,12 +76,9 @@ export default function Today() {
           <div key={e.id} className="flex justify-between gap-2 text-sm"><span>{timeOf(e.effective_at)} · {t(KIND_LABELS[e.kind])}</span><StatusBadge status={e.status} /></div>
         )}</div>}
       </section>
-      <Link to="/zapis/novy" className="flex min-h-[86px] items-center gap-4 rounded-xl border-2 border-[#E6BD00] bg-[#FFD200] px-5 text-slate-900 shadow-sm hover:bg-[#FFC400]" data-testid="today-new-record-button">
-        <Plus className="h-9 w-9 shrink-0" /><div><div className="font-heading text-xl font-bold">{t("Nový denní zápis")}</div><p className="text-sm">{t("Stroj · práce · motohodiny · šichtovnice")}</p></div>
-      </Link>
       {productionAssigned && <section className="rounded-xl border border-slate-200 bg-slate-50 p-3" data-testid="today-shared-report">
         <p className="text-sm font-semibold">{t("Po směně: společný výkaz práce a tonáže")}</p>
-        <p className="text-xs text-slate-600">{t("Jen pověřený zaměstnanec vyplňuje společný výkaz a vážní lístky.")}</p>
+        <details className="operations-help"><summary aria-label={t("Informace ke společnému výkazu")}><Info size={17} aria-hidden="true" />{t("Informace")}</summary><p>{t("Jen pověřený zaměstnanec vyplňuje společný výkaz a vážní lístky.")}</p></details>
         <div className="mt-2 flex gap-2">
           <Link to="/vykazy-vazeni" onClick={() => { localStorage.setItem(`demstav:shared:${user?.id}:${today}`, "yes"); setSharedAnswer("yes"); }}
             className={`flex min-h-11 flex-1 items-center justify-center rounded-lg border-2 text-sm font-bold ${sharedAnswer === "yes" ? "border-emerald-600 bg-emerald-100" : "border-slate-300 bg-white"}`} data-testid="shared-report-yes">{t("ANO · otevřít výkaz")}</Link>
@@ -90,14 +93,14 @@ export default function Today() {
         </Link>)}</div>
         {state === "away" && net > 0 && !todays.length && <p className="mt-2 text-sm text-amber-800" data-testid="today-missing-timesheet">Máte docházku bez zápisu šichtovnice.</p>}
       </section>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <nav className="operations-secondary" aria-label={t("Další možnosti")}>
         <Tile to="/nepritomnost" icon={CalendarDays} label="Volno, nemoc a výjimky" />
         <Tile to="/kalendar" icon={Clock3} label="Kalendář týmu" />
         <Tile to="/zapisy" icon={ClipboardList} label="Moje zápisy" />
         <Tile to="/prehledy" icon={BarChart3} label="Přehledy" />
         <Tile to="/exporty" icon={FileDown} label="Exporty" />
-        {s.queue.length > 0 && <Tile to="/fronta" icon={CloudUpload} label={`Fronta · ${s.queue.length}`} hint="Čeká na odeslání" testid="tile-queue" />}
-      </div>
+        {s.queue.length > 0 && <Tile to="/fronta" icon={CloudUpload} label={`Fronta · ${s.queue.length}`} tone="amber" testid="tile-queue" />}
+      </nav>
     </div>
   );
 }
