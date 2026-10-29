@@ -67,7 +67,32 @@ def test_request_only_if_enabled_store_false_and_review_fields(monkeypatch):
 
 
 def test_incomplete_and_invalid_responses_rejected():
-    with pytest.raises(ValueError):
+    with pytest.raises(ocr_vision.VisionModelError):
         ocr_vision.response_text({"status": "incomplete", "output": []})
     with pytest.raises(ValueError):
         parse_vision_values(["wrong shape"])
+
+
+def test_reverse_engine_hours_are_never_proposed():
+    fields = parse_vision_values({
+        "date": "2026-10-28", "machine": "L576/5",
+        "mthStart": "8446", "mthEnd": "8440",
+    })
+    values = {f["key"]: f["value"] for f in fields}
+    assert "mthStart" not in values
+    assert "mthEnd" not in values
+    assert values["date"] == "2026-10-28"
+
+
+def test_incomplete_model_json_cannot_be_passed_to_user_as_valid(monkeypatch):
+    monkeypatch.setenv("OCR_VISION_ENABLED", "1")
+    monkeypatch.setenv("OPENAI_API_KEY", "example-not-a-real-key")
+    sample = io.BytesIO()
+    Image.new("RGB", (24, 24)).save(sample, "PNG")
+    response = Mock()
+    response.json.return_value = {"status": "completed", "output": [
+        {"type": "message", "content": [{"type": "output_text", "text": "not JSON"}]}
+    ]}
+    monkeypatch.setattr(ocr_vision.requests, "post", Mock(return_value=response))
+    with pytest.raises(ocr_vision.VisionModelError):
+        recognize_with_vision(sample.getvalue())
