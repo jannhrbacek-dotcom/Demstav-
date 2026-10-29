@@ -45,6 +45,7 @@ export default function More() {
         <h2 className="font-heading text-lg font-bold text-slate-900">{t("Pracovní přehled")}</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="more-tiles-primary">
           <L to="/zapisy" icon={ClipboardList} label="Moje zápisy" testid="more-records" />
+          {s.queue.length > 0 && <L to="/fronta" icon={Files} label="Fronta neodeslaných záznamů" testid="more-queue" />}
           <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
           <L to="/kalendar" icon={CalendarDays} label="Sdílený kalendář zaměstnanců" testid="more-calendar" />
           <L to="/jak-na-to" icon={Eye} label="Jak na to – průvodce aplikací" testid="more-guide" />
