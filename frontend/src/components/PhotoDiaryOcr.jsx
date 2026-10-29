@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus, Loader2, FileCheck2 } from "lucide-react";
 import { http, errText } from "@/lib/api";
 import { useLanguage } from "@/lib/language";
+import { normalizeAssistantPatch } from "@/lib/localAssistant";
 
 const VALID = new Set(["date", "machine", "site", "work", "mthStart", "mthEnd", "start", "end"]);
 
 /** Deliberately never saves/validates a record. OCR only proposes edits after human review. */
-export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI }) {
+export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI, machines = [] }) {
   const { t, language } = useLanguage();
   const localized = (cs, uk) => language === "uk" ? uk : cs;
   const [fields, setFields] = useState([]);
@@ -101,18 +102,18 @@ export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI }) {
   const apply = () => {
     const selected = fields.filter(f => f.checked && String(f.value || "").trim());
     if (!selected.length) return;
-    const patch = {};
-    selected.forEach(f => { patch[f.key] = String(f.value).trim(); });
+    const submitted = Object.fromEntries(selected.map(f => [f.key, String(f.value).trim()]));
+    const { patch, rejected } = normalizeAssistantPatch(submitted, machines);
+    if (rejected.length || Object.keys(patch).length !== selected.length) {
+      const fieldNames = selected.filter(f => rejected.includes(f.key)).map(f => t(f.label));
+      setError(localized(
+        "Neplatné nebo rozporné hodnoty: " + (fieldNames.join(", ") || "zkontrolujte označené údaje") + ". Stroj musí odpovídat evidenci, MTH a datum musí být platné.",
+        "Некоректні або суперечливі значення: " + (fieldNames.join(", ") || "перевірте вибрані дані") + ". Машина має бути в реєстрі, дата й мотогодини мають бути правильні."
+      ));
+      return;
+    }
     if ((patch.start && !patch.end) || (patch.end && !patch.start)) {
       setError(t("Čas směny použijte pouze při potvrzeném začátku i konci."));
-      return;
-    }
-    if (patch.date && !/^\d{4}-\d{2}-\d{2}$/.test(patch.date)) {
-      setError(t("Datum musí být ve formátu RRRR-MM-DD."));
-      return;
-    }
-    if (patch.start && (![patch.start, patch.end].every(s => /^([01]\d|2[0-3]):[0-5]\d$/.test(s)))) {
-      setError(t("Čas musí být ve formátu HH:MM."));
       return;
     }
     setError("");
