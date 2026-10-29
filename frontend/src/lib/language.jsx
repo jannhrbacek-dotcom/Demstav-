@@ -11,6 +11,7 @@ export const LANGUAGES = [
   { value: "uk", label: "Українська" },
 ];
 const uk = {
+  "Fronta neodeslaných záznamů": "Черга ненадісланих записів",
   "Informace": "Інформація",
   "Ověření příchodu a odchodu": "Підтвердження приходу та виходу",
   "Příchod i odchod potvrdíte polohou GPS v okruhu": "Підтвердьте прихід і вихід за GPS у радіусі",
