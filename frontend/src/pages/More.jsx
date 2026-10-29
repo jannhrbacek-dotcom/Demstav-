@@ -10,6 +10,7 @@ import { useSync } from "@/lib/sync";
 import { errText } from "@/lib/api";
 import { pushSupported, pushPermission, getActiveSubscription, enablePush, disablePush, sendTestPush } from "@/lib/push";
 import { LanguageSelect, useLanguage } from "@/lib/language";
+import { DeviceLockSettings } from "@/components/DeviceLock";
 
 const L = ({ to, icon: I, label, testid }) => { const { t } = useLanguage(); return (<Link to={to} className="flex min-h-[60px] items-center gap-3 border-b border-slate-100 px-4 font-semibold last:border-0 hover:bg-slate-50" data-testid={testid}><I className="h-5 w-5" /><span className="flex-1">{t(label)}</span><ChevronRight className="h-5 w-5 text-slate-400" /></Link>); };
 
@@ -54,6 +55,7 @@ export default function More() {
           <Switch checked={simpleMode} onCheckedChange={setSimpleMode} data-testid="more-simple-mode-switch" />
         </div>
       </div>
+      <DeviceLockSettings />
       {atLeast(user, "manager") && <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <L to="/prehled" icon={LayoutDashboard} label="Přehled vedení" testid="more-overview" />
         <L to="/kontrola" icon={ShieldCheck} label="Kontrola výjimek docházky" testid="more-review" />
