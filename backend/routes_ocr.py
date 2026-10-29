@@ -8,7 +8,7 @@ from collections import defaultdict, deque
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from core import get_ready_user
 from ocr_parse import extract_fields
-from ocr_vision import enabled as vision_enabled, recognize_with_vision
+from ocr_vision import enabled as vision_enabled, recognize_with_vision, InvalidPhotoError
 
 router = APIRouter()
 logger = logging.getLogger("diary-ocr")
@@ -95,8 +95,8 @@ async def vision_diary_photo(file: UploadFile = File(...), consent: bool = Form(
     try:
         async with _lock:
             fields = await asyncio.to_thread(recognize_with_vision, raw)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Fotografii nebo výsledek AI nelze bezpečně přečíst.") from exc
+    except InvalidPhotoError as exc:
+        raise HTTPException(status_code=400, detail="Fotografie je poškozená nebo příliš velká.") from exc
     except Exception as exc:
         # Do not leak provider response, API key, content or employee data into logs.
         logger.warning("Vision OCR request failed: %s", type(exc).__name__)
