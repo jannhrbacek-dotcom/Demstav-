@@ -11,6 +11,16 @@ export const LANGUAGES = [
   { value: "uk", label: "Українська" },
 ];
 const uk = {
+  "Docházka eviduje přítomnost na pracovišti. Neověřené záznamy (offline, mimo okruh, ruční) se nevydávají za prokázanou přítomnost – schvaluje je vedoucí.": "Облік робочого часу фіксує присутність на робочому місці. Неперевірені записи (офлайн, поза зоною, вручну) не підтверджують присутність, доки керівник їх не погодить.",
+  "Chybí příchod nebo potřebujete opravit čas? Žádost schvaluje vedoucí.": "Не зафіксовано прихід або потрібно виправити час? Запит погоджує керівник.",
+  "Máte docházku bez zápisu šichtovnice.": "Облік робочого часу є, але запису в табелі немає.",
+  "Zkontrolujte prosím:": "Перевірте, будь ласка:",
+  "Ostatní práce": "Інші роботи",
+  "Přejezdy (nefakturuje se)": "Переїзди (не виставляються до оплати)",
+  "Pozor: část servisu leží mimo pracovní dobu.": "Увага: частина сервісних робіт поза робочим часом.",
+  "Pozor: část prostoje leží mimo pracovní dobu.": "Увага: частина простою поза робочим часом.",
+  "Servis vyplněn": "Сервіс заповнено",
+  "Přejezd vyplněn": "Переїзд заповнено",
   "Digitální provozní evidence": "Цифровий облік роботи",
   "Váš pracovní den přehledně na jednom místě": "Увесь робочий день в одному застосунку",
   "Docházka na jeden dotyk": "Облік часу одним дотиком",
