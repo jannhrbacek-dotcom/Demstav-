@@ -273,7 +273,7 @@ export default function RecordForm() {
       {serverConfirmed && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950" data-testid="record-correction-note">Zápis je potvrzený (revize {local?.serverRevision || server?.revision}). Úprava vytvoří novou revizi s důvodem opravy; původní znění zůstane v historii.</div>}
       {local?.localState === "conflict" && <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950">Zápis byl mezitím změněn jinde. Konflikt vyřešte ve <Link to="/fronta" className="font-semibold underline">{t("Frontě")}</Link>.</div>}
       <p role="status" className={`rounded-lg p-3 text-sm ${localDraft.error ? "bg-red-50 text-red-800" : "bg-slate-100"}`}>{localDraft.error || (!localDraft.saving && localDraft.savedAt ? "Rozpracovaný zápis uložen v telefonu. Server ho přijme až po odeslání." : "Ukládám rozpracovaný zápis v telefonu…")}</p>
-      {errors.length > 0 && <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3 text-sm text-red-900" data-testid="record-errors"><div className="mb-1 font-semibold" >{t("Zkontrolujte prosím:")}div><ul className="list-disc pl-5">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
+      {errors.length > 0 && <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3 text-sm text-red-900" data-testid="record-errors"><div className="mb-1 font-semibold">{t("Zkontrolujte prosím:")}</div><ul className="list-disc pl-5">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
 
       {!id && lastRecord && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-3" data-testid="record-copy-last-banner">
