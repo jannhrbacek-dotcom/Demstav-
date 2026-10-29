@@ -121,7 +121,7 @@ test("invalid date and declining MTH cannot enter the draft even when explicitly
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
   for (const key of ["date", "mthStart", "mthEnd"]) {
-    await act(async () => el.querySelector('[data-testid="ocr-check-" + key + "]").click());
+    await act(async () => el.querySelector('[data-testid="ocr-check-' + key + '"]').click());
   }
   await act(async () => el.querySelector('[data-testid="ocr-apply"]').click());
   expect(apply).not.toHaveBeenCalled();
