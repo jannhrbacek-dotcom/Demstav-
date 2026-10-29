@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/lib/language";
-import { ASSISTANT_KEYS, createLocalAssistant, nextAssistantQuestion, parseAssistantOutput, recordValue, selectedAssistantPatch } from "@/lib/localAssistant";
+import { ASSISTANT_KEYS, createLocalAssistant, manualAssistantAnswer, nextAssistantQuestion, parseAssistantOutput, recordValue, selectedAssistantPatch } from "@/lib/localAssistant";
 
 const labels = {
   customer: ["Objednatel", "Замовник"], job: ["Zakázka", "Замовлення"], diesel: ["Nafta (l)", "Дизель (л)"], hydraulic: ["Hydraulický olej (l)", "Гідравлічне масло (л)"], oil: ["Motorový olej (l)", "Моторне масло (л)"], serviceDescription: ["Popis servisu", "Опис сервісу"], repairDescription: ["Opravy / závady", "Ремонт / несправності"], vehiclesTo: ["Vozidlo tam", "Транспорт туди"], vehiclesFrom: ["Vozidlo zpět", "Транспорт назад"], crew: ["Posádka", "Бригада"], accommodation: ["Ubytování (yes/no)", "Проживання (yes/no)"], notes: ["Poznámky", "Примітки"],
@@ -8,7 +8,7 @@ const labels = {
   mthStart: ["Počáteční MTH", "Початковий MTH"], mthEnd: ["Konečné MTH", "Кінцевий MTH"], start: ["Začátek směny", "Початок зміни"], end: ["Konec směny", "Кінець зміни"],
 };
 const button = "min-h-11 rounded-lg border border-slate-400 px-3 py-2 text-sm font-semibold disabled:opacity-50";
-export function DiaryAssistant({ record, onApply, machines = [] }) {
+export function DiaryAssistant({ record, onApply, machines = [], photoRequest = null }) {
   const { language } = useLanguage();
   const uk = language === "uk";
   const say = (cs, ua) => uk ? ua : cs;
@@ -26,6 +26,20 @@ export function DiaryAssistant({ record, onApply, machines = [] }) {
   const signature = JSON.stringify([record?.id, ...ASSISTANT_KEYS.map(k => recordValue(record, k))]);
   const busy = ["loading", "generating", "stopping"].includes(status);
   const [questionKey, question, optional] = nextAssistantQuestion(record, language, skipped);
+  const answerHint = questionKey === "date" ? say("Napiš datum, například 29. 10. 2026.", "Введи дату, наприклад 29. 10. 2026.")
+    : ["start", "end"].includes(questionKey) ? say("Napiš čas, například 7:00.", "Введи час, наприклад 7:00.")
+    : ["mthStart", "mthEnd", "diesel", "hydraulic", "oil"].includes(questionKey) ? say("Napiš pouze číslo bez jednotky.", "Введи лише число без одиниці виміру.")
+    : questionKey === "machine" ? say("Napiš přesný název stroje z evidence.", "Введи точну назву машини з реєстру.")
+    : questionKey === "accommodation" ? say("Napiš ano nebo ne.", "Введи так або ні.")
+    : say("Napiš pouze odpověď na uvedenou otázku.", "Введи лише відповідь на поточне запитання.");
+  const choosePhoto = useCallback(file => {
+    if (!file) return;
+    setError(""); setFields({}); setSelected({}); setRejected([]);
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
+      setError(uk ? "Обери JPG, PNG або WEBP до 10 МБ." : "Vyber JPG, PNG nebo WEBP do 10 MB."); return;
+    }
+    setPhotoUrl(URL.createObjectURL(file));
+  }, [uk]);
 
   useEffect(() => {
     mounted.current = true;
@@ -39,6 +53,12 @@ export function DiaryAssistant({ record, onApply, machines = [] }) {
   }, [signature]);
   useEffect(() => { setSkipped([]); }, [record?.id]);
   useEffect(() => () => { if (photoUrl) URL.revokeObjectURL(photoUrl); }, [photoUrl]);
+  useEffect(() => {
+    if (!photoRequest?.file) return;
+    ++epoch.current; engine.current?.cancel();
+    choosePhoto(photoRequest.file);
+    setSource(""); setNotice("");
+  }, [photoRequest, choosePhoto]);
 
   async function load() {
     if (busy) return;
@@ -52,7 +72,11 @@ export function DiaryAssistant({ record, onApply, machines = [] }) {
       if (mounted.current && token === epoch.current) setStatus("ready");
     } catch (e) {
       if (mounted.current && token === epoch.current) {
-        setError(e.name === "AbortError" ? "" : say("Model se nepodařilo spustit. Zkontroluj připojení, volnou paměť a podporu WebGPU + fp16. Můžeš pokračovat ručně podle otázky níže.", "Не вдалося запустити модель. Перевір з’єднання, вільну пам’ять та WebGPU + fp16. Можна продовжити вручну за запитанням нижче."));
+        const reason = e.code === "GPU_ADAPTER_UNAVAILABLE" ? say("Prohlížeč neposkytl grafický adaptér pro WebGPU. Místní AI zde nemůže běžet.", "Браузер не надав графічний адаптер WebGPU. Локальний ШІ тут не може працювати.")
+          : e.code === "GPU_FP16_UNAVAILABLE" ? say("Grafický adaptér nepodporuje shader-f16, který tento model vyžaduje.", "Графічний адаптер не підтримує shader-f16, потрібний цій моделі.")
+          : e.code === "GPU_UNAVAILABLE" ? say("Prohlížeč nepodporuje WebGPU.", "Браузер не підтримує WebGPU.")
+          : say("Model se nepodařilo stáhnout nebo spustit. Ověř připojení a volnou paměť zařízení.", "Не вдалося завантажити або запустити модель. Перевір з’єднання й вільну пам’ять пристрою.");
+        setError(e.name === "AbortError" ? "" : `${reason} ${say("Na otázku můžeš odpovědět tlačítkem bez AI; fotografie se tím nepřepisuje.", "Можна відповісти на запитання кнопкою без ШІ; це не переписує фотографію.")}`);
         setStatus("idle");
       }
     } finally {
@@ -80,13 +104,15 @@ export function DiaryAssistant({ record, onApply, machines = [] }) {
     ++epoch.current; engine.current?.cancel(); setStatus("stopping"); setFields({}); setSelected({});
     setNotice(say("Ruším výpočet. Probíhající stažení souboru může ještě doběhnout. Žádné údaje se nevloží.", "Скасовую обчислення. Поточне завантаження файлу може завершитися. Дані не будуть вставлені."));
   }
-  function choosePhoto(file) {
-    if (!file) return;
-    setError(""); setFields({}); setSelected({});
-    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
-      setError(say("Vyber JPG, PNG nebo WEBP do 10 MB.", "Обери JPG, PNG або WEBP до 10 МБ.")); return;
+  function prepareManualAnswer() {
+    if (busy || !questionKey) return;
+    setFields({}); setSelected({}); setRejected([]); setError("");
+    try {
+      setFields(manualAssistantAnswer(questionKey, source, machines));
+      setNotice(say("Připravena pouze odpověď na aktuální otázku bez AI. Porovnej ji a označ k vložení. Fotografie nebyla zpracována.", "Підготовлено лише відповідь на поточне запитання без ШІ. Перевір і познач для вставлення. Фото не оброблялося."));
+    } catch (_) {
+      setError(`${say("Odpověď neodpovídá poli.", "Відповідь не відповідає полю.")} ${answerHint}`);
     }
-    setPhotoUrl(URL.createObjectURL(file));
   }
   function apply() {
     if (busy) return;
@@ -106,6 +132,8 @@ export function DiaryAssistant({ record, onApply, machines = [] }) {
     {busy && <div role="status" className="space-y-2 text-sm"><p>{status === "loading" ? say("Stahuji a připravuji model…", "Завантажую й готую модель…") : status === "stopping" ? say("Ruším…", "Скасовую…") : say("Zpracovávám na tomto zařízení…", "Обробляю на цьому пристрої…")}</p>{status === "loading" && <p className="break-all">{progress}</p>}{status !== "stopping" && <button type="button" onClick={cancel} className={button}>{say("Zrušit", "Скасувати")}</button>}</div>}
     <div className="rounded-lg bg-white p-3"><p className="text-sm font-semibold">{say("Další otázka", "Наступне запитання")}</p><p>{question}</p>{optional && <div className="mt-2 flex items-center gap-2 text-sm"><span>{say("Nepovinné", "Необов’язково")}</span><button type="button" className={button} disabled={busy} onClick={() => { setSkipped(s => [...s, questionKey]); setSource(""); }}>{say("Přeskočit otázku", "Пропустити запитання")}</button></div>}</div>
     <label className="block text-sm font-semibold">{say("Odpověď nebo celý dnešní zápis", "Відповідь або весь сьогоднішній запис")}<textarea value={source} onChange={e => { setSource(e.target.value); setFields({}); setSelected({}); }} maxLength={6000} disabled={busy} className="mt-1 min-h-24 w-full rounded-lg border border-slate-300 p-2 font-normal" data-testid="assistant-source" /></label>
+    {questionKey && <p className="text-sm">{answerHint}</p>}
+    {questionKey && <button type="button" onClick={prepareManualAnswer} disabled={busy || !source.trim()} className={button} data-testid="assistant-manual">{say("Použít odpověď na otázku bez AI", "Використати відповідь на запитання без ШІ")}</button>}
     <label className="block text-sm font-semibold">{say("Přidat fotografii deníku (zůstane v zařízení)", "Додати фото журналу (залишається на пристрої)")}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} className="mt-1 block w-full text-sm" onChange={e => { choosePhoto(e.target.files?.[0]); e.target.value = ""; }} /></label>
     {photoUrl && <div className="space-y-2"><img src={photoUrl} alt={say("Původní fotografie pro kontrolu přepisu", "Оригінальне фото для перевірки перепису")} className="max-h-96 w-full rounded-lg border object-contain bg-white" /><button type="button" disabled={busy} className={button} onClick={() => { setPhotoUrl(""); setFields({}); }}>{say("Odebrat fotografii", "Прибрати фото")}</button></div>}
     <button type="button" onClick={generate} disabled={status !== "ready" || (!source.trim() && !photoUrl)} className={`${button} bg-slate-900 text-white`} data-testid="assistant-generate">{say("Zpracovat odpověď / fotografii", "Опрацювати відповідь / фото")}</button>

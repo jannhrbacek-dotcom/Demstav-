@@ -96,9 +96,11 @@ export default function RecordForm() {
   const [draftRevision, setDraftRevision] = useState(null);
   const [additional, setAdditional] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantPhoto, setAssistantPhoto] = useState(null);
+  const assistantPanel = useRef(null);
   const draftKey = `u:${user.id}:record-form:${id || "new"}`;
   const localDraft = useRecordDraft(draftKey, rec, draftRevision ?? server?.revision ?? 0);
-  useEffect(() => { setRec(null); setServer(null); setDraftRevision(null); }, [draftKey]);
+  useEffect(() => { setRec(null); setServer(null); setDraftRevision(null); setAssistantPhoto(null); setAssistantOpen(false); }, [draftKey]);
 
   const [errors, setErrors] = useState([]);
   const [reasonOpen, setReasonOpen] = useState(false);
@@ -288,15 +290,19 @@ export default function RecordForm() {
         </div>
       )}
 
-      <details className="rounded-xl border border-sky-300 bg-sky-50 p-3" data-testid="record-ai-panel" onToggle={e => setAssistantOpen(e.currentTarget.open)}>
+      <details ref={assistantPanel} open={assistantOpen} className="rounded-xl border border-sky-300 bg-sky-50 p-3" data-testid="record-ai-panel" onToggle={e => setAssistantOpen(e.currentTarget.open)}>
         <summary className="min-h-11 cursor-pointer py-2 text-base font-bold">{t("AI pomocník zdarma · fotografie a vedený zápis")}</summary>
-        {assistantOpen && <DiaryAssistant record={rec} machines={activeMachines} onApply={applyProposal} />}
+        {assistantOpen && <DiaryAssistant record={rec} machines={activeMachines} onApply={applyProposal} photoRequest={assistantPhoto} />}
       </details>
 
       <PhotoDiaryOcr record={rec}
+        onUseLocalAI={file => {
+          setAssistantPhoto({ file }); setAssistantOpen(true);
+          assistantPanel.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+        }}
         onAttach={async (file) => {
           const att = await addAttachment(file, { kind: "photo", km: "", recordId: rec.id, section: "timesheet" });
-          setRec(r => ({ ...r, attachments: [...(r.attachments || []), att] }));
+          setRec(r => r?.id === rec.id ? { ...r, attachments: [...(r.attachments || []), att] } : r);
         }}
         onApply={applyProposal} />
 

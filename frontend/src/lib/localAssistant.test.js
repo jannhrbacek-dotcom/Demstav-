@@ -1,5 +1,13 @@
-import { OPTIONAL_ASSISTANT_KEYS, assistantPrompt, nextAssistantQuestion, normalizeAssistantPatch, parseAssistantOutput, selectedAssistantPatch } from "./localAssistant";
+import { OPTIONAL_ASSISTANT_KEYS, assistantPrompt, manualAssistantAnswer, nextAssistantQuestion, normalizeAssistantPatch, parseAssistantOutput, selectedAssistantPatch } from "./localAssistant";
 const machines = [{ label: "L576/5", active: true }, { label: "Old", active: false }];
+test("manual answers validate exactly one known question without interpreting the whole diary", () => {
+  expect(manualAssistantAnswer("start", "7:00")).toEqual({ start: "07:00" });
+  expect(manualAssistantAnswer("date", "29. 10. 2026")).toEqual({ date: "2026-10-29" });
+  expect(manualAssistantAnswer("mthStart", "11 773")).toEqual({ mthStart: "11773" });
+  expect(manualAssistantAnswer("accommodation", "NE")).toEqual({ accommodation: "no" });
+  expect(manualAssistantAnswer("machine", "l576/5", machines)).toEqual({ machine: "L576/5" });
+  for (const [key, value] of [["date", "31.2.2026"], ["start", "7"], ["mthEnd", "11778?"], ["owner", "someone"], ["machine", "Old"]]) expect(() => manualAssistantAnswer(key, value, machines)).toThrow();
+});
 test("accepts complete values and preserves MTH instead of deriving shift hours", () => {
   expect(parseAssistantOutput('```json\n{"date":"28. 10. 2026","machine":"l576/5","mthStart":"8 440","mthEnd":"8 446","start":null,"end":null}\n```', machines)).toEqual({ patch: { date: "2026-10-28", machine: "L576/5", mthStart: "8440", mthEnd: "8446" }, rejected: [] });
 });

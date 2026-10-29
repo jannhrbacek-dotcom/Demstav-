@@ -1,16 +1,12 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus, Loader2, FileCheck2 } from "lucide-react";
 import { http, errText } from "@/lib/api";
 import { useLanguage } from "@/lib/language";
 
 const VALID = new Set(["date", "machine", "site", "work", "mthStart", "mthEnd", "start", "end"]);
-const present = (record, key) => {
-  if (key === "start" || key === "end") return !!record.billing?.[0]?.[key];
-  return !!record[key];
-};
 
 /** Deliberately never saves/validates a record. OCR only proposes edits after human review. */
-export function PhotoDiaryOcr({ record, onAttach, onApply }) {
+export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI }) {
   const { t } = useLanguage();
   const [fields, setFields] = useState([]);
   const [raw, setRaw] = useState("");
@@ -20,6 +16,12 @@ export function PhotoDiaryOcr({ record, onAttach, onApply }) {
   const [photo, setPhoto] = useState(null);
   const [attached, setAttached] = useState(false);
   const generation = useRef(0);
+  useEffect(() => {
+    ++generation.current;
+    setFields([]); setRaw(""); setWarning(""); setError("");
+    setBusy(false); setPhoto(null); setAttached(false);
+    return () => { ++generation.current; };
+  }, [record?.id]);
 
   async function process(file, isAttached = false) {
     if (!file) return;
@@ -44,10 +46,10 @@ export function PhotoDiaryOcr({ record, onAttach, onApply }) {
       setRaw(data.text || "");
       setWarning(data.warning || "");
       setFields((data.fields || []).filter(f => VALID.has(f.key)).map(f => ({
-        ...f, checked: !present(record, f.key),
+        ...f, checked: false,
       })));
       if (!data.text) setError(t("Fotografie nebyla čitelná. Zkuste ostrý snímek při dobrém světle."));
-      else if (!(data.fields || []).length) setError(t("Text byl přečten, ale hodnoty nebyly bezpečně rozpoznány. Zkontrolujte původní text níže."));
+      else if (!(data.fields || []).filter(f => VALID.has(f.key)).length) setError(t("Základní OCR nerozpoznalo údaje pro formulář. Výpis níže může obsahovat pouze části tiskopisu a nesprávně přečtený rukopis."));
     } catch (e) {
       if (generation.current === epoch) setError(errText(e, t("Přepis fotografie se nezdařil. Příloha zůstává v zápisu.")));
     } finally {
@@ -82,6 +84,7 @@ export function PhotoDiaryOcr({ record, onAttach, onApply }) {
   return <div className="space-y-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-4" data-testid="photo-diary-ocr">
     <h2 className="text-lg font-bold text-slate-900">{t("Přepsat papírový deník / šichtovnici")}</h2>
     <p className="text-sm text-slate-800">{t("Vyfoťte jednu stránku nebo nahrajte její fotku. Originál se přiloží k zápisu, rozpoznané údaje nejdříve zkontrolujete. Nic se samo nepotvrdí.")}</p>
+    <p className="text-sm font-semibold text-amber-950">{t("Základní OCR je určené hlavně pro tištěný text. Rukopis a tabulky mohou být nečitelné. Pro zkoušku rukopisu použijte místní AI; i její návrh je nutné ověřit.")}</p>
     <div className="flex flex-wrap gap-2">
       <label className="flex min-h-12 cursor-pointer items-center gap-2 rounded-lg bg-slate-900 px-4 font-semibold text-white focus-within:ring-2 focus-within:ring-amber-500">
         <Camera className="h-5 w-5" /> {t("Vyfotit dokument")}
@@ -96,9 +99,10 @@ export function PhotoDiaryOcr({ record, onAttach, onApply }) {
     {photo && !busy && <p className="text-sm text-slate-700">{t("Fotografie:")} {photo.name || "deník"} {t(attached ? "· uložena jako příloha konceptu" : "· nebyla přiložena")}</p>}
     {error && <p role="alert" className="rounded-lg bg-red-100 p-3 text-sm text-red-900">{error}</p>}
     {photo && !busy && <button type="button" className="text-sm font-semibold underline" onClick={() => process(photo, attached)} data-testid="ocr-retry">{t("Zopakovat rozpoznání fotografie")}</button>}
+    {photo && attached && !busy && onUseLocalAI && <button type="button" className="flex min-h-12 w-full items-center justify-center rounded-lg border-2 border-sky-700 bg-sky-50 px-3 font-semibold text-sky-950" onClick={() => onUseLocalAI(photo)} data-testid="ocr-use-local-ai">{t("Zkusit stejnou fotografii místní AI")}</button>}
     {!!fields.length && <div className="space-y-3 rounded-lg border border-slate-300 bg-white p-3" data-testid="ocr-review">
       <h3 className="font-bold">{t("Zkontrolujte návrh přepisu")}</h3>
-      <p className="text-sm text-amber-900">{t("Zaškrtnutá pole se vloží až po klepnutí na tlačítko. Již vyplněná pole se automaticky neoznačují.")}</p>
+      <p className="text-sm text-amber-900">{t("Porovnejte každé pole s fotografií. Nic není předem označené; vloží se pouze vámi zaškrtnuté údaje.")}</p>
       {fields.map(f => <div className="grid gap-1 sm:grid-cols-[auto_1fr]" key={f.key}>
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
           <input type="checkbox" checked={f.checked} onChange={e => update(f.key, "checked", e.target.checked)} className="h-5 w-5" data-testid={`ocr-check-${f.key}`} />
