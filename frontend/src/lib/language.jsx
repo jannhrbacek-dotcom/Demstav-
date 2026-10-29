@@ -11,6 +11,9 @@ export const LANGUAGES = [
   { value: "uk", label: "Українська" },
 ];
 const uk = {
+  "Servisní interval: aktuální MTH nejsou známé": "Інтервал сервісу: поточні мотогодини невідомі",
+  "vyřazený": "виведено з експлуатації",
+  "Úprava evidence stroje a pravidelného servisu.": "Редагування обліку машини та планового техобслуговування.",
   "Zatím žádná pracoviště.": "Поки немає робочих місць.",
   "Nový uživatel": "Новий користувач",
   "Role a oprávnění": "Ролі та права доступу",
