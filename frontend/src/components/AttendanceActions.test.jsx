@@ -62,3 +62,14 @@ test("failed GPS can be replaced by QR without keeping a duplicate event", async
   expect(addAttendanceEvent).toHaveBeenLastCalledWith(expect.objectContaining({ qr: "DS1.test.signature", gps: null }));
   expect(navigator.geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
 });
+
+test("workplace instructions are collapsed behind info until requested", async () => {
+  const info = document.querySelector('[data-testid="attendance-workplace-info"]');
+  expect(info).not.toBeNull();
+  expect(info.open).toBe(false);
+  expect(info.querySelector("summary")).not.toBeNull();
+  await act(async () => info.querySelector("summary").click());
+  expect(info.open).toBe(true);
+  expect(document.querySelector('[data-testid="today-arrival-button"]')).not.toBeNull();
+  expect(document.querySelector('[data-testid="attendance-general-info"]').open).toBe(false);
+});
