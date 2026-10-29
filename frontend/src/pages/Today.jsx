@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, CloudUpload, ClipboardList, Clock3, FileDown, CalendarDays, BarChart3 } from "lucide-react";
+import { Plus, Info } from "lucide-react";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
@@ -14,23 +14,8 @@ import { timeBreakdown, dayUnion, fmtHM, fmtH } from "@/lib/worktime";
 
 const STATE_CLS = { away: "bg-slate-200 text-slate-900", working: "bg-emerald-600 text-white", break: "bg-amber-400 text-slate-900" };
 
-/** Dlaždice pro jednoduchý režim – velká, jednoznačná akce s ikonou. */
-function Tile({ to, icon: I, label, hint, accent = false, testid }) {
-  const base = "flex min-h-[128px] flex-col items-center justify-center gap-2 rounded-2xl border-2 p-5 text-center shadow-sm transition-colors";
-  const cls = accent
-    ? "border-[#E6BD00] bg-[#FFD200] text-slate-900 hover:bg-[#FFC400]"
-    : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50";
-  return (
-    <Link to={to} data-testid={testid} className={`${base} ${cls}`}>
-      <I className="h-10 w-10" strokeWidth={1.75} />
-      <div className="font-heading text-lg font-bold leading-tight">{label}</div>
-      {hint && <div className="text-xs text-slate-700">{hint}</div>}
-    </Link>
-  );
-}
-
 export default function Today() {
-  const { user, simpleMode } = useAuth();
+  const { user } = useAuth();
   const { language, t } = useLanguage();
   const s = useSync();
   const att = useCached("/attendance/me?days=2");
@@ -57,22 +42,27 @@ export default function Today() {
         <h1 className="font-heading text-3xl font-bold tracking-tight text-slate-900" data-testid="today-greeting">{language === "uk" ? `Вітаємо, ${user?.name || ""}!` : pracovniPozdrav(user?.name)}</h1>
       </div>
       <WeatherWidget workplaces={wps.data} preferredWorkplaceId={currentWorkplaceId} />
+      <Link to="/zapis/novy" className="flex min-h-[92px] items-center justify-between gap-3 rounded-2xl border-2 border-[#E6BD00] bg-[#FFD200] px-4 py-3 text-slate-900 shadow-sm hover:bg-[#FFC400]" data-testid="today-new-record-button">
+        <div className="flex items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#0B0F14] text-[#FFD200]"><Plus className="h-9 w-9" /></div>
+          <div><div className="font-heading text-lg font-black sm:text-xl">{t("Nový denní zápis")}</div><p className="text-xs text-slate-800 sm:text-sm">{t("Stroj · práce · motohodiny · šichtovnice")}</p></div>
+        </div>
+        <span className="shrink-0 rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-center text-xs font-semibold" data-testid="today-records-count"><b className="block font-heading text-2xl tabular-nums">{todays.length}</b>{t("zápisů dnes")}</span>
+      </Link>
+
       <section className="space-y-3 rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm" data-testid="today-attendance-primary">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("Příchod / odchod")}</p>
+          <div><p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("Docházka")}</p>
             <div className={`mt-1 inline-flex rounded-lg px-3 py-1.5 font-heading text-lg font-semibold ${STATE_CLS[state]}`} data-testid="today-shift-state">{t(STATE_LABELS[state])}</div>
             {pending.length > 0 && <p className="mt-1 text-xs text-amber-800">{t("Čeká na server:")} {pending.length} {t("událostí")}</p>}
           </div>
           <div className="text-right"><p className="text-xs font-semibold text-slate-600">{t("Čistá doba dnes")}</p><p className="font-heading text-3xl font-bold tabular-nums" data-testid="today-hours-total">{fmtHM(net)}</p></div>
         </div>
         <AttendanceActions workplaces={wps.data} serverState={att.data?.projection?.state} onDone={() => att.reload()} />
-        {lastEvents.length > 0 && !simpleMode && <div className="space-y-1 border-t pt-2">{lastEvents.slice(0, 2).map((e) =>
+        {lastEvents.length > 0 && <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2" data-testid="today-attendance-info"><summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-sm font-semibold text-slate-700"><Info className="h-4 w-4 text-sky-700" />{t("Poslední události docházky")}</summary><div className="space-y-1 border-t pt-2">{lastEvents.slice(0, 2).map((e) =>
           <div key={e.id} className="flex justify-between gap-2 text-sm"><span>{timeOf(e.effective_at)} · {t(KIND_LABELS[e.kind])}</span><StatusBadge status={e.status} /></div>
-        )}</div>}
+         )}</div></details>}
       </section>
-      <Link to="/zapis/novy" className="flex min-h-[86px] items-center gap-4 rounded-xl border-2 border-[#E6BD00] bg-[#FFD200] px-5 text-slate-900 shadow-sm hover:bg-[#FFC400]" data-testid="today-new-record-button">
-        <Plus className="h-9 w-9 shrink-0" /><div><div className="font-heading text-xl font-bold">{t("Nový denní zápis")}</div><p className="text-sm">{t("Stroj · práce · motohodiny · šichtovnice")}</p></div>
-      </Link>
       {productionAssigned && <section className="rounded-xl border border-slate-200 bg-slate-50 p-3" data-testid="today-shared-report">
         <p className="text-sm font-semibold">{t("Po směně: společný výkaz práce a tonáže")}</p>
         <p className="text-xs text-slate-600">{t("Jen pověřený zaměstnanec vyplňuje společný výkaz a vážní lístky.")}</p>
@@ -90,14 +80,7 @@ export default function Today() {
         </Link>)}</div>
         {state === "away" && net > 0 && !todays.length && <p className="mt-2 text-sm text-amber-800" data-testid="today-missing-timesheet">{t("Máte docházku bez zápisu šichtovnice.")}</p>}
       </section>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Tile to="/nepritomnost" icon={CalendarDays} label="Volno, nemoc a výjimky" />
-        <Tile to="/kalendar" icon={Clock3} label="Kalendář týmu" />
-        <Tile to="/zapisy" icon={ClipboardList} label="Moje zápisy" />
-        <Tile to="/prehledy" icon={BarChart3} label="Přehledy" />
-        <Tile to="/exporty" icon={FileDown} label="Exporty" />
-        {s.queue.length > 0 && <Tile to="/fronta" icon={CloudUpload} label={`Fronta · ${s.queue.length}`} hint="Čeká na odeslání" testid="tile-queue" />}
-      </div>
+
     </div>
   );
 }
