@@ -273,7 +273,7 @@ export default function RecordForm() {
       {serverConfirmed && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950" data-testid="record-correction-note">Zápis je potvrzený (revize {local?.serverRevision || server?.revision}). Úprava vytvoří novou revizi s důvodem opravy; původní znění zůstane v historii.</div>}
       {local?.localState === "conflict" && <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950">Zápis byl mezitím změněn jinde. Konflikt vyřešte ve <Link to="/fronta" className="font-semibold underline">Frontě</Link>.</div>}
       <p role="status" className={`rounded-lg p-3 text-sm ${localDraft.error ? "bg-red-50 text-red-800" : "bg-slate-100"}`}>{localDraft.error || (!localDraft.saving && localDraft.savedAt ? "Rozpracovaný zápis uložen v telefonu. Server ho přijme až po odeslání." : "Ukládám rozpracovaný zápis v telefonu…")}</p>
-      {errors.length > 0 && <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3 text-sm text-red-900" data-testid="record-errors"><div className="mb-1 font-semibold">Zkontrolujte prosím:</div><ul className="list-disc pl-5">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
+      {errors.length > 0 && <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3 text-sm text-red-900" data-testid="record-errors"><div className="mb-1 font-semibold" >{t("Zkontrolujte prosím:")}div><ul className="list-disc pl-5">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
 
       {!id && lastRecord && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-3" data-testid="record-copy-last-banner">
@@ -331,12 +331,12 @@ export default function RecordForm() {
         {rec.downtime.length > 0 && <Field label="Důvod prostoje"><Input value={rec.downtimeReason} onChange={(e) => set("downtimeReason", e.target.value)} className="h-12" data-testid="record-downtime-reason-input" /></Field>}
         <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#0B0F14] p-4 text-white sm:grid-cols-4" data-testid="record-time-breakdown">
           <div><div className="text-xs text-slate-300">Celkem</div><div className="font-heading text-2xl font-bold text-[#FFD200]" data-testid="breakdown-total">{fmtH(bd.totalHours)} h</div></div>
-          <div><div className="text-xs text-slate-300">Ostatní práce</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-work">{fmtH(bd.workHours)} h</div></div>
+          <div><div className="text-xs text-slate-300">{t("Ostatní práce")}</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-work">{fmtH(bd.workHours)} h</div></div>
           <div><div className="text-xs text-slate-300">Servis</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-service">{fmtH(bd.serviceHours)} h</div></div>
           <div><div className="text-xs text-slate-300">Prostoje</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-downtime">{fmtH(bd.downtimeHours)} h</div></div>
-          {bd.travelHours > 0 && <div><div className="text-xs text-slate-300">Přejezdy (nefakturuje se)</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-travel">{fmtH(bd.travelHours)} h</div></div>}
+          {bd.travelHours > 0 && <div><div className="text-xs text-slate-300">{t("Přejezdy (nefakturuje se)")}</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-travel">{fmtH(bd.travelHours)} h</div></div>}
           {bd.travelHours > 0 && <div><div className="text-xs text-slate-300">K fakturaci</div><div className="font-heading text-2xl font-bold" data-testid="breakdown-billable">{fmtH(bd.billableHours)} h</div></div>}
-          <div className="col-span-2 text-xs text-slate-300 sm:col-span-4">Celkem = ostatní práce + servis + prostoje + přejezdy. {bd.serviceOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část servisu leží mimo pracovní dobu.</span>} {bd.downtimeOutsideShift && <span className="font-semibold text-[#FFD200]">Pozor: část prostoje leží mimo pracovní dobu.</span>}</div>
+          <div className="col-span-2 text-xs text-slate-300 sm:col-span-4">Celkem = ostatní práce + servis + prostoje + přejezdy. {bd.serviceOutsideShift && <span className="font-semibold text-[#FFD200]">{t("Pozor: část servisu leží mimo pracovní dobu.")}</span>} {bd.downtimeOutsideShift && <span className="font-semibold text-[#FFD200]">{t("Pozor: část prostoje leží mimo pracovní dobu.")}</span>}</div>
         </div>
         <Field label="Provedená práce"><DictateTextarea value={rec.work} onChange={(v) => set("work", v)} placeholder={t("např. Třídění, nakládka… (nebo klepněte na mikrofon)")} testid="record-work-input" /></Field>
         {recentWork.length > 0 && <div className="space-y-1.5">
@@ -364,7 +364,7 @@ export default function RecordForm() {
         )}
       </Section>
 
-      <Section defaultOpen={false} title="Prováděl jsem servis / opravu?" subtitle="Rozbalení ani skrytí nemaže již zapsané údaje." testid="section-service-gate" badge={(rec.service.length > 0 || rec.serviceDescription) ? <span className="rounded bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">Servis vyplněn</span> : null}>
+      <Section defaultOpen={false} title="Prováděl jsem servis / opravu?" subtitle="Rozbalení ani skrytí nemaže již zapsané údaje." testid="section-service-gate" badge={(rec.service.length > 0 || rec.serviceDescription) ? <span className="rounded bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">{t("Servis vyplněn")}</span> : null}>
         {(
           <div className="mt-4 space-y-4" data-testid="service-block">
             <IntervalEditor label="Údržba / servis / oprava (časové úseky)" hint="Je součástí pracovní doby, nepřičítá se podruhé." items={rec.service} onChange={(v) => set("service", v)} testid="service" />
@@ -389,7 +389,7 @@ export default function RecordForm() {
         )}
       </Section>
 
-      <Section defaultOpen={false} title="Měl jsem přejezd mezi zakázkami (A → B)?" subtitle="Rozbalení ani skrytí nemaže již zapsané údaje." testid="section-travel-gate" badge={rec.travel?.length ? <span className="rounded bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">Přejezd vyplněn</span> : null}>
+      <Section defaultOpen={false} title="Měl jsem přejezd mezi zakázkami (A → B)?" subtitle="Rozbalení ani skrytí nemaže již zapsané údaje." testid="section-travel-gate" badge={rec.travel?.length ? <span className="rounded bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white">{t("Přejezd vyplněn")}</span> : null}>
         {(
           <div className="mt-4" data-testid="travel-block">
             <IntervalEditor label="Přejezd A → B" hint="Je součástí pracovní doby, ale nefakturuje se. Zadejte odkud, kam a čas od–do." items={rec.travel || []} onChange={(v) => set("travel", v)} testid="travel" withRoute
