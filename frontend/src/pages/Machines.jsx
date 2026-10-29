@@ -10,8 +10,10 @@ import { PageHeader, Field, Empty } from "@/components/Section";
 import { useCached } from "@/lib/data";
 import { http, errText } from "@/lib/api";
 import { useAuth, atLeast } from "@/lib/auth";
+import { useLanguage } from "@/lib/language";
 
 export default function Machines() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const canEdit = atLeast(user, "manager");
   const q = useCached("/machines");
@@ -23,7 +25,7 @@ export default function Machines() {
   return (
     <div className="space-y-4">
       <PageHeader title="Seznam strojů" subtitle="Technické údaje, aktuální motohodiny a pravidelný servis."
-        actions={canEdit && <Button className="btn-primary h-12 font-semibold" onClick={() => setForm({ label: "", type: "", internal_number: "", serial_number: "", plate: "", manufacturer: "", year: "", power_kw: "", weight_kg: "", operating_hours: "", note: "", service_interval_mth: 500, service_warn_mth: 100, last_service_mth: "", active: true })} data-testid="machine-create-button"><Plus className="mr-1 h-5 w-5" />Přidat stroj</Button>} />
+        actions={canEdit && <Button className="btn-primary h-12 font-semibold" onClick={() => setForm({ label: "", type: "", internal_number: "", serial_number: "", plate: "", manufacturer: "", year: "", power_kw: "", weight_kg: "", operating_hours: "", note: "", service_interval_mth: 500, service_warn_mth: 100, last_service_mth: "", active: true })} data-testid="machine-create-button"><Plus className="mr-1 h-5 w-5" />{t("Přidat stroj")}</Button>} />
       {!q.loading && !(q.data || []).length && <Empty icon={Truck} title="Zatím žádný stroj" text={canEdit ? "Přidejte stroje, se kterými firma pracuje (např. Liebherr L566/3)." : "Seznam strojů doplní vedení."} />}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{(q.data || []).map((m) => (
         <div key={m.id} className={`flex items-start justify-between rounded-xl border bg-white p-4 shadow-sm ${m.active ? "border-slate-200" : "border-dashed opacity-70"}`} data-testid="machine-item">
@@ -35,14 +37,14 @@ export default function Machines() {
                 <Wrench className="h-3.5 w-3.5" />{remainingText(m)} · servis při {m.next_service_mth} mth
               </div>
             )}
-            {m.service_state === "unknown" && <div className="mt-2 text-xs text-slate-500" data-testid="machine-service-status">Servisní interval: aktuální MTH nejsou známé</div>}
+            {m.service_state === "unknown" && <div className="mt-2 text-xs text-slate-500" data-testid="machine-service-status">{t("Servisní interval: aktuální MTH nejsou známé")}</div>}
             <div className="mt-2 text-xs text-slate-600" data-testid="machine-service-details">Interval {m.service_interval_mth ?? 500} mth · upozornění {m.service_warn_mth ?? 100} mth předem{m.last_service_mth != null && m.last_service_mth !== "" ? ` · poslední servis při ${m.last_service_mth} mth` : ""}</div>
-            {!m.active && <div className="text-xs font-semibold text-red-800">vyřazený</div>}</div>
+            {!m.active && <div className="text-xs font-semibold text-red-800">{t("vyřazený")}</div>}</div>
           {canEdit && <Button variant="ghost" size="sm" onClick={() => setForm({ ...m })} data-testid="machine-edit-button"><Pencil className="h-4 w-4" /></Button>}
         </div>))}</div>
       <Dialog open={canEdit && !!form} onOpenChange={(o) => !o && setForm(null)}>
         <DialogContent className="max-w-md" data-testid="machine-dialog">
-          <DialogHeader><DialogTitle className="font-heading">{form?.id ? "Upravit stroj" : "Nový stroj"}</DialogTitle><DialogDescription>Úprava evidence stroje a pravidelného servisu.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{form?.id ? "Upravit stroj" : "Nový stroj"}</DialogTitle><DialogDescription>{t("Úprava evidence stroje a pravidelného servisu.")}</DialogDescription></DialogHeader>
           {form && <div className="space-y-3">
             <Field label="Název stroje s číslem (zobrazí se v zápisu)" hint="Typ / číslo stroje, např. L566/3 nebo L576/7."><Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className="h-12" placeholder="např. L566/3" data-testid="machine-label-input" /></Field>
             <Field label="Typ / značka / model"><Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="h-12" data-testid="machine-type-input" /></Field>
@@ -57,7 +59,7 @@ export default function Machines() {
             </div>
             <Field label="Aktuální motohodiny (MTH)" hint="Použije se jako začátek MTH u prvního zápisu na tento stroj."><Input inputMode="decimal" value={form.operating_hours ?? ""} onChange={(e) => setForm({ ...form, operating_hours: e.target.value })} className="h-12" placeholder="např. 2375,4" data-testid="machine-mth-input" /></Field>
             <div className="space-y-3 rounded-lg border border-slate-200 p-3">
-              <div className="text-sm font-semibold">Pravidelný servis</div>
+              <div className="text-sm font-semibold">{t("Pravidelný servis")}</div>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Interval (mth)"><Input inputMode="numeric" value={form.service_interval_mth ?? 500} onChange={(e) => setForm({ ...form, service_interval_mth: e.target.value.replace(/[^\d]/g, "") })} className="h-12" data-testid="machine-interval-input" /></Field>
                 <Field label="Upozornit předem (mth)"><Input inputMode="numeric" value={form.service_warn_mth ?? 100} onChange={(e) => setForm({ ...form, service_warn_mth: e.target.value.replace(/[^\d]/g, "") })} className="h-12" data-testid="machine-warn-input" /></Field>
@@ -67,7 +69,7 @@ export default function Machines() {
             <Field label="Poznámka"><Input value={form.note || ""} onChange={(e) => setForm({ ...form, note: e.target.value })} className="h-12" data-testid="machine-note-input" /></Field>
             <label className="flex items-center gap-3"><Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} data-testid="machine-active-switch" />V provozu</label>
           </div>}
-          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={save} data-testid="machine-save-button">Uložit</Button></DialogFooter>
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={save} data-testid="machine-save-button">{t("Uložit")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
