@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { LogIn, LogOut, Coffee, Play, QrCode, MapPin, Route } from "lucide-react";
+import { LogIn, LogOut, Coffee, Play, QrCode, MapPin, Route, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -49,6 +49,17 @@ const BTN = {
 };
 // Pauza a přejezd se jen klepnou – bez QR a GPS.
 const TAP = ["break_start", "break_end", "travel_start"];
+
+// Long instructions stay available, but never crowd the primary attendance controls.
+function InfoHelp({ children, id, label = "Informace" }) {
+  const { t } = useLanguage();
+  return <details className="rounded-lg border border-slate-200 bg-slate-50 text-sm" data-testid={id}>
+    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 font-semibold text-slate-700">
+      <Info className="h-5 w-5 text-sky-700" aria-hidden="true" />{t(label)}
+    </summary>
+    <div className="border-t border-slate-200 px-3 py-3 leading-relaxed text-slate-700">{children}</div>
+  </details>;
+}
 
 export function AttendanceActions({ workplaces, serverState, onDone }) {
   const { t } = useLanguage();
@@ -112,13 +123,13 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
           <SelectTrigger className="h-14 text-base" data-testid="attendance-workplace-select"><SelectValue placeholder={workplaces?.length ? t("Vyberte pracoviště") : t("Žádné pracoviště – kontaktujte vedoucího")} /></SelectTrigger>
           <SelectContent>{(workplaces || []).map((w) => <SelectItem key={w.id} value={w.id} data-testid={`workplace-option-${w.id}`}>{w.name} · {MODE_LABELS[w.mode]}</SelectItem>)}</SelectContent>
         </Select>
-        {wp?.mode === "gps_or_qr" && <p className="text-sm text-slate-700">Příchod i odchod potvrdíte polohou GPS v okruhu {wp.radius} m nebo QR kódem na pracovišti. Stačí jeden způsob.</p>}
-        {wp && wp.mode !== "gps_or_qr" && <div className="flex items-center gap-2 text-xs text-slate-600">{wp.mode.includes("qr") && <><QrCode className="h-3.5 w-3.5" />naskenujte QR na pracovišti</>}{wp.mode.includes("gps") && <><MapPin className="h-3.5 w-3.5" />poloha se ověří jen v okamžiku záznamu a neukládá se</>}{wp.mode === "manual" && "ruční záznam – schvaluje vedoucí"}</div>}
+        {wp?.mode === "gps_or_qr" && <InfoHelp id="attendance-workplace-info" label="Ověření příchodu a odchodu">{t("Příchod i odchod potvrdíte polohou GPS v okruhu")} {wp.radius} m {t("nebo QR kódem na pracovišti. Stačí jeden způsob.")}</InfoHelp>}
+        {wp && wp.mode !== "gps_or_qr" && <InfoHelp id="attendance-workplace-info" label="Ověření příchodu a odchodu">{wp.mode.includes("qr") && <p>{t("Naskenujte QR na pracovišti.")}</p>}{wp.mode.includes("gps") && <p>{t("Poloha se ověří jen při záznamu a neukládá se.")}</p>}{wp.mode === "manual" && <p>{t("Ruční záznam schvaluje vedoucí.")}</p>}</InfoHelp>}
       </div>
       {state === "travel" && (
         <div className="rounded-xl border-2 border-[#E6BD00] bg-amber-50 p-3 text-sm text-amber-950" data-testid="attendance-travel-banner">
           <div className="font-semibold">{t("Přejezd na jinou zakázku – stále v práci")}</div>
-          <div>Po příjezdu vyberte nové pracoviště (bod B) a dejte <b>Příchod</b> s ověřením podle pracoviště. Čas přejezdu se počítá do pracovní doby, ale nefakturuje se.</div>
+          <InfoHelp id="attendance-travel-info" label="Jak funguje přejezd">{t("Po příjezdu vyberte nové pracoviště (bod B) a dejte Příchod s ověřením. Přejezd se počítá do pracovní doby, ale nefakturuje se.")}</InfoHelp>
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -142,7 +153,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
         </button>
       )}
       {busy && <p role="status" className="text-sm font-semibold">{t("Ověřuji a ukládám docházku…")}</p>}
-      <p className="text-xs text-slate-600">Přestávky 12:00–12:30 a 15:30–16:00 se odečítají automaticky. Změnu žádejte v Docházce. Přejezd stačí klepnout – bez QR. Příchod a odchod potvrďte způsobem uvedeným u pracoviště.</p>
+      <InfoHelp id="attendance-general-info" label="Informace k docházce">{t("Přestávky 12:00–12:30 a 15:30–16:00 se odečítají automaticky. Změnu žádejte v Docházce. Přejezd stačí klepnout – bez QR. Příchod a odchod potvrďte způsobem uvedeným u pracoviště.")}</InfoHelp>
 
       <Dialog open={!!methodFor} onOpenChange={(o) => !o && setMethodFor(null)}>
         <DialogContent className="max-w-md" data-testid="attendance-method-dialog">
