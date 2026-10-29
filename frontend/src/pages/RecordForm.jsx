@@ -271,14 +271,14 @@ export default function RecordForm() {
           <Button variant="ghost" className="h-10" onClick={() => nav(-1)} data-testid="record-back-button"><ArrowLeft className="mr-1 h-4 w-4" />{t("Zpět")}</Button>
         </>} />
       {serverConfirmed && <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950" data-testid="record-correction-note">Zápis je potvrzený (revize {local?.serverRevision || server?.revision}). Úprava vytvoří novou revizi s důvodem opravy; původní znění zůstane v historii.</div>}
-      {local?.localState === "conflict" && <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950">Zápis byl mezitím změněn jinde. Konflikt vyřešte ve <Link to="/fronta" className="font-semibold underline">Frontě</Link>.</div>}
+      {local?.localState === "conflict" && <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm text-rose-950">Zápis byl mezitím změněn jinde. Konflikt vyřešte ve <Link to="/fronta" className="font-semibold underline">{t("Frontě")}</Link>.</div>}
       <p role="status" className={`rounded-lg p-3 text-sm ${localDraft.error ? "bg-red-50 text-red-800" : "bg-slate-100"}`}>{localDraft.error || (!localDraft.saving && localDraft.savedAt ? "Rozpracovaný zápis uložen v telefonu. Server ho přijme až po odeslání." : "Ukládám rozpracovaný zápis v telefonu…")}</p>
       {errors.length > 0 && <div className="rounded-xl border-2 border-red-300 bg-red-50 p-3 text-sm text-red-900" data-testid="record-errors"><div className="mb-1 font-semibold" >{t("Zkontrolujte prosím:")}div><ul className="list-disc pl-5">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
 
       {!id && lastRecord && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-3" data-testid="record-copy-last-banner">
           <div className="text-sm text-amber-950">
-            <div className="font-semibold">Načíst údaje z posledního zápisu?</div>
+            <div className="font-semibold">{t("Načíst údaje z posledního zápisu?")}</div>
             <div className="text-xs">{lastRecord.date} · {lastRecord.machine || "bez stroje"} · {lastRecord.site || "—"}. Doplní stroj, pracoviště, zakázku, SPZ, MTH začátek a další.</div>
           </div>
           <Button type="button" variant="outline" className="h-11 font-semibold" data-testid="record-copy-last-button"
@@ -380,7 +380,7 @@ export default function RecordForm() {
               <span className="font-medium">
                 Proveden pravidelný servis dle intervalu ({selMachine?.service_interval_mth || 500} mth) – po potvrzení zápisu začne nový odpočet.
                 {!canIntervalService && (
-                  <span className="mt-1 flex items-start gap-1 text-xs font-normal text-slate-600"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />Pravidelný servis může zapsat jen oprávněný mechanik nebo vedení podle zařazení účtu. Výběr externí firmy oprávnění nemění.</span>
+                  <span className="mt-1 flex items-start gap-1 text-xs font-normal text-slate-600"><Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />{t("Pravidelný servis může zapsat jen oprávněný mechanik nebo vedení podle zařazení účtu. Výběr externí firmy oprávnění nemění.")}</span>
                 )}
               </span>
             </label>
@@ -403,19 +403,19 @@ export default function RecordForm() {
           <div key={f.id} className={`space-y-3 rounded-xl border-2 p-3 ${f.severity === "stop" ? "border-black" : "border-slate-200"}`} data-testid={`fault-item-${i}`}>
             <div className="flex items-center justify-between"><div className="font-semibold">Závada {i + 1}</div><Button type="button" variant="ghost" size="sm" onClick={() => set("faults", rec.faults.filter((_, j) => j !== i))} data-testid={`fault-remove-${i}`}><Trash2 className="h-4 w-4" /></Button></div>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setFault(i, "severity", "normal")} className={`h-12 rounded-lg border-2 font-semibold ${f.severity === "normal" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300"}`} data-testid={`fault-severity-normal-${i}`}>Běžná</button>
-              <button type="button" onClick={() => setFault(i, "severity", "stop")} className={`flex h-12 items-center justify-center gap-2 rounded-lg border-2 font-bold ${f.severity === "stop" ? "border-black bg-black text-[#FFD200]" : "border-slate-300"}`} data-testid={`fault-severity-stop-${i}`}><OctagonAlert className="h-5 w-5" />STOP – vážná</button>
+              <button type="button" onClick={() => setFault(i, "severity", "normal")} className={`h-12 rounded-lg border-2 font-semibold ${f.severity === "normal" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-300"}`} data-testid={`fault-severity-normal-${i}`}>{t("Běžná")}</button>
+              <button type="button" onClick={() => setFault(i, "severity", "stop")} className={`flex h-12 items-center justify-center gap-2 rounded-lg border-2 font-bold ${f.severity === "stop" ? "border-black bg-black text-[#FFD200]" : "border-slate-300"}`} data-testid={`fault-severity-stop-${i}`}><OctagonAlert className="h-5 w-5" />{t("STOP – vážná")}</button>
             </div>
             <div className="grid grid-cols-2 gap-3"><Field label="Datum"><Input type="date" value={f.date} onChange={(e) => setFault(i, "date", e.target.value)} className="h-12" /></Field><Field label="Čas zjištění"><Input type="time" value={f.time} onChange={(e) => setFault(i, "time", e.target.value)} className="h-12" data-testid={`fault-time-${i}`} /></Field></div>
             <Field label="Popis závady"><DictateTextarea value={f.description} onChange={(v) => setFault(i, "description", v)} testid={`fault-description-${i}`} /></Field>
-            <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.reportedToWorkshop} onCheckedChange={(v) => setFault(i, "reportedToWorkshop", v === true)} className="h-6 w-6" data-testid={`fault-reported-${i}`} />Nahlášeno vedoucímu servisu / dílně</label>
-            <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.acknowledged} onCheckedChange={(v) => setFault(i, "acknowledged", v === true)} className="h-6 w-6" data-testid={`fault-acknowledged-${i}`} />Střídající obsluha byla seznámena</label>
-            <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.resolved} onCheckedChange={(v) => setFault(i, "resolved", v === true)} className="h-6 w-6" data-testid={`fault-resolved-${i}`} />Závada odstraněna</label>
+            <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.reportedToWorkshop} onCheckedChange={(v) => setFault(i, "reportedToWorkshop", v === true)} className="h-6 w-6" data-testid={`fault-reported-${i}`} />{t("Nahlášeno vedoucímu servisu / dílně")}</label>
+            <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.acknowledged} onCheckedChange={(v) => setFault(i, "acknowledged", v === true)} className="h-6 w-6" data-testid={`fault-acknowledged-${i}`} />{t("Střídající obsluha byla seznámena")}</label>
+            <label className="flex min-h-[48px] items-center gap-3"><Checkbox checked={f.resolved} onCheckedChange={(v) => setFault(i, "resolved", v === true)} className="h-6 w-6" data-testid={`fault-resolved-${i}`} />{t("Závada odstraněna")}</label>
             {f.resolved && <Field label="Způsob odstranění"><DictateTextarea value={f.resolution} onChange={(v) => setFault(i, "resolution", v)} testid={`fault-resolution-${i}`} /></Field>}
           </div>))}
         <Button type="button" variant="outline" className="h-12" onClick={() => set("faults", [...rec.faults, { id: newId(), date: rec.date, time: new Date().toTimeString().slice(0, 5), description: "", severity: "normal", resolved: false, resolution: "", acknowledged: false, reportedToWorkshop: false }])} data-testid="fault-add-button"><Plus className="mr-1 h-4 w-4" />{t("Přidat závadu")}</Button>
       </Section>
-      <button type="button" aria-expanded={additional} aria-controls="record-additional" onClick={() => setAdditional(!additional)} className="min-h-14 w-full rounded-xl border-2 bg-white px-4 text-left text-lg font-bold" data-testid="record-additional-toggle">Další údaje a přílohy · nic se nemaže</button>
+      <button type="button" aria-expanded={additional} aria-controls="record-additional" onClick={() => setAdditional(!additional)} className="min-h-14 w-full rounded-xl border-2 bg-white px-4 text-left text-lg font-bold" data-testid="record-additional-toggle">{t("Další údaje a přílohy · nic se nemaže")}</button>
       <div id="record-additional" hidden={!additional} className="space-y-4">
       <Section title="Doprava a další údaje" testid="section-extra-basic">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -434,8 +434,8 @@ export default function RecordForm() {
           </Field>
           <Field label="Moje doba jízdy (H:MM)" hint="Vlastní jízdu zapisuje i spolujezdec. Nulová jízda = 0:00, nevyplněno není nula. Nepřičítá se znovu k pracovní době."><Input placeholder="0:45" value={rec.journeyEditing ? rec.drive : journeyText(rec) === "neověřeno" ? "" : journeyText(rec)} onChange={e => { const value = e.target.value; setRec(r => ({ ...r, drive: value, driveMinutes: durationMinutes(value), journeyEditing: true })); }} className="h-12" data-testid="record-drive-input" /></Field>
           {rec.drive && !rec.drive.includes(":") && rec.driveMinutes == null && <p role="alert" className="text-sm text-amber-900">Původní nejednoznačný údaj jízdy: {rec.drive}. Ověřte skutečnou dobu; údaj se automaticky nepřevádí na minuty.</p>}
-          <Field label="Jel(a) jsem jako"><select value={rec.journeyRole || ""} onChange={e => { const role = e.target.value; setRec(r => role === "none" ? { ...r, journeyRole: role, drive: "0:00", driveMinutes: 0 } : { ...r, journeyRole: role }); }} className="h-12 w-full rounded border px-3"><option value="">Vyberte</option><option value="driver">Řidič</option><option value="passenger">Spolujezdec</option><option value="mixed">Řidič i spolujezdec</option><option value="none">Žádná jízda</option></select></Field>
-          <p className="text-sm font-semibold">Čipování ve vozidle: neověřeno. Nezapomeňte se čipovat i jako spolujezdec a uvést všechny SPZ. Vyplnění aplikace čipnutí nepotvrzuje.</p>
+          <Field label="Jel(a) jsem jako"><select value={rec.journeyRole || ""} onChange={e => { const role = e.target.value; setRec(r => role === "none" ? { ...r, journeyRole: role, drive: "0:00", driveMinutes: 0 } : { ...r, journeyRole: role }); }} className="h-12 w-full rounded border px-3"><option value="">Vyberte</option><option value="driver">{t("Řidič")}</option><option value="passenger">Spolujezdec</option><option value="mixed">{t("Řidič i spolujezdec")}</option><option value="none">{t("Žádná jízda")}</option></select></Field>
+          <p className="text-sm font-semibold">{t("Čipování ve vozidle: neověřeno. Nezapomeňte se čipovat i jako spolujezdec a uvést všechny SPZ. Vyplnění aplikace čipnutí nepotvrzuje.")}</p>
           <Field label="SPZ vozidla (na pracoviště)">
             <Input list="vto-list" value={rec.vehiclesTo} onChange={(e) => set("vehiclesTo", e.target.value.toUpperCase())} className="h-12" data-testid="record-vehicles-to-input" />
             <datalist id="vto-list">{sugg.vehiclesTo.map((v) => <option key={v} value={v} />)}</datalist>
