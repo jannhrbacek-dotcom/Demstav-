@@ -12,6 +12,14 @@ import requests
 from PIL import Image, ImageOps, UnidentifiedImageError
 from ocr_parse import extract_fields
 
+
+class InvalidPhotoError(ValueError):
+    """Reject broken or dangerous client uploads without calling the provider."""
+
+
+class VisionModelError(RuntimeError):
+    """The external model did not return a usable structured result."""
+
 KEYS = ("date", "machine", "site", "work", "mthStart", "mthEnd", "start", "end")
 LABELS = {
     "date": "Datum", "machine": "Stroj", "site": "Pracoviště", "work": "Provedená práce",
@@ -57,7 +65,7 @@ def normalize_photo(data: bytes) -> bytes:
             image.save(out, format="JPEG", quality=90, optimize=True)
             return out.getvalue()
     except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError) as exc:
-        raise ValueError("invalid photo") from exc
+        raise InvalidPhotoError("invalid photo") from exc
 
 
 def parse_vision_values(values: dict) -> list:
@@ -73,18 +81,23 @@ def parse_vision_values(values: dict) -> list:
         if not value or len(value) > (240 if key == "work" else 80):
             continue
         lines.append(f"{LABELS[key]}: {value}")
-    return extract_fields("\n".join(lines))
+    fields = extract_fields("\n".join(lines))
+    by_key = {item["key"]: item["value"] for item in fields}
+    if "mthStart" in by_key and "mthEnd" in by_key:
+        if float(by_key["mthEnd"]) < float(by_key["mthStart"]):
+            fields = [item for item in fields if item["key"] not in ("mthStart", "mthEnd")]
+    return fields
 
 
 def response_text(payload: dict) -> str:
     if payload.get("status") != "completed":
-        raise ValueError("incomplete vision response")
+        raise VisionModelError("incomplete vision response")
     for item in payload.get("output", []):
         if item.get("type") == "message":
             for part in item.get("content", []):
                 if part.get("type") == "output_text" and isinstance(part.get("text"), str):
                     return part["text"]
-    raise ValueError("no vision output")
+    raise VisionModelError("no vision output")
 
 
 def recognize_with_vision(data: bytes) -> list:
@@ -109,5 +122,8 @@ def recognize_with_vision(data: bytes) -> list:
         json=body, timeout=(5, 55),
     )
     result.raise_for_status()
-    values = json.loads(response_text(result.json()))
-    return parse_vision_values(values)
+    try:
+        values = json.loads(response_text(result.json()))
+        return parse_vision_values(values)
+    except (ValueError, TypeError) as exc:
+        raise VisionModelError("unusable structured response") from exc
