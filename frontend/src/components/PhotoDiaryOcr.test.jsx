@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { PhotoDiaryOcr } from "./PhotoDiaryOcr";
 import { http } from "@/lib/api";
 
-jest.mock("@/lib/api", () => ({ http: { post: jest.fn() }, errText: () => "Přepis se nezdařil." }));
+jest.mock("@/lib/api", () => ({ http: { get: jest.fn(), post: jest.fn() }, errText: () => "Přepis se nezdařil." }));
 let root, el;
 const attach = jest.fn(async () => ({}));
 const apply = jest.fn();
@@ -12,6 +12,7 @@ const record = { date: "2026-10-28", machine: "L566/3", work: "", billing: [{ st
 beforeEach(async () => {
   global.IS_REACT_ACT_ENVIRONMENT = true;
   jest.clearAllMocks();
+  http.get.mockResolvedValue({ data: { enabled: true } });
   el = document.createElement("div"); document.body.appendChild(el);
   root = createRoot(el);
   await act(async () => root.render(<PhotoDiaryOcr record={record} onAttach={attach} onApply={apply} />));
@@ -75,5 +76,30 @@ test("unreadable handwriting can be handed to local AI as the original file with
   expect(useAI).toHaveBeenCalledWith(file);
   expect(attach).toHaveBeenCalledTimes(1);
   expect(http.post).toHaveBeenCalledTimes(1);
+  expect(apply).not.toHaveBeenCalled();
+});
+
+
+test("external vision is only called after explicit click and never saves a record", async () => {
+  const image = new File(["sample"], "page.jpg", { type: "image/jpeg" });
+  http.post.mockImplementation(async (url) => url === "/ocr/diary"
+    ? { data: { text: "necitelný rukopis", fields: [] } }
+    : { data: { text: "MTH začátek: 8440", fields: [{ key: "mthStart", label: "MTH začátek", value: "8440" }], warning: "Zkontrolujte s fotografií" } }
+  );
+  const input = el.querySelector('[data-testid="ocr-gallery-input"]');
+  await act(async () => {
+    Object.defineProperty(input, "files", { configurable: true, value: [image] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  expect(http.post).toHaveBeenCalledTimes(1);
+  const cloud = el.querySelector('[data-testid="ocr-use-cloud-vision"]');
+  expect(cloud).not.toBeNull();
+  await act(async () => cloud.click());
+  expect(http.post).toHaveBeenCalledTimes(2);
+  const [endpoint, form] = http.post.mock.calls[1];
+  expect(endpoint).toBe("/ocr/diary/vision");
+  expect(form.get("file")).toBe(image);
+  expect(form.get("consent")).toBe("true");
+  expect(el.querySelector('[data-testid="ocr-check-mthStart"]').checked).toBe(false);
   expect(apply).not.toHaveBeenCalled();
 });
