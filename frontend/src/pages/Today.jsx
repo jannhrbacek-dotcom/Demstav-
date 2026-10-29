@@ -88,7 +88,7 @@ export default function Today() {
         <div className="space-y-2">{todays.map((x) => <Link key={x.record.id} to={`/zapis/${x.record.id}`} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-3" data-testid="today-record-item">
           <div><div className="font-semibold">{x.record.machine || t("Bez stroje")}</div><div className="text-xs text-slate-600">{x.record.site} · {fmtH(timeBreakdown(x.record).totalHours)} h</div></div><StatusBadge status={x.state} />
         </Link>)}</div>
-        {state === "away" && net > 0 && !todays.length && <p className="mt-2 text-sm text-amber-800" data-testid="today-missing-timesheet">Máte docházku bez zápisu šichtovnice.</p>}
+        {state === "away" && net > 0 && !todays.length && <p className="mt-2 text-sm text-amber-800" data-testid="today-missing-timesheet">{t("Máte docházku bez zápisu šichtovnice.")}</p>}
       </section>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Tile to="/nepritomnost" icon={CalendarDays} label="Volno, nemoc a výjimky" />
