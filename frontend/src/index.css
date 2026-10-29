@@ -107,3 +107,8 @@ html.dark .app-shell .border-slate-200,html.dark .app-shell .border-slate-300 { 
 html.dark .app-shell input,html.dark .app-shell textarea,html.dark .app-shell select { background-color:var(--surface); color:var(--ink); }
 .app-shell main { min-height:100dvh; }
 @media(max-width:420px) { .app-header { padding:10px 12px; }  }
+html.dark .app-shell .bg-\[\#FFD200\],
+html.dark .app-shell .bg-amber-100,
+html.dark .app-shell .bg-emerald-100,
+html.dark .app-shell .bg-red-100,
+html.dark .app-shell .btn-primary { color:#0f172a; }
