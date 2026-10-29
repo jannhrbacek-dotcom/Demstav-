@@ -20,6 +20,8 @@ export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI }) {
     ++generation.current;
     setFields([]); setRaw(""); setWarning(""); setError("");
     setBusy(false); setPhoto(null); setAttached(false);
+    // This is an async operation counter, not a DOM ref; invalidate the latest request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     return () => { ++generation.current; };
   }, [record?.id]);
 

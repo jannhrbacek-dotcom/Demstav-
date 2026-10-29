@@ -439,6 +439,7 @@ const uk = {
   "Jízdy": "Поїздки",
   "MTH": "MTH",
   "Servisní interval": "Інтервал техобслуговування",
+  "Stroje a servisní intervaly": "Машини та інтервали техобслуговування",
   "Použité popisy pro": "Попередні описи для",
 };
 const Context = createContext({ language: "cs", setLanguage: () => {}, t: value => value });

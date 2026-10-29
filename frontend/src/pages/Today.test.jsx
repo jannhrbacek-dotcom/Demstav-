@@ -1,0 +1,20 @@
+import React, { act } from "react";
+import { createRoot } from "react-dom/client";
+import Today from "./Today";
+jest.mock("react-router-dom", () => ({ Link: ({ to, children, ...props }) => <a href={to} {...props}>{children}</a> }));
+jest.mock("@/lib/auth", () => ({ useAuth: () => ({ user: { id: "test", name: "Test", role: "employee" } }), atLeast: () => false }));
+jest.mock("@/lib/sync", () => ({ useSync: () => ({ records: {}, queue: [] }) }));
+jest.mock("@/lib/data", () => ({ useCached: () => ({ data: [], reload: jest.fn() }), mergedRecords: () => [] }));
+jest.mock("@/components/AttendanceActions", () => ({ AttendanceActions: () => <div>Docházka</div>, useShiftState: () => ({ state: "away", pending: [] }) }));
+jest.mock("@/components/WeatherWidget", () => ({ WeatherWidget: () => <div>Počasí</div> }));
+jest.mock("@/components/ServiceAlerts", () => ({ ServiceAlerts: () => <div data-testid="service-alerts">Seznam servisů</div> }));
+test("Today keeps attendance and new record prominent without the fleet service card", async () => {
+  global.IS_REACT_ACT_ENVIRONMENT = true;
+  const el = document.createElement("div"), root = createRoot(el);
+  await act(async () => root.render(<Today />));
+  expect(el.querySelector('[data-testid="service-alerts"]')).toBeNull();
+  const attendance = el.querySelector('[data-testid="today-attendance-primary"]');
+  const record = el.querySelector('[data-testid="today-new-record-button"]');
+  expect(attendance.compareDocumentPosition(record) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await act(async () => root.unmount());
+});

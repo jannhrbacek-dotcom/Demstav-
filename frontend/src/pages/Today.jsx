@@ -6,7 +6,6 @@ import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
 import { AttendanceActions, useShiftState } from "@/components/AttendanceActions";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ServiceAlerts } from "@/components/ServiceAlerts";
 import { WeatherWidget } from "@/components/WeatherWidget";
 import { pragueDate, STATE_LABELS, timeOf, KIND_LABELS } from "@/lib/format";
 import { pracovniPozdrav } from "@/lib/greeting";
@@ -83,7 +82,6 @@ export default function Today() {
           <button type="button" onClick={markNo} className={`min-h-11 flex-1 rounded-lg border-2 text-sm font-bold ${sharedAnswer === "no" ? "border-slate-600 bg-slate-200" : "border-slate-300 bg-white"}`} data-testid="shared-report-no">{t("NE")}</button>
         </div>
       </section>}
-      <ServiceAlerts />
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between gap-2"><h2 className="font-heading text-lg font-bold">{t("Dnešní zápisy")}</h2><span className="text-sm text-slate-600">{fmtH(ts.t)} h · servis {fmtH(ts.s)} h</span></div>
         {todays.length === 0 && <p className="text-sm text-slate-600" data-testid="today-no-records">{t("Zatím žádný zápis.")}</p>}

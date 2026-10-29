@@ -38,6 +38,7 @@ export default function More() {
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <L to="/jak-na-to" icon={Eye} label="Jak na to – průvodce aplikací" testid="more-guide" />
         <L to="/prehledy" icon={BarChart3} label="Moje přehledy (šichtovnice, deník, směny)" testid="more-my-overview" />
+        <L to="/stroje" icon={Truck} label="Stroje a servisní intervaly" testid="more-machines" />
         <L to="/nepritomnost" icon={CalendarDays} label="Dovolená, volno, lékař, nemoc" testid="more-absence" />
         <L to="/kalendar" icon={CalendarDays} label="Sdílený kalendář zaměstnanců" testid="more-calendar" />
         <L to="/vykazy-vazeni" icon={Files} label="Společný výkaz práce a vážní lístky" testid="more-production" />
@@ -58,7 +59,6 @@ export default function More() {
         <L to="/kontrola" icon={ShieldCheck} label="Kontrola výjimek docházky" testid="more-review" />
         <L to="/vsechny-zapisy" icon={Files} label="Všechny zápisy" testid="more-all-records" />
         <L to="/pracoviste" icon={MapPin} label="Pracoviště a QR" testid="more-workplaces" />
-        <L to="/stroje" icon={Truck} label="Seznam strojů" testid="more-machines" />
         <L to="/uzivatele" icon={Users} label="Uživatelé a přístupy" testid="more-users" />
       </div>}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="push-panel">
