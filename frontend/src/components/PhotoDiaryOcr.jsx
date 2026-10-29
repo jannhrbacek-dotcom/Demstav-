@@ -16,6 +16,18 @@ export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI, machine
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  useEffect(() => {
+    if (!photo || typeof URL.createObjectURL !== "function") {
+      setPreviewUrl("");
+      return;
+    }
+    const url = URL.createObjectURL(photo);
+    setPreviewUrl(url);
+    return () => {
+      URL.revokeObjectURL?.(url);
+    };
+  }, [photo]);
   const [attached, setAttached] = useState(false);
   const [visionAvailable, setVisionAvailable] = useState(false);
   const generation = useRef(0);
@@ -151,6 +163,11 @@ export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI, machine
       )}</button>
     </div>}
     {photo && attached && !busy && onUseLocalAI && <button type="button" className="flex min-h-12 w-full items-center justify-center rounded-lg border-2 border-sky-700 bg-sky-50 px-3 font-semibold text-sky-950" onClick={() => onUseLocalAI(photo)} data-testid="ocr-use-local-ai">{t("Zkusit stejnou fotografii místní AI")}</button>}
+    {photo && previewUrl && <details className="rounded-lg border border-slate-300 bg-white p-3" data-testid="ocr-photo-preview">
+      <summary className="cursor-pointer font-semibold text-slate-900">{localized("Porovnat přepis s původní fotografií", "Звірити розпізнаний текст з оригінальним фото")}</summary>
+      <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm font-semibold text-sky-800 underline">{localized("Otevřít fotografii ve větší velikosti", "Відкрити фото у більшому розмірі")}</a>
+      <img src={previewUrl} alt={localized("Původní fotografie papírového deníku pro kontrolu OCR", "Оригінальне фото паперового журналу для перевірки OCR")} className="mt-2 max-h-[60vh] w-full rounded-md border object-contain" />
+    </details>}
     {!!fields.length && <div className="space-y-3 rounded-lg border border-slate-300 bg-white p-3" data-testid="ocr-review">
       <h3 className="font-bold">{t("Zkontrolujte návrh přepisu")}</h3>
       <p className="text-sm text-amber-900">{t("Porovnejte každé pole s fotografií. Nic není předem označené; vloží se pouze vámi zaškrtnuté údaje.")}</p>
