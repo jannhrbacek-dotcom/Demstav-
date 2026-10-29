@@ -7,7 +7,8 @@ const VALID = new Set(["date", "machine", "site", "work", "mthStart", "mthEnd", 
 
 /** Deliberately never saves/validates a record. OCR only proposes edits after human review. */
 export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const localized = (cs, uk) => language === "uk" ? uk : cs;
   const [fields, setFields] = useState([]);
   const [raw, setRaw] = useState("");
   const [warning, setWarning] = useState("");
@@ -15,7 +16,15 @@ export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI }) {
   const [busy, setBusy] = useState(false);
   const [photo, setPhoto] = useState(null);
   const [attached, setAttached] = useState(false);
+  const [visionAvailable, setVisionAvailable] = useState(false);
   const generation = useRef(0);
+  useEffect(() => {
+    let mounted = true;
+    http.get("/ocr/diary/vision/status").then(({ data }) => {
+      if (mounted) setVisionAvailable(Boolean(data?.enabled));
+    }).catch(() => { if (mounted) setVisionAvailable(false); });
+    return () => { mounted = false; };
+  }, []);
   useEffect(() => {
     ++generation.current;
     setFields([]); setRaw(""); setWarning(""); setError("");
@@ -54,6 +63,35 @@ export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI }) {
       else if (!(data.fields || []).filter(f => VALID.has(f.key)).length) setError(t("Základní OCR nerozpoznalo údaje pro formulář. Výpis níže může obsahovat pouze části tiskopisu a nesprávně přečtený rukopis."));
     } catch (e) {
       if (generation.current === epoch) setError(errText(e, t("Přepis fotografie se nezdařil. Příloha zůstává v zápisu.")));
+    } finally {
+      if (generation.current === epoch) setBusy(false);
+    }
+  }
+
+
+  async function processVision() {
+    if (!photo || !attached || !visionAvailable) return;
+    const epoch = ++generation.current;
+    setBusy(true); setError(""); setWarning(""); setFields([]); setRaw("");
+    try {
+      const form = new FormData();
+      form.append("file", photo, photo.name || "denik.jpg");
+      form.append("consent", "true");
+      const { data } = await http.post("/ocr/diary/vision", form, { timeout: 90000 });
+      if (generation.current !== epoch) return;
+      const proposals = (data.fields || []).filter(f => VALID.has(f.key)).map(f => ({ ...f, checked: false }));
+      setFields(proposals);
+      setRaw(data.text || "");
+      setWarning(data.warning || "");
+      if (!proposals.length) setError(localized(
+        "Obrazová AI nenašla jednoznačně čitelné údaje. Doplňte je podle fotografie ručně.",
+        "Візуальний ШІ не знайшов однозначно читабельних даних. Заповніть за фотографією вручну."
+      ));
+    } catch (e) {
+      if (generation.current === epoch) setError(errText(e, localized(
+        "Přepis externí AI se nezdařil. Příloha zůstává uložená.",
+        "Зовнішній ШІ не зміг розпізнати фото. Вкладення збережено."
+      )));
     } finally {
       if (generation.current === epoch) setBusy(false);
     }
@@ -101,6 +139,16 @@ export function PhotoDiaryOcr({ record, onAttach, onApply, onUseLocalAI }) {
     {photo && !busy && <p className="text-sm text-slate-700">{t("Fotografie:")} {photo.name || "deník"} {t(attached ? "· uložena jako příloha konceptu" : "· nebyla přiložena")}</p>}
     {error && <p role="alert" className="rounded-lg bg-red-100 p-3 text-sm text-red-900">{error}</p>}
     {photo && !busy && <button type="button" className="text-sm font-semibold underline" onClick={() => process(photo, attached)} data-testid="ocr-retry">{t("Zopakovat rozpoznání fotografie")}</button>}
+    {photo && attached && !busy && visionAvailable && <div className="rounded-lg border-2 border-sky-700 bg-white p-3 space-y-2" data-testid="ocr-cloud-option">
+      <p className="text-sm text-slate-900">{localized(
+        "Přesnější pokus o čtení rukopisu přes externí obrazovou AI. Po kliknutí odešlete fotografii společnosti OpenAI. Volání API může být zpoplatněno. Výsledek budete muset zkontrolovat.",
+        "Спроба розпізнати рукопис за допомогою зовнішнього візуального ШІ. Після натискання фото буде надіслано OpenAI. Використання API може бути платним. Результат потрібно перевірити."
+      )}</p>
+      <button type="button" className="min-h-12 w-full rounded-lg bg-sky-800 px-3 py-2 font-semibold text-white" onClick={processVision} data-testid="ocr-use-cloud-vision">{localized(
+        "Souhlasím s odesláním fotografie externí AI a chci přepsat rukopis",
+        "Погоджуюся на надсилання фото зовнішньому ШІ для розпізнавання рукопису"
+      )}</button>
+    </div>}
     {photo && attached && !busy && onUseLocalAI && <button type="button" className="flex min-h-12 w-full items-center justify-center rounded-lg border-2 border-sky-700 bg-sky-50 px-3 font-semibold text-sky-950" onClick={() => onUseLocalAI(photo)} data-testid="ocr-use-local-ai">{t("Zkusit stejnou fotografii místní AI")}</button>}
     {!!fields.length && <div className="space-y-3 rounded-lg border border-slate-300 bg-white p-3" data-testid="ocr-review">
       <h3 className="font-bold">{t("Zkontrolujte návrh přepisu")}</h3>
