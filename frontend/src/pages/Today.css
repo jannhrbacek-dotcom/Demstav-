@@ -1,5 +1,5 @@
 .operations-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.operations-tile { --tile-accent: #f5a400; position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; min-width: 0; min-height: 144px; padding: 20px 18px; border: 1px solid var(--line, #dce2ea); border-radius: 18px; background: var(--surface, #fff); color: var(--ink, #172234); box-shadow: 0 5px 20px #00000008; transition: transform .18s, border-color .18s, box-shadow .18s; text-decoration: none; }
+.operations-tile { --tile-accent: #f5a400; position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; min-width: 0; min-height: 144px; padding: 20px 18px; border: 1px solid var(--line, #dce2ea); border-radius: 18px; background: linear-gradient(140deg, color-mix(in srgb, var(--tile-accent) 6%, var(--surface, #fff)), var(--surface, #fff)); color: var(--ink, #172234); box-shadow: 0 8px 24px #00000006, inset 0 1px 0 #ffffff0c; transition: transform .18s, border-color .18s, box-shadow .18s; text-decoration: none; }
 .operations-tile:hover { transform: translateY(-2px); border-color: var(--tile-accent); box-shadow: 0 8px 24px #00000015; }
 .operations-tile:focus-visible { outline: 3px solid var(--tile-accent); outline-offset: 3px; }
 .operations-tile--blue { --tile-accent: #378aff; }
@@ -10,13 +10,18 @@
 .operations-tile-icon { width: 42px; height: 42px; color: var(--tile-accent); }
 .operations-tile-label { display: block; padding-right: 30px; margin-top: 15px; font-size: 17px; line-height: 1.25; font-weight: 700; }
 .operations-tile-arrow { position: absolute; right: 14px; bottom: 19px; display: grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; color: white; background: var(--tile-accent); }
-.operations-secondary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
-.operations-secondary .operations-tile { min-height: 105px; padding: 14px; }
-.operations-secondary .operations-tile-icon { width: 25px; height: 25px; }
-.operations-secondary .operations-tile-label { font-size: 14px; margin-top: 10px; }
+.operations-more { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.operations-more > summary { display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 12px 16px; font-weight: 650; cursor: pointer; list-style: none; }
+.operations-more > summary::-webkit-details-marker { display: none; }
+.operations-more[open] > summary > svg { transform: rotate(90deg); }
+.operations-secondary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 12px; padding: 0 14px 10px; }
+.operations-secondary .operations-tile { flex-direction: row; align-items: center; justify-content: flex-start; min-height: 54px; padding: 10px 0; gap: 9px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.operations-secondary .operations-tile-icon { width: 21px; height: 21px; flex-shrink: 0; }
+.operations-secondary .operations-tile-label { font-size: 13px; margin-top: 0; padding-right: 0; }
+.operations-secondary .operations-tile-arrow { display: none; }
 .operations-help { margin-top: 8px; font-size: 12px; }
 .operations-help summary { cursor: pointer; display: flex; align-items: center; gap: 5px; min-height: 44px; width: fit-content; }
 .operations-help p { padding: 8px 0; }
-[data-theme="dark"] .operations-tile, .dark .operations-tile { background: linear-gradient(135deg,#202a37,#1a212d); border-color: #ffffff0b; color: #f4f6fb; box-shadow: 0 6px 22px #00000020; }
+
 @media (min-width: 900px) { .operations-tiles { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; } .operations-secondary { grid-template-columns: repeat(3,minmax(0,1fr)); } }
 @media (prefers-reduced-motion: reduce) { .operations-tile { transition: none; } .operations-tile:hover { transform: none; } }

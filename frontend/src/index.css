@@ -92,23 +92,45 @@ img, video, canvas, svg { max-width: 100%; height: auto; }
 .simple-mode [data-simple="optional"] { display: none !important; }
 .simple-mode-badge { background: #FFD200; color: #0F172A; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
 
-/* DEMSTAV visual system: persisted light, dark, or operating-system preference. */
-:root { color-scheme:light; --shell:#f1f4f8; --surface:#fff; --ink:#162131; --line:#dbe1e9; }
-html.dark { color-scheme:dark; --shell:#0c1119; --surface:#1b2430; --ink:#f1f5f9; --line:#303b49; }
+/* Shared semantic palette: every navigation surface follows the selected theme. */
+:root { color-scheme:light; --shell:#f4f6f9; --surface:#fff; --surface-raised:#f8fafc; --ink:#172233; --muted-ink:#596779; --line:#e0e6ee; --brand:#b56b00; --brand-soft:#fff0cb; }
+html.dark { color-scheme:dark; --shell:#0c1119; --surface:#19222f; --surface-raised:#202b3a; --ink:#f1f5fa; --muted-ink:#adbbcc; --line:#2d394a; --brand:#ffb41d; --brand-soft:#ffb41d18; }
 body,.app-shell { background:var(--shell); color:var(--ink); }
-.theme-select { background:var(--surface); color:var(--ink); border-color:var(--line); max-width:120px; }
-.app-header { flex-wrap:wrap; background:linear-gradient(130deg,#111b27,#0a0f16); border-bottom:1px solid #ffffff12; }
-.app-bottom-nav { background:linear-gradient(120deg,#141e2b,#090e15); box-shadow:0 -8px 30px #0002; }
-html.dark .app-shell .bg-white { background-color:var(--surface); }
-html.dark .app-shell .bg-slate-50,html.dark .app-shell .bg-slate-100 { background-color:#151e2a; }
-html.dark .app-shell .text-slate-900,html.dark .app-shell .text-slate-800,html.dark .app-shell .text-slate-700 { color:#edf2f7; }
-html.dark .app-shell .text-slate-600,html.dark .app-shell .text-slate-500 { color:#aebdce; }
-html.dark .app-shell .border-slate-200,html.dark .app-shell .border-slate-300 { border-color:var(--line); }
-html.dark .app-shell input,html.dark .app-shell textarea,html.dark .app-shell select { background-color:var(--surface); color:var(--ink); }
+.shell-header,.shell-topbar,.shell-sidebar,.shell-bottom-nav { background:var(--surface); color:var(--ink); border-color:var(--line); }
+.shell-header { border-bottom:1px solid var(--line); }
+.shell-sidebar { border-right:1px solid var(--line); }
+.shell-bottom-nav { box-shadow:0 -8px 28px #00000008; }
+.shell-logo-title { color:var(--ink); }.shell-logo-subtitle,.shell-muted { color:var(--muted-ink); }
+.shell-control,.theme-select { background:var(--surface-raised); color:var(--ink); border:1px solid var(--line); }
+.shell-control:hover,.shell-nav-item:hover { background:var(--brand-soft); }
+.shell-control.is-selected,.shell-nav-item.is-active { color:var(--brand); background:var(--brand-soft); }
+.shell-nav-item,.shell-bottom-item { color:var(--muted-ink); }
+.shell-bottom-item.is-active { color:var(--brand); }
+.shell-bottom-item.is-active svg { background:var(--brand-soft); border-radius:10px; box-shadow:0 0 0 6px var(--brand-soft); }
+.shell-bottom-item svg,.operations-tile-icon { stroke-width:1.7; }
+.shell-popover { background:var(--surface); color:var(--ink); border-color:var(--line); }
+.shell-divider { border-color:var(--line); }
+.shell-header label,.shell-topbar label,.shell-sidebar label { color:var(--ink); }
+.shell-header select,.shell-topbar select,.shell-sidebar select { color:var(--ink); background:var(--surface-raised); border-color:var(--line); }
+.theme-select { max-width:150px; }
+html.dark .bg-white { background-color:var(--surface); }
+html.dark .bg-slate-50,html.dark .bg-slate-100 { background-color:var(--surface-raised); }
+html.dark .text-slate-900,html.dark .text-slate-800,html.dark .text-slate-700 { color:var(--ink); }
+html.dark .text-slate-600,html.dark .text-slate-500 { color:var(--muted-ink); }
+html.dark .border-slate-200,html.dark .border-slate-300 { border-color:var(--line); }
+html.dark input,html.dark textarea,html.dark select { background-color:var(--surface); color:var(--ink); }
+html.dark .app-shell .bg-\[\#FFD200\],html.dark .app-shell .bg-amber-100,html.dark .app-shell .bg-emerald-100,html.dark .app-shell .bg-red-100,.btn-primary { color:#0f172a; }
 .app-shell main { min-height:100dvh; }
-@media(max-width:420px) { .app-header { padding:10px 12px; }  }
-html.dark .app-shell .bg-\[\#FFD200\],
-html.dark .app-shell .bg-amber-100,
-html.dark .app-shell .bg-emerald-100,
-html.dark .app-shell .bg-red-100,
-html.dark .app-shell .btn-primary { color:#0f172a; }
+.lock-screen { background:var(--shell); color:var(--ink); }
+.lock-card { background:var(--surface); border:1px solid var(--line); border-radius:24px; padding:28px; box-shadow:0 16px 70px #0001; }
+html:not(.dark) .demstav-launch { background:radial-gradient(ellipse at top,#fff6e6,#f4f6f9 70%); color:var(--ink); }
+html:not(.dark) .demstav-launch-brand { text-shadow:none; }
+html:not(.dark) .demstav-launch-brand p { color:var(--muted-ink); }
+html:not(.dark) .demstav-launch-skip { background:var(--surface); color:var(--ink); border-color:var(--line); }
+@media(max-width:380px) { .shell-header { padding:10px; gap:6px; }.shell-header-actions { gap:5px; }.shell-logo-title { font-size:18px; } }
+.shell-nav-create { margin-top:-13px; padding-top:5px; color:#895200; }
+.shell-nav-create svg { width:46px; height:46px; padding:10px; border-radius:17px; background:linear-gradient(135deg,#ffc94c,#ffb018); color:#231800; box-shadow:0 5px 16px #ee9c1230; stroke-width:2.3; }
+.shell-nav-create.is-active svg { background:#ffb41d; box-shadow:0 5px 16px #ee9c1240; }
+html.dark .shell-nav-create { color:#ffc44d; }
+html.dark .bg-slate-200 { background-color:#303c4d; color:var(--ink); }
+html.dark .bg-amber-400,html.dark .bg-amber-100,html.dark .bg-emerald-100,html.dark .bg-red-100 { color:#172233; }

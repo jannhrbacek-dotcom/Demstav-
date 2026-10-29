@@ -1,3 +1,4 @@
+import "./More.css";
 import { LockSettings } from "@/components/AppLock";
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -15,16 +16,16 @@ import { LanguageSelect, useLanguage } from "@/lib/language";
 const L = ({ to, icon: I, label, description, testid }) => {
   const { t } = useLanguage();
   return <Link to={to} className="flex min-h-[64px] items-center gap-3 border-b border-slate-100 px-4 py-3 font-semibold last:border-0 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-slate-900" data-testid={testid}>
-    <I aria-hidden="true" className="h-5 w-5 shrink-0" />
+    <I aria-hidden="true" className="more-list-icon h-5 w-5 shrink-0" />
     <span className="min-w-0 flex-1 break-words">{t(label)}{description && <span className="mt-1 block text-sm font-normal text-slate-600">{t(description)}</span>}</span>
     <ChevronRight aria-hidden="true" className="h-5 w-5 shrink-0 text-slate-400" />
   </Link>;
 };
 
-const Tile = ({ to, icon: I, label, description, tone, testid }) => {
+const Tile = ({ to, icon: I, label, description, testid }) => {
   const { t } = useLanguage();
-  return <Link to={to} data-testid={testid} className={`flex min-h-[148px] min-w-0 flex-col items-start rounded-2xl border p-4 shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 ${tone === "yellow" ? "border-amber-200 bg-amber-50 hover:bg-amber-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
-    <span aria-hidden="true" className={`mb-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${tone === "yellow" ? "bg-amber-200" : tone === "blue" ? "bg-sky-100" : tone === "green" ? "bg-emerald-100" : "bg-orange-100"}`}><I className="h-6 w-6 text-slate-900" /></span>
+  return <Link to={to} data-testid={testid} className="more-card flex min-h-[148px] min-w-0 flex-col items-start rounded-2xl border p-4 shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+    <span aria-hidden="true" className="more-icon mb-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"><I className="h-6 w-6" /></span>
     <span className="w-full break-words text-base font-bold leading-snug text-slate-900">{t(label)}</span>
     <span className="mt-1 w-full break-words text-sm leading-snug text-slate-600">{t(description)}</span>
   </Link>;
@@ -43,17 +44,15 @@ export default function More() {
   const togglePush = async () => {
     setPushState((p) => ({ ...p, busy: true }));
     try {
-      if (pushState.subscribed) { await disablePush(); setPushState((p) => ({ ...p, subscribed: false, busy: false })); toast.success("Notifikace vypnuty"); }
-      else { await enablePush(); setPushState((p) => ({ ...p, subscribed: true, permission: pushPermission(), busy: false })); toast.success("Notifikace zapnuty"); }
-    } catch (e) { setPushState((p) => ({ ...p, busy: false })); toast.error(e.response ? errText(e) : (e.message || "Nepodařilo se zapnout notifikace.")); }
+      if (pushState.subscribed) { await disablePush(); setPushState((p) => ({ ...p, subscribed: false, busy: false })); toast.success(t("Notifikace vypnuty")); }
+      else { await enablePush(); setPushState((p) => ({ ...p, subscribed: true, permission: pushPermission(), busy: false })); toast.success(t("Notifikace zapnuty")); }
+    } catch (e) { setPushState((p) => ({ ...p, busy: false })); toast.error(t(e.response ? errText(e) : (e.message || "Nepodařilo se zapnout notifikace."))); }
   };
-  const sendTest = async () => { try { const n = await sendTestPush(); toast.success(n ? "Testovací notifikace odeslána." : "Žádné aktivní zařízení pro notifikace."); } catch (e) { toast.error(e?.response?.data?.detail || "Chyba odeslání testu."); } };
-  const out = () => { if (s.queue.length && !window.confirm(`V telefonu je ${s.queue.length} neodeslaných položek. Zůstanou uloženy a odešlou se po dalším přihlášení stejného účtu. Odhlásit?`)) return; logout(); nav("/login"); };
+  const sendTest = async () => { try { const n = await sendTestPush(); toast.success(n ? t("Testovací notifikace odeslána.") : t("Žádné aktivní zařízení pro notifikace.")); } catch (e) { toast.error(t(e?.response?.data?.detail || "Chyba odeslání testu.")); } };
+  const out = () => { if (s.queue.length && !window.confirm(t("V telefonu je {count} neodeslaných položek. Zůstanou uloženy a odešlou se po dalším přihlášení stejného účtu. Odhlásit?", { count: s.queue.length }))) return; logout(); nav("/login"); };
   return (
     <div className="space-y-4">
-      <LockSettings />
-      <Button variant="outline" onClick={()=>window.dispatchEvent(new Event("demstav-intro"))}>Přehrát úvodní obrazovku</Button>
-      <PageHeader title={t("Více")} subtitle={`${user?.name} · ${user?.role_label}`} />
+      <PageHeader title={t("Více")} subtitle={`${user?.name} · ${t(user?.role_label || "")}`} />
       <section aria-labelledby="more-quick-title" className="space-y-3">
         <h2 id="more-quick-title" className="font-heading text-lg font-bold">{t("Rychlý přístup")}</h2>
         <div className="grid grid-cols-2 gap-3" data-testid="more-quick-access">
@@ -120,6 +119,17 @@ export default function More() {
         <L to="/pracoviste" icon={MapPin} label="Pracoviště a QR" testid="more-workplaces" />
         <L to="/uzivatele" icon={Users} label="Uživatelé a přístupy" testid="more-users" />
       </div></section>}
+      <details className="group rounded-2xl border border-slate-200 bg-white" data-testid="more-device-settings">
+        <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
+          <Settings className="more-list-icon h-5 w-5" aria-hidden="true" />
+          <span className="flex-1">{t("Nastavení")}</span>
+          <ChevronRight className="h-5 w-5 text-slate-400 transition-transform group-open:rotate-90" aria-hidden="true" />
+        </summary>
+        <div className="space-y-3 border-t border-slate-200 p-3">
+          <LockSettings />
+          <Button variant="outline" className="min-h-11 w-full" onClick={()=>window.dispatchEvent(new Event("demstav-intro"))}>{t("Přehrát úvodní obrazovku")}</Button>
+        </div>
+      </details>
       <Button variant="outline" className="h-14 w-full text-base font-semibold text-red-700" onClick={out} data-testid="more-logout-button"><LogOut className="mr-2 h-5 w-5" />{t("Odhlásit")}</Button>
     </div>
   );

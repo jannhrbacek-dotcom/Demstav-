@@ -1,7 +1,7 @@
 import ThemeSelect from "@/components/ThemeSelect";
 import React from "react";
 import { NavLink, useNavigate, useLocation, Link } from "react-router-dom";
-import { Sun, ClipboardList, Clock3, Cloud, CloudAlert, CloudOff, CloudUpload, CircleHelp, Menu, LayoutDashboard, ShieldCheck, Files, MapPin, Users, Truck, FileDown, LogOut, RefreshCw, Eye, CalendarDays, BarChart3 } from "lucide-react";
+import { Home, Plus, ClipboardList, Clock3, Cloud, CloudAlert, CloudOff, CloudUpload, CircleHelp, Menu, LayoutDashboard, ShieldCheck, Files, MapPin, Users, Truck, FileDown, LogOut, RefreshCw, Eye, CalendarDays, BarChart3 } from "lucide-react";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useSync, syncNow } from "@/lib/sync";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ export function SimpleModeToggle({ className = "" }) {
   return (
     <button type="button" role="switch" aria-checked={simpleMode} aria-label={t("Jednoduchý režim")}
       onClick={() => setSimpleMode(!simpleMode)} data-testid="simple-mode-toggle"
-      className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg border border-white/20 px-2 text-[11px] font-semibold transition-colors ${simpleMode ? "bg-[#FFD200] text-slate-950" : "bg-white/10 text-white hover:bg-white/20"} ${className}`}
+      className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-lg shell-control px-2 text-[11px] font-semibold transition-colors ${simpleMode ? "is-selected" : ""} ${className}`}
       title={t("Jednoduchý režim")}>
       <Eye className="h-4 w-4" /><span className="hidden sm:inline">{t(simpleMode ? "Zap." : "Jedn.")}</span>
     </button>
@@ -22,10 +22,10 @@ export function SimpleModeToggle({ className = "" }) {
 }
 
 const employeeNav = [
-  { to: "/dnes", label: "Domů", icon: Sun, testid: "nav-today" },
-  { to: "/zapisy", label: "Zápisy", icon: ClipboardList, testid: "nav-records" },
+  { to: "/dnes", label: "Domů", icon: Home, testid: "nav-today" },
   { to: "/dochazka", label: "Docházka", icon: Clock3, testid: "nav-attendance" },
-  { to: "/fronta", label: "Fronta", icon: CloudUpload, testid: "nav-queue" },
+  { to: "/zapisy", label: "Šichtovnice", icon: ClipboardList, testid: "nav-records" },
+  { to: "/kalendar", label: "Kalendář", icon: CalendarDays, testid: "nav-team" },
   { to: "/vice", label: "Více", icon: Menu, testid: "nav-more" },
 ];
 const managerNav = [
@@ -39,9 +39,9 @@ const managerNav = [
 
 function Logo() {
   return (
-    <div className="leading-none">
-      <svg viewBox="0 0 100 36" className="mb-1 h-7 w-20 text-amber-500" aria-hidden="true"><path d="M2 32 23 13 31 20 50 1 74 27 82 18 98 33 84 33 81 29 74 36 50 13 31 32 23 26 15 33Z" fill="currentColor" /></svg><div className="font-heading text-xl font-bold tracking-tight text-white">DEMSTAV</div>
-      <div className="mt-0.5 flex items-center gap-2"><span className="text-[10px] font-semibold tracking-[0.35em] text-slate-300">OPERATIONS</span></div>
+    <div className="shell-logo leading-none">
+      <svg viewBox="0 0 100 36" className="mb-1 h-7 w-20 text-amber-500" aria-hidden="true"><path d="M2 32 23 13 31 20 50 1 74 27 82 18 98 33 84 33 81 29 74 36 50 13 31 32 23 26 15 33Z" fill="currentColor" /></svg><div className="font-heading text-xl font-bold tracking-tight shell-logo-title">DEMSTAV</div>
+      <div className="mt-0.5 flex items-center gap-2"><span className="text-[10px] font-semibold tracking-[0.35em] shell-logo-subtitle">OPERATIONS</span></div>
       <div className="mt-1.5 h-[3px] w-full bg-[#FFD200]" />
     </div>
   );
@@ -59,15 +59,15 @@ export function SyncPill() {
     synced: { label: "Synchronizováno a potvrzeno serverem", Icon: Cloud, color: "text-emerald-400" },
     pending: { label: "Čeká na odeslání", Icon: CloudUpload, color: "text-amber-400" },
     failed: { label: "Vyžaduje opravu synchronizace", Icon: CloudAlert, color: "text-red-400" },
-    offline: { label: "Offline nebo server nebyl ověřen", Icon: CloudOff, color: "text-slate-300" },
+    offline: { label: "Offline nebo server nebyl ověřen", Icon: CloudOff, color: "shell-muted" },
   }[state];
   return <div className="relative" data-testid="sync-indicator">
     <button type="button" onClick={() => setExpanded(!expanded)} aria-label={t(meta.label)} title={t(meta.label)}
-      aria-expanded={expanded} className="relative flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-white/20 bg-white/10" data-testid={state === "offline" ? "offline-indicator" : "sync-cloud-button"}>
+      aria-expanded={expanded} className="shell-control relative flex min-h-11 min-w-11 items-center justify-center rounded-lg" data-testid={state === "offline" ? "offline-indicator" : "sync-cloud-button"}>
       <meta.Icon className={`h-5 w-5 ${meta.color}`} aria-hidden="true" />
       {waiting && <span className="absolute -right-1 -top-1 rounded-full bg-[#FFD200] px-1 text-[10px] font-bold text-slate-950">{s.queue.length}</span>}
     </button>
-    {expanded && <div role="status" className="absolute right-0 top-12 z-50 w-64 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 shadow-xl">
+    {expanded && <div role="status" className="shell-popover absolute right-0 top-12 z-50 w-64 rounded-xl border p-3 text-sm shadow-xl">
       <p className="font-semibold">{t(meta.label)}</p>
       <p className="mt-1">{s.queue.length} {t("položek ve frontě.")}</p>
       {s.lastError && <p className="mt-1 text-red-700">{s.lastError}</p>}
@@ -85,62 +85,67 @@ export default function Layout({ children }) {
   const s = useSync();
   const nav = useNavigate();
   const loc = useLocation();
+  React.useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: "instant" }); }, [loc.pathname]);
   const help = <Link to="/jak-na-to" state={{ returnTo: loc.pathname, context: loc.pathname }} data-testid="header-guide"
-    className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 text-xs font-semibold text-white" aria-label={t("Jak na to")} title={t("Jak na to")}>
+    className="shell-control inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs font-semibold" aria-label={t("Jak na to")} title={t("Jak na to")}>
     <CircleHelp className="h-5 w-5" /><span className="hidden min-[390px]:inline">{t("Jak na to")}</span>
   </Link>;
   const isMgr = atLeast(user, "manager");
   const mobileNav = [
     employeeNav[0],
-    {to: '/stroje', label: 'Stroje', icon: Truck, testid: 'nav-machines'},
     employeeNav[1],
-    {to: '/kalendar', label: 'Kalendář', icon: CalendarDays, testid: 'nav-team'},
+    { to: "/zapis/novy", label: "Nový zápis", icon: Plus, testid: "nav-create", create: true },
+    { to: "/nepritomnost", label: "Volno", icon: CalendarDays, testid: "nav-absence" },
     employeeNav[4],
   ];
   const item = (n) => (
     <NavLink key={n.to} to={n.to} data-testid={n.testid}
-      className={({ isActive }) => `flex min-h-[48px] items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${isActive ? "bg-[#FFD200] text-slate-900" : "text-slate-200 hover:bg-white/10"}`}>
+      className={({ isActive }) => `shell-nav-item flex min-h-[48px] items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${isActive ? "is-active" : ""}`}>
       <n.icon className="h-5 w-5" />{t(n.label)}
       {n.to === "/fronta" && s.queue.length > 0 && <span className="ml-auto rounded bg-amber-400 px-1.5 text-xs text-slate-900">{s.queue.length}</span>}
     </NavLink>
   );
   return (
     <div className="app-shell min-h-screen">
-      <aside className="dark fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-[#0B0F14] px-4 py-5 lg:flex" data-testid="desktop-sidebar">
+      <aside className="shell-sidebar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col overflow-y-auto px-4 py-5 lg:flex" data-testid="desktop-sidebar">
         <div className="flex items-center justify-between gap-2"><Logo />{help}</div>
         <div className="mt-6 space-y-1">
-          <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t("Můj den")}</div>
+          <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider shell-muted">{t("Můj den")}</div>
           {employeeNav.filter((n) => n.to !== "/vice" && (n.to !== "/fronta" || s.queue.length > 0)).map(item)}
+          {s.queue.length > 0 && item({ to: "/fronta", label: "Fronta", icon: CloudUpload, testid: "nav-queue" })}
           {item({ to: "/jak-na-to", label: "Jak na to", icon: Eye, testid: "nav-guide" })}
           {item({ to: "/prehledy", label: "Moje přehledy", icon: BarChart3, testid: "nav-my-overview" })}
           {item({ to: "/nepritomnost", label: "Dovolená a absence", icon: CalendarDays, testid: "nav-absence" })}
-          {item({ to: "/kalendar", label: "Kalendář týmu", icon: CalendarDays, testid: "nav-team-calendar" })}
           {item({ to: "/exporty", label: "Exporty a reporty", icon: FileDown, testid: "nav-exports" })}
         </div>
-        {isMgr && <div className="mt-6 space-y-1"><div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t("Vedení")}</div>{managerNav.map(item)}</div>}
-        <div className="mt-auto space-y-3 border-t border-white/10 pt-4">
-          <div className="px-1"><div className="truncate text-sm font-semibold text-white" data-testid="sidebar-user-name">{user?.name}</div><div className="text-xs text-slate-400" data-testid="sidebar-user-role">{user?.role_label}{user?.username && ` · ${user.username}`}</div></div>
+        {isMgr && <div className="mt-6 space-y-1"><div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider shell-muted">{t("Vedení")}</div>{managerNav.map(item)}</div>}
+        <div className="mt-auto space-y-3 shell-divider border-t pt-4">
+          <div className="px-1"><div className="truncate text-sm font-semibold" data-testid="sidebar-user-name">{user?.name}</div><div className="text-xs shell-muted" data-testid="sidebar-user-role">{user?.role_label}{user?.username && ` · ${user.username}`}</div></div>
           <SimpleModeToggle className="w-full" />
           <ThemeSelect />
-          <LanguageSelect dark />
-          <Button variant="ghost" className="w-full justify-start text-slate-200 hover:bg-white/10 hover:text-white" onClick={() => { logout(); nav("/login"); }} data-testid="logout-button"><LogOut className="mr-2 h-4 w-4" />{t("Odhlásit")}</Button>
+          <LanguageSelect />
+          <Button variant="ghost" className="shell-nav-item w-full justify-start" onClick={() => { logout(); nav("/login"); }} data-testid="logout-button"><LogOut className="mr-2 h-4 w-4" />{t("Odhlásit")}</Button>
         </div>
       </aside>
 
-      <header className="app-header sticky top-0 z-20 flex items-center justify-between gap-2 bg-[#0B0F14] px-4 py-3 lg:hidden">
-        <Logo />
-        <div className="flex items-center gap-2"><SyncPill /><details className="relative"><summary aria-label={t("Nastavení vzhledu a profilu")} className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border border-white/20 bg-white/10 font-bold text-white">{user?.name?.split(' ').map(n => n[0]).slice(0,2).join('') || '••'}</summary><div className="absolute right-0 top-14 z-50 flex w-64 flex-col gap-3 rounded-xl border border-white/20 bg-[#141e2b] p-4 shadow-xl"><span className="text-sm text-white">{user?.name}</span><ThemeSelect /><LanguageSelect compact dark /><SimpleModeToggle />{help}</div></details></div>
+      <header className="shell-header sticky top-0 z-20 flex items-center justify-between gap-2 px-4 py-3 lg:hidden">
+        <Link to="/dnes" aria-label={t("Domů")}><Logo /></Link>
+        <div className="shell-header-actions flex items-center gap-2"><LanguageSelect compact /><SyncPill />
+          <details className="relative shell-profile"><summary aria-label={t("Nastavení vzhledu a profilu")} className="shell-control flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full font-bold">{user?.name?.split(' ').map(n => n[0]).slice(0,2).join('') || '••'}</summary>
+            <div className="shell-popover absolute right-0 top-14 z-50 flex w-64 flex-col gap-3 rounded-xl border p-4 shadow-xl"><span className="text-sm font-semibold">{user?.name}</span><span className="shell-muted text-xs">{user?.role_label}</span><ThemeSelect /><SimpleModeToggle />{help}</div>
+          </details>
+        </div>
       </header>
 
       <main className="lg:pl-64">
-        <div className="hidden items-center justify-end gap-3 border-b border-slate-200 bg-[#0B0F14] px-8 py-2 lg:flex"><ThemeSelect /><LanguageSelect compact dark /><SimpleModeToggle /><SyncPill /></div>
+        <div className="shell-topbar hidden items-center justify-end gap-3 border-b px-8 py-2 lg:flex"><ThemeSelect /><LanguageSelect compact /><SimpleModeToggle /><SyncPill /></div>
         {!s.online && <div className="hazard-stripe h-1.5" />}
         <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:pb-10">{children}</div>
       </main>
 
-      <nav className="app-bottom-nav safe-bottom fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-white/10 bg-[#0B0F14] lg:hidden" data-testid="mobile-bottom-nav">
+      <nav className="shell-bottom-nav app-bottom-nav safe-bottom fixed inset-x-0 bottom-0 z-30 flex justify-around border-t lg:hidden" data-testid="mobile-bottom-nav">
         {mobileNav.filter((n) => n.to !== "/fronta" || s.queue.length > 0).map((n) => (
-          <NavLink key={n.to} to={n.to} data-testid={`m-${n.testid}`} className={({ isActive }) => `relative flex min-h-[64px] flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${isActive ? "text-[#FFD200]" : "text-slate-300"}`}>
+          <NavLink key={n.to} to={n.to} data-testid={`m-${n.testid}`} className={({ isActive }) => `shell-bottom-item ${n.create ? "shell-nav-create" : ""} relative flex min-h-[64px] flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold ${isActive ? "is-active" : ""}`}>
             {({ isActive }) => (<>{isActive && <span className="absolute top-0 h-1 w-10 rounded-b bg-[#FFD200]" />}<n.icon className="h-6 w-6" />{t(n.label)}
               {n.to === "/fronta" && s.queue.length > 0 && <span className="absolute right-3 top-2 rounded bg-amber-400 px-1 text-[10px] text-slate-900">{s.queue.length}</span>}</>)}
           </NavLink>

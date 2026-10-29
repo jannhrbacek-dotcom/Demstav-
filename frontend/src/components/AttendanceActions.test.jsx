@@ -2,6 +2,7 @@ import React, { act } from "react";
 import { createRoot } from "react-dom/client";
 import { AttendanceActions } from "./AttendanceActions";
 import { addAttendanceEvent, removeOp } from "@/lib/sync";
+import { LanguageProvider, LANGUAGE_STORAGE_KEY } from "@/lib/language";
 
 jest.mock("@/lib/sync", () => ({
   useSync: () => ({ queue: [] }),
@@ -61,4 +62,15 @@ test("failed GPS can be replaced by QR without keeping a duplicate event", async
   expect(addAttendanceEvent).toHaveBeenCalledTimes(2);
   expect(addAttendanceEvent).toHaveBeenLastCalledWith(expect.objectContaining({ qr: "DS1.test.signature", gps: null }));
   expect(navigator.geolocation.getCurrentPosition).toHaveBeenCalledTimes(1);
+});
+
+test("Ukrainian attendance translates verification instructions while preserving workplace data", async () => {
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, "uk");
+  await act(async () => root.render(<LanguageProvider><AttendanceActions workplaces={[wp]} serverState="away" /></LanguageProvider>));
+  expect(container.querySelector('[data-testid="attendance-workplace-select"]').textContent).toContain(wp.name);
+  expect(container.querySelector('[data-testid="attendance-help"]').textContent).toContain("GPS у радіусі 150 м");
+  expect(container.querySelector('[data-testid="today-arrival-button"]').textContent).toContain("Прихід");
+  await click("today-arrival-button");
+  expect(document.querySelector('[data-testid="attendance-method-gps"]').textContent).toContain("Підтвердити через GPS");
+  expect(navigator.geolocation.getCurrentPosition).not.toHaveBeenCalled();
 });

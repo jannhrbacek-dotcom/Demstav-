@@ -26,11 +26,11 @@ export default function Attendance() {
   const queued = s.queue.filter((o) => o.type === "event");
   const openFix = (ev) => { setForm({ kind: ev?.kind || "arrival", date: ev ? pragueDate(new Date(ev.effective_at)) : pragueDate(), time: "", workplaceId: ev?.workplace_id || wps.data?.[0]?.id || "", reason: "", eventId: ev?.id || "" }); setOpen(true); };
   const submit = async () => {
-    if (!form.time || !form.reason.trim() || !form.workplaceId) { toast.error("Doplňte čas, pracoviště a důvod."); return; }
+    if (!form.time || !form.reason.trim() || !form.workplaceId) { toast.error(t("Doplňte čas, pracoviště a důvod.")); return; }
     const at = new Date(`${form.date}T${form.time}:00`).toISOString();
     await addAttendanceRequest({ id: newId(), kind: form.kind, at, workplaceId: form.workplaceId, reason: form.reason.trim(), eventId: form.eventId || null });
     setOpen(false);
-    toast.success("Žádost o opravu odeslána ke schválení");
+    toast.success(t("Žádost o opravu odeslána ke schválení"));
     setTimeout(() => att.reload(), 800);
   };
   return (
@@ -47,14 +47,14 @@ export default function Attendance() {
             <div><div className="text-xs text-slate-600">{t("Přestávky")}</div><div className="font-heading text-2xl font-bold">{fmtHM(att.data?.today_projection?.breakHours)}</div></div>
             <div><div className="text-xs text-slate-600">{t("Čistá doba")}</div><div className="font-heading text-2xl font-bold" data-testid="attendance-net-today">{fmtHM(att.data?.today_projection?.netHours)}</div></div>
           </div>
-          <p className="mt-3 text-xs text-slate-600">Docházka eviduje přítomnost na pracovišti. Neověřené záznamy (offline, mimo okruh, ruční) se nevydávají za prokázanou přítomnost – schvaluje je vedoucí.</p>
-          {(att.data?.projection?.issues || []).length > 0 && <div className="mt-2 rounded-lg bg-orange-50 p-2 text-xs text-orange-950">{att.data.projection.issues.join(" · ")}</div>}
+          <p className="mt-3 text-xs text-slate-600">{t("Docházka eviduje přítomnost na pracovišti. Neověřené záznamy (offline, mimo okruh, ruční) se nevydávají za prokázanou přítomnost – schvaluje je vedoucí.")}</p>
+          {(att.data?.projection?.issues || []).length > 0 && <div className="mt-2 rounded-lg bg-orange-50 p-2 text-xs text-orange-950">{att.data.projection.issues.map(issue => t(issue)).join(" · ")}</div>}
         </div>
       </div>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="attendance-corrections">
         <h2 className="font-heading text-lg font-semibold">{t("Opravy docházky")}</h2>
-        <p className="text-sm text-slate-600">Chybí příchod nebo potřebujete opravit čas? Žádost schvaluje vedoucí.</p>
+        <p className="text-sm text-slate-600">{t("Chybí příchod nebo potřebujete opravit čas? Žádost schvaluje vedoucí.")}</p>
         <Button variant="outline" className="h-12 w-full sm:w-auto" onClick={() => openFix(null)} data-testid="attendance-manual-entry-button"><PencilLine className="mr-2 h-4 w-4" />{t("Požádat o opravu")}</Button>
       </section>
       <BreakRequests />
@@ -62,7 +62,7 @@ export default function Attendance() {
         <div className="mb-3 flex items-center gap-2 font-heading font-semibold"><History className="h-5 w-5" />{t("Historie (31 dní)")}</div>
         {queued.map((o) => (
           <div key={o.opId} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-3" data-testid="attendance-history-item">
-            <div><div className="font-semibold">{t(KIND_LABELS[o.payload.kind])} · {dateTime(o.payload.deviceAt)}</div><div className="text-xs text-slate-600">čas zařízení; {o.error || "zatím nepřijato serverem"}</div></div>
+            <div><div className="font-semibold">{t(KIND_LABELS[o.payload.kind])} · {dateTime(o.payload.deviceAt)}</div><div className="text-xs text-slate-600">{t("čas zařízení")}; {t(o.error || "zatím nepřijato serverem")}</div></div>
             <StatusBadge status={o.state === "needs_reason" ? "needs_reason" : o.state === "error" ? "error" : "queued"} />
           </div>))}
         {!att.loading && (att.data?.events || []).length === 0 && queued.length === 0 && <Empty title={t("Zatím žádné události")} text={t("První záznam vytvoříte tlačítkem Příchod.")} />}
@@ -70,25 +70,25 @@ export default function Attendance() {
           <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-3" data-testid="attendance-history-item">
             <div className="min-w-0">
               <div className="font-semibold">{t(KIND_LABELS[e.kind])} · {dateTime(e.effective_at)} · {e.workplace_name}</div>
-              <div className="text-xs text-slate-600">{e.verification_method === "gps" ? "Ověření GPS · " : e.verification_method === "qr" ? "Ověření QR · " : ""}zařízení {dateTime(e.device_at)} · server {dateTime(e.received_at)}{e.reasons?.length ? ` · ${e.reasons.map((r) => REASON_LABELS[r] || r).join(", ")}` : ""}{e.decision?.note ? ` · vedoucí: ${e.decision.note}` : ""}</div>
+              <div className="text-xs text-slate-600">{e.verification_method === "gps" ? `${t("Ověření GPS")} · ` : e.verification_method === "qr" ? `${t("Ověření QR")} · ` : ""}{t("zařízení")} {dateTime(e.device_at)} · {t("server")} {dateTime(e.received_at)}{e.reasons?.length ? ` · ${e.reasons.map((r) => t(REASON_LABELS[r] || r)).join(", ")}` : ""}{e.decision?.note ? ` · ${t("vedoucí:")} ${e.decision.note}` : ""}</div>
             </div>
             <div className="flex items-center gap-2"><StatusBadge status={e.status} /><Button variant="ghost" size="sm" onClick={() => openFix(e)} data-testid="attendance-fix-event">{t("Oprava")}</Button></div>
           </div>))}
         {(att.data?.requests || []).length > 0 && <div className="mt-4"><div className="mb-2 text-sm font-semibold">{t("Moje žádosti o opravu")}</div>{att.data.requests.map((r) => (
-          <div key={r.id} className="flex items-center justify-between border-b border-slate-100 py-2 text-sm" data-testid="attendance-request-item"><span>{t(KIND_LABELS[r.kind])} {dateTime(r.at)} – {r.reason}{r.decision?.note ? ` (vedoucí: ${r.decision.note})` : ""}</span><StatusBadge status={r.status} /></div>))}</div>}
+          <div key={r.id} className="flex items-center justify-between border-b border-slate-100 py-2 text-sm" data-testid="attendance-request-item"><span>{t(KIND_LABELS[r.kind])} {dateTime(r.at)} – {r.reason}{r.decision?.note ? ` (${t("vedoucí:")} ${r.decision.note})` : ""}</span><StatusBadge status={r.status} /></div>))}</div>}
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md" data-testid="attendance-request-dialog">
-          <DialogHeader><DialogTitle className="font-heading">{t("Žádost o opravu docházky")}</DialogTitle><DialogDescription>{form.eventId ? "Oprava času existující události." : "Doplnění chybějící události."} Schvaluje vedoucí; původní záznam zůstává v auditu.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{t("Žádost o opravu docházky")}</DialogTitle><DialogDescription>{t(form.eventId ? "Oprava času existující události." : "Doplnění chybějící události.")} {t("Schvaluje vedoucí; původní záznam zůstává v auditu.")}</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <Field label="Událost"><Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })} disabled={!!form.eventId}><SelectTrigger className="h-12" data-testid="request-kind-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{l}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label="Událost"><Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })} disabled={!!form.eventId}><SelectTrigger className="h-12" data-testid="request-kind-select"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(KIND_LABELS).map(([k, l]) => <SelectItem key={k} value={k}>{t(l)}</SelectItem>)}</SelectContent></Select></Field>
             <div className="grid grid-cols-2 gap-3"><Field label="Datum"><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="h-12" data-testid="request-date-input" /></Field>
               <Field label="Skutečný čas"><Input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="h-12" data-testid="request-time-input" /></Field></div>
-            <Field label="Pracoviště"><Select value={form.workplaceId} onValueChange={(v) => setForm({ ...form, workplaceId: v })}><SelectTrigger className="h-12" data-testid="request-workplace-select"><SelectValue placeholder="Vyberte" /></SelectTrigger><SelectContent>{(wps.data || []).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select></Field>
+            <Field label="Pracoviště"><Select value={form.workplaceId} onValueChange={(v) => setForm({ ...form, workplaceId: v })}><SelectTrigger className="h-12" data-testid="request-workplace-select"><SelectValue placeholder={t("Vyberte")} /></SelectTrigger><SelectContent>{(wps.data || []).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select></Field>
             <Field label="Důvod"><Textarea value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} data-testid="request-reason-input" /></Field>
           </div>
-          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={submit} data-testid="request-submit-button">Odeslat žádost</Button></DialogFooter>
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={submit} data-testid="request-submit-button">{t("Odeslat žádost")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

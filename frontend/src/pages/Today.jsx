@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { CloudUpload, ClipboardList, Clock3, FileDown, CalendarDays, BarChart3, Construction, Tractor, Wrench, Building2, ChevronRight, Info } from "lucide-react";
+import { CloudUpload, Clock3, FileDown, CalendarDays, BarChart3, Construction, Tractor, Wrench, Building2, ChevronRight, Info } from "lucide-react";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
@@ -93,14 +93,14 @@ export default function Today() {
         </Link>)}</div>
         {state === "away" && net > 0 && !todays.length && <p className="mt-2 text-sm text-amber-800" data-testid="today-missing-timesheet">Máte docházku bez zápisu šichtovnice.</p>}
       </section>
+      <details className="operations-more"><summary>{t("Další možnosti")}<ChevronRight size={18} aria-hidden="true" /></summary>
       <nav className="operations-secondary" aria-label={t("Další možnosti")}>
         <Tile to="/nepritomnost" icon={CalendarDays} label="Volno, nemoc a výjimky" />
         <Tile to="/kalendar" icon={Clock3} label="Kalendář týmu" />
-        <Tile to="/zapisy" icon={ClipboardList} label="Moje zápisy" />
         <Tile to="/prehledy" icon={BarChart3} label="Přehledy" />
-        <Tile to="/exporty" icon={FileDown} label="Exporty" />
         {s.queue.length > 0 && <Tile to="/fronta" icon={CloudUpload} label={`Fronta · ${s.queue.length}`} tone="amber" testid="tile-queue" />}
       </nav>
+      </details>
     </div>
   );
 }

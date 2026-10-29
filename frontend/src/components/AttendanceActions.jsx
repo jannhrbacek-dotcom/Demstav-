@@ -66,7 +66,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
   const finish = (op) => {
     if (!op) { toast.success(t("Přijato serverem")); onDone && onDone(); return; }
     if (op.state === "needs_reason") { setReasonOp(op); return; }
-    if (op.state === "error") { toast.error(op.error || t("Událost nebyla přijata.")); return; }
+    if (op.state === "error") { toast.error(t(op.error || "Událost nebyla přijata.")); return; }
     toast(t("Uloženo v telefonu – čeká na odeslání"), { description: t("Odešle se automaticky po připojení.") });
   };
 
@@ -81,7 +81,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
       const deviceAt = new Date().toISOString();
       const op = await addAttendanceEvent({ id: newId(), workplaceId: wp.id, kind, deviceAt, offline: !navigator.onLine, qr: qr || null, gps, exceptionReason: "", ...extra });
       finish(op);
-    } catch (e) { toast.error(e.message || t("Událost nelze uložit. Zkuste to znovu.")); } finally { setBusy(false); }
+    } catch (e) { toast.error(t(e.message || "Událost nelze uložit. Zkuste to znovu.")); } finally { setBusy(false); }
   };
   const start = (kind) => {
     if (!wp) { toast.error(t("Nejprve vyberte pracoviště.")); return; }
@@ -110,14 +110,14 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
         <div className="text-sm font-semibold text-slate-900">{t("Pracoviště")}</div>
         <Select value={wp?.id || ""} onValueChange={(v) => setWpId(v)}>
           <SelectTrigger className="h-14 text-base" data-testid="attendance-workplace-select"><SelectValue placeholder={workplaces?.length ? t("Vyberte pracoviště") : t("Žádné pracoviště – kontaktujte vedoucího")} /></SelectTrigger>
-          <SelectContent>{(workplaces || []).map((w) => <SelectItem key={w.id} value={w.id} data-testid={`workplace-option-${w.id}`}>{w.name} · {MODE_LABELS[w.mode]}</SelectItem>)}</SelectContent>
+          <SelectContent>{(workplaces || []).map((w) => <SelectItem key={w.id} value={w.id} data-testid={`workplace-option-${w.id}`}>{w.name} · {t(MODE_LABELS[w.mode])}</SelectItem>)}</SelectContent>
         </Select>
         <details className="text-sm text-slate-600" data-testid="attendance-help">
           <summary className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg px-2 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500"><Info className="h-4 w-4" aria-hidden="true" />{t("Informace k docházce")}</summary>
           <div className="space-y-2 rounded-lg border border-slate-200 p-3">
             <p>{t("Zahájení docházky není spuštěním stroje.")}</p>
-        {wp?.mode === "gps_or_qr" && <p className="text-sm text-slate-700">Příchod i odchod potvrdíte polohou GPS v okruhu {wp.radius} m nebo QR kódem na pracovišti. Stačí jeden způsob.</p>}
-        {wp && wp.mode !== "gps_or_qr" && <div className="flex items-center gap-2 text-xs text-slate-600">{wp.mode.includes("qr") && <><QrCode className="h-3.5 w-3.5" />naskenujte QR na pracovišti</>}{wp.mode.includes("gps") && <><MapPin className="h-3.5 w-3.5" />poloha se ověří jen v okamžiku záznamu a neukládá se</>}{wp.mode === "manual" && "ruční záznam – schvaluje vedoucí"}</div>}
+        {wp?.mode === "gps_or_qr" && <p className="text-sm text-slate-700">{t("Příchod i odchod potvrdíte polohou GPS v okruhu {radius} m nebo QR kódem na pracovišti. Stačí jeden způsob.", { radius: wp.radius })}</p>}
+        {wp && wp.mode !== "gps_or_qr" && <div className="flex items-center gap-2 text-xs text-slate-600">{wp.mode.includes("qr") && <><QrCode className="h-3.5 w-3.5" />{t("naskenujte QR na pracovišti")}</>}{wp.mode.includes("gps") && <><MapPin className="h-3.5 w-3.5" />{t("poloha se ověří jen v okamžiku záznamu a neukládá se")}</>}{wp.mode === "manual" && t("ruční záznam – schvaluje vedoucí")}</div>}
             <p>{t("Přestávky 12:00–12:30 a 15:30–16:00 se odečítají automaticky. Změnu žádejte v Docházce. Přejezd stačí klepnout – bez QR. Příchod a odchod potvrďte způsobem uvedeným u pracoviště.")}</p>
           </div>
         </details>
@@ -125,7 +125,7 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
       {state === "travel" && (
         <div className="rounded-xl border-2 border-[#E6BD00] bg-amber-50 p-3 text-sm text-amber-950" data-testid="attendance-travel-banner">
           <div className="font-semibold">{t("Přejezd na jinou zakázku – stále v práci")}</div>
-          <details className="mt-1"><summary className="flex min-h-11 cursor-pointer items-center gap-2"><Info className="h-4 w-4" aria-hidden="true" />{t("Informace k přejezdu")}</summary><p>Po příjezdu vyberte nové pracoviště (bod B) a dejte <b>Příchod</b> s ověřením podle pracoviště. Čas přejezdu se počítá do pracovní doby, ale nefakturuje se.</p></details>
+          <details className="mt-1"><summary className="flex min-h-11 cursor-pointer items-center gap-2"><Info className="h-4 w-4" aria-hidden="true" />{t("Informace k přejezdu")}</summary><p>{t("Po příjezdu vyberte nové pracoviště (bod B) a dejte Příchod s ověřením podle pracoviště. Čas přejezdu se počítá do pracovní doby, ale nefakturuje se.")}</p></details>
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -155,42 +155,42 @@ export function AttendanceActions({ workplaces, serverState, onDone }) {
           <DialogHeader><DialogTitle>{t(KIND_LABELS[methodFor])} – {t("jak potvrdit?")}</DialogTitle><DialogDescription>{wp?.name}. {t("Vyberte jeden způsob ověření.")}</DialogDescription></DialogHeader>
           <Button className="btn-primary h-16 text-lg" disabled={busy} data-testid="attendance-method-gps" onClick={() => { const kind = methodFor; setMethodFor(null); send(kind); }}><MapPin className="mr-2 h-6 w-6" />{t("Potvrdit pomocí GPS")}</Button>
           <Button variant="outline" className="h-16 text-lg" disabled={busy} data-testid="attendance-method-qr" onClick={() => { setQrFor(methodFor); setMethodFor(null); }}><QrCode className="mr-2 h-6 w-6" />{t("Naskenovat QR kód")}</Button>
-          <p className="text-sm text-slate-600">GPS se použije jen při potvrzení. Při skenování QR není přístup k poloze potřeba. Bez ověření záznam schvaluje vedoucí.</p>
+          <p className="text-sm text-slate-600">{t("GPS se použije jen při potvrzení. Při skenování QR není přístup k poloze potřeba. Bez ověření záznam schvaluje vedoucí.")}</p>
         </DialogContent>
       </Dialog>
 
       <Dialog open={travelOpen} onOpenChange={setTravelOpen}>
         <DialogContent className="max-w-md" data-testid="travel-dialog">
-          <DialogHeader><DialogTitle className="font-heading">Přejezd na jinou zakázku</DialogTitle>
-            <DialogDescription>Odjíždíte z: <b>{wp?.name}</b> (bod A). Zůstáváte v práci – směna se nepřeruší.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{t("Přejezd na jinou zakázku")}</DialogTitle>
+            <DialogDescription>{t("Odjíždíte z: {workplace} (bod A). Zůstáváte v práci – směna se nepřeruší.", { workplace: wp?.name || "" })}</DialogDescription></DialogHeader>
           <div className="space-y-1.5">
-            <div className="text-sm font-semibold">Kam jedete (bod B)</div>
-            <Input list="travel-to-list" value={travelTo} onChange={(e) => setTravelTo(e.target.value)} className="h-12" placeholder="Pracoviště nebo adresa" data-testid="travel-to-input" />
+            <div className="text-sm font-semibold">{t("Kam jedete (bod B)")}</div>
+            <Input list="travel-to-list" value={travelTo} onChange={(e) => setTravelTo(e.target.value)} className="h-12" placeholder={t("Pracoviště nebo adresa")} data-testid="travel-to-input" />
             <datalist id="travel-to-list">{(workplaces || []).filter((w) => w.id !== wp?.id).map((w) => <option key={w.id} value={w.name} />)}</datalist>
           </div>
-          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={startTravel} data-testid="travel-start-confirm">Vyjíždím</Button></DialogFooter>
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" onClick={startTravel} data-testid="travel-start-confirm">{t("Vyjíždím")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!qrFor} onOpenChange={(o) => !o && setQrFor(null)}>
         <DialogContent className="max-w-md" data-testid="qr-dialog">
-          <DialogHeader><DialogTitle className="font-heading">Naskenujte QR – {KIND_LABELS[qrFor]}</DialogTitle><DialogDescription>QR kód je vyvěšený nebo zobrazený na tabletu na pracovišti {wp?.name}.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{t("Naskenujte QR")} – {t(KIND_LABELS[qrFor])}</DialogTitle><DialogDescription>{t("QR kód je vyvěšený nebo zobrazený na tabletu na pracovišti {workplace}.", { workplace: wp?.name || "" })}</DialogDescription></DialogHeader>
           {qrFor && <QrScanner onResult={(code) => { const k = qrFor; setQrFor(null); send(k, code); }} />}
-          <DialogFooter><Button variant="outline" className="h-12" onClick={() => { const k = qrFor; setQrFor(null); send(k, null); }} data-testid="qr-skip-button">Bez QR (bude výjimka)</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" className="h-12" onClick={() => { const k = qrFor; setQrFor(null); send(k, null); }} data-testid="qr-skip-button">{t("Bez QR (bude výjimka)")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!reasonOp} onOpenChange={(o) => !o && setReasonOp(null)}>
         <DialogContent className="max-w-md" data-testid="exception-reason-dialog">
-          <DialogHeader><DialogTitle className="font-heading">Ověření se nepodařilo</DialogTitle>
-            <DialogDescription>{(reasonOp?.reasons || []).map((r) => REASON_LABELS[r] || r).join(", ")}. Doplňte důvod – záznam uložíme jako výjimku ke schválení vedoucím.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="font-heading">{t("Ověření se nepodařilo")}</DialogTitle>
+            <DialogDescription>{(reasonOp?.reasons || []).map((r) => t(REASON_LABELS[r] || r)).join(", ")}{t(". Doplňte důvod – záznam uložíme jako výjimku ke schválení vedoucím.")}</DialogDescription></DialogHeader>
           {wp?.mode === "gps_or_qr" && reasonOp?.payload?.workplaceId === wp.id && !reasonOp?.payload?.qr && <Button variant="outline" className="h-12" data-testid="exception-try-qr" onClick={async () => {
             const op = reasonOp;
             await removeOp(op.opId);
             setReasonOp(null); setReason(""); setQrFor(op.payload.kind);
-          }}><QrCode className="mr-2 h-5 w-5" />Zkusit QR místo GPS</Button>}
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Např. slabý signál GPS v hale, QR kód je poškozený…" className="min-h-[100px]" data-testid="exception-reason-input" />
-          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" disabled={!reason.trim()} onClick={submitReason} data-testid="exception-reason-submit">Odeslat ke schválení</Button></DialogFooter>
+          }}><QrCode className="mr-2 h-5 w-5" />{t("Zkusit QR místo GPS")}</Button>}
+          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("Např. slabý signál GPS v hale, QR kód je poškozený…")} className="min-h-[100px]" data-testid="exception-reason-input" />
+          <DialogFooter><Button className="btn-primary h-12 w-full font-semibold" disabled={!reason.trim()} onClick={submitReason} data-testid="exception-reason-submit">{t("Odeslat ke schválení")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
