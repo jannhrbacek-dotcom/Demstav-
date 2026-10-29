@@ -98,7 +98,8 @@ test("external vision is only called after explicit click and never saves a reco
   expect(http.post).toHaveBeenCalledTimes(2);
   const [endpoint, form] = http.post.mock.calls[1];
   expect(endpoint).toBe("/ocr/diary/vision");
-  expect(form.get("file")).toBe(image);
+  expect(form.get("file").name).toBe("page.jpg");
+  expect(form.get("file").type).toBe("image/jpeg");
   expect(form.get("consent")).toBe("true");
   expect(el.querySelector('[data-testid="ocr-check-mthStart"]').checked).toBe(false);
   expect(apply).not.toHaveBeenCalled();
