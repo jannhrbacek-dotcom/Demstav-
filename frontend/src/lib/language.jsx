@@ -11,6 +11,14 @@ export const LANGUAGES = [
   { value: "uk", label: "Українська" },
 ];
 const uk = {
+  "Zatím žádná pracoviště.": "Поки немає робочих місць.",
+  "Nový uživatel": "Новий користувач",
+  "Role a oprávnění": "Ролі та права доступу",
+  "chráněný jednatel": "захищений обліковий запис директора",
+  "čeká na změnu hesla": "очікується зміна пароля",
+  "Ochrana účtu vlastníka platí v aplikaci; nechrání proti osobě s přímým přístupem k serveru či databázi.": "Захист облікового запису власника діє в застосунку, але не захищає від осіб із прямим доступом до сервера або бази даних.",
+  "Dočasné heslo se zobrazí jednou – předejte ho osobně.": "Тимчасовий пароль показується лише один раз. Передайте його особисто.",
+  "Založit účet": "Створити обліковий запис",
   "Všechna zařazení": "Усі посади",
   "Všechna pracoviště": "Усі робочі місця",
   "Vše": "Усе",
