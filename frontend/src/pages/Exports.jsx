@@ -12,10 +12,12 @@ import { useSync } from "@/lib/sync";
 import { http, downloadFile, errText } from "@/lib/api";
 import { dmy, dateTime, pragueDate, weekRange } from "@/lib/format";
 import { POSITIONS } from "@/lib/roles";
+import { useLanguage } from "@/lib/language";
 
 const ALL = "all";
 
 export default function Exports() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const s = useSync();
   const mgr = atLeast(user, "manager");
@@ -82,73 +84,73 @@ export default function Exports() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Exporty a reporty" subtitle="PDF podle firemních vzorů a data do XLSX / CSV podle libovolného filtru." />
+      <PageHeader title={t("Exporty a reporty")} subtitle={t("PDF podle firemních vzorů a data do XLSX / CSV podle libovolného filtru.")} />
       {s.queue.length > 0 && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">V telefonu čeká {s.queue.length} neodeslaných položek – export obsahuje jen to, co už přijal server.</div>}
 
       <div className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-3" data-testid="export-filters">
         <Field label="Od"><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-12" data-testid="export-from-input" /></Field>
         <Field label="Do"><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-12" data-testid="export-to-input" /></Field>
-        {mgr && <Field label="Zaměstnanec"><Select value={emp} onValueChange={setEmp}><SelectTrigger className="h-12" data-testid="export-employee-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>Všichni</SelectItem>{(users.data || []).map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent></Select></Field>}
-        {mgr && <Field label="Zařazení"><Select value={position || ALL} onValueChange={(v) => setPosition(v === ALL ? "" : v)}><SelectTrigger className="h-12" data-testid="export-position-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>Všechna zařazení</SelectItem>{POSITIONS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent></Select></Field>}
-        <Field label="Stroj"><Select value={machine || ALL} onValueChange={(v) => setMachine(v === ALL ? "" : v)}><SelectTrigger className="h-12" data-testid="export-machine-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>Všechny stroje</SelectItem>{(machines.data || []).map((m) => <SelectItem key={m.id} value={m.label}>{m.label}</SelectItem>)}</SelectContent></Select></Field>
-        <Field label="Pracoviště"><Select value={wpId || ALL} onValueChange={(v) => setWpId(v === ALL ? "" : v)}><SelectTrigger className="h-12" data-testid="export-workplace-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>Všechna pracoviště</SelectItem>{(wps.data || []).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select></Field>
-        <Field label="Stav"><Select value={status || ALL} onValueChange={(v) => setStatus(v === ALL ? "" : v)}><SelectTrigger className="h-12" data-testid="export-status-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>Vše</SelectItem><SelectItem value="confirmed">Jen potvrzené zápisy</SelectItem><SelectItem value="draft">Jen koncepty</SelectItem><SelectItem value="pending">Docházka s výjimkou ke schválení</SelectItem></SelectContent></Select></Field>
+        {mgr && <Field label="Zaměstnanec"><Select value={emp} onValueChange={setEmp}><SelectTrigger className="h-12" data-testid="export-employee-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>{t("Všichni")}</SelectItem>{(users.data || []).map((u) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent></Select></Field>}
+        {mgr && <Field label="Zařazení"><Select value={position || ALL} onValueChange={(v) => setPosition(v === ALL ? "" : v)}><SelectTrigger className="h-12" data-testid="export-position-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>{t("Všechna zařazení")}</SelectItem>{POSITIONS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent></Select></Field>}
+        <Field label="Stroj"><Select value={machine || ALL} onValueChange={(v) => setMachine(v === ALL ? "" : v)}><SelectTrigger className="h-12" data-testid="export-machine-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>{t("Všechny stroje")}</SelectItem>{(machines.data || []).map((m) => <SelectItem key={m.id} value={m.label}>{m.label}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Pracoviště"><Select value={wpId || ALL} onValueChange={(v) => setWpId(v === ALL ? "" : v)}><SelectTrigger className="h-12" data-testid="export-workplace-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>{t("Všechna pracoviště")}</SelectItem>{(wps.data || []).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select></Field>
+        <Field label="Stav"><Select value={status || ALL} onValueChange={(v) => setStatus(v === ALL ? "" : v)}><SelectTrigger className="h-12" data-testid="export-status-select"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={ALL}>{t("Vše")}</SelectItem><SelectItem value="confirmed">{t("Jen potvrzené zápisy")}</SelectItem><SelectItem value="draft">Jen koncepty</SelectItem><SelectItem value="pending">{t("Docházka s výjimkou ke schválení")}</SelectItem></SelectContent></Select></Field>
       </div>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="font-heading text-lg font-semibold">PDF podle firemních vzorů</h2>
+        <h2 className="font-heading text-lg font-semibold">{t("PDF podle firemních vzorů")}</h2>
         <div className="flex flex-wrap gap-x-6 gap-y-2">
-          <label className="flex items-center gap-3"><Switch checked={drafts} onCheckedChange={setDrafts} data-testid="export-include-drafts-switch" /><span className="text-sm font-medium">Zahrnout koncepty (označí se PRACOVNÍ VERZE)</span></label>
-          <label className="flex items-center gap-3"><Switch checked={duplex} onCheckedChange={setDuplex} data-testid="export-duplex-switch" /><span className="text-sm font-medium">Šichtovnice pro oboustranný tisk</span></label>
+          <label className="flex items-center gap-3"><Switch checked={drafts} onCheckedChange={setDrafts} data-testid="export-include-drafts-switch" /><span className="text-sm font-medium">{t("Zahrnout koncepty (označí se PRACOVNÍ VERZE)")}</span></label>
+          <label className="flex items-center gap-3"><Switch checked={duplex} onCheckedChange={setDuplex} data-testid="export-duplex-switch" /><span className="text-sm font-medium">{t("Šichtovnice pro oboustranný tisk")}</span></label>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Btn k="sicht" primary onClick={() => pdf("sicht")} testid="export-timesheet-button">Šichtovnice PDF</Btn>
-          <Btn k="denik" onClick={() => pdf("denik")} testid="export-diary-button">Provozní deník stroje PDF</Btn>
+          <Btn k="sicht" primary onClick={() => pdf("sicht")} testid="export-timesheet-button">{t("Šichtovnice PDF")}</Btn>
+          <Btn k="denik" onClick={() => pdf("denik")} testid="export-diary-button">{t("Provozní deník stroje PDF")}</Btn>
         </div>
-        <p className="text-xs text-slate-600">Oboustranný tisk: lícní strana = týdenní výkaz, rub = popis servisů a závad; každý výkaz začíná na novém listu (případně se vloží prázdná strana).</p>
+        <p className="text-xs text-slate-600">{t("Oboustranný tisk: lícní strana = týdenní výkaz, rub = popis servisů a závad; každý výkaz začíná na novém listu (případně se vloží prázdná strana).")}</p>
       </section>
 
       <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="font-heading text-lg font-semibold">Data do XLSX a CSV</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Btn k="attendance-xlsx" onClick={() => data("attendance", "xlsx")} testid="export-attendance-xlsx">Docházka a směny XLSX</Btn>
-          <Btn k="attendance-csv" onClick={() => data("attendance", "csv")} testid="export-attendance-csv">Docházka a směny CSV</Btn>
-          <Btn k="timesheet-xlsx" onClick={() => data("timesheet", "xlsx")} testid="export-timesheet-xlsx">Šichtovnice XLSX</Btn>
-          <Btn k="timesheet-csv" onClick={() => data("timesheet", "csv")} testid="export-timesheet-csv">Šichtovnice CSV</Btn>
+          <Btn k="attendance-xlsx" onClick={() => data("attendance", "xlsx")} testid="export-attendance-xlsx">{t("Docházka a směny XLSX")}</Btn>
+          <Btn k="attendance-csv" onClick={() => data("attendance", "csv")} testid="export-attendance-csv">{t("Docházka a směny CSV")}</Btn>
+          <Btn k="timesheet-xlsx" onClick={() => data("timesheet", "xlsx")} testid="export-timesheet-xlsx">{t("Šichtovnice XLSX")}</Btn>
+          <Btn k="timesheet-csv" onClick={() => data("timesheet", "csv")} testid="export-timesheet-csv">{t("Šichtovnice CSV")}</Btn>
         </div>
-        <p className="text-xs text-slate-600">CSV je oddělené středníkem s desetinnou čárkou – Excel ho otevře česky. Docházka obsahuje i schválené a čekající nepřítomnosti.</p>
+        <p className="text-xs text-slate-600">{t("CSV je oddělené středníkem s desetinnou čárkou – Excel ho otevře česky. Docházka obsahuje i schválené a čekající nepřítomnosti.")}</p>
         <div className="mt-2 border-t border-slate-100 pt-3">
-          <h3 className="font-heading text-base font-semibold">Stavební deník stroje – XLSX s listy per stroj</h3>
-          <p className="mb-2 text-xs text-slate-600">Vygeneruje přehledový list + jeden list pro každý stroj. Řádek na den: kontroly, MTH, závady, servis, popis práce, autor, revize i otisk pro audit.</p>
-          <Btn k="machine-log-xlsx" primary onClick={() => data("machine_log", "xlsx")} testid="export-machine-log-xlsx">Stavební deník stroje XLSX</Btn>
+          <h3 className="font-heading text-base font-semibold">{t("Stavební deník stroje – XLSX s listy per stroj")}</h3>
+          <p className="mb-2 text-xs text-slate-600">{t("Vygeneruje přehledový list + jeden list pro každý stroj. Řádek na den: kontroly, MTH, závady, servis, popis práce, autor, revize i otisk pro audit.")}</p>
+          <Btn k="machine-log-xlsx" primary onClick={() => data("machine_log", "xlsx")} testid="export-machine-log-xlsx">{t("Stavební deník stroje XLSX")}</Btn>
         </div>
       </section>
 
       {mgr && (
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="weekly-exports">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><CalendarClock className="h-5 w-5" />Automatické týdenní exporty</h2>
-            <Button variant="outline" className="h-11" disabled={!!busy || !s.online} onClick={genWeek} data-testid="weekly-generate-button">{busy === "gen" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}Připravit zvolený týden</Button>
+            <h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><CalendarClock className="h-5 w-5" />{t("Automatické týdenní exporty")}</h2>
+            <Button variant="outline" className="h-11" disabled={!!busy || !s.online} onClick={genWeek} data-testid="weekly-generate-button">{busy === "gen" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1 h-4 w-4" />}{t("Připravit zvolený týden")}</Button>
           </div>
-          <p className="text-xs text-slate-600">Vytvoří se návrh za pondělí–neděli podle data Od. Automatický plánovač ani doručení nejsou tímto potvrzené. Oprava vytvoří novou verzi; původní soubory zůstanou dostupné.</p>
+          <p className="text-xs text-slate-600">{t("Vytvoří se návrh za pondělí–neděli podle data Od. Automatický plánovač ani doručení nejsou tímto potvrzené. Oprava vytvoří novou verzi; původní soubory zůstanou dostupné.")}</p>
           <div className="rounded-lg border p-3 text-sm"><b>Plán automatické přípravy: {schedule.data?.configured ? 'nastaven' : 'nenastaven'}</b><p>Časová zóna: Europe/Prague{schedule.data?.last_poll ? ` · poslední kontrola ${dateTime(schedule.data.last_poll)}` : ''}</p>
             {(schedule.data?.jobs || []).map(j => <p key={j.slot}>{dmy(j.week)} · {{done: 'Příprava dokončena', blocked: 'Vyžaduje opravu podkladů', failed: 'Příprava se nezdařila', running: 'Připravuje se', queued: 'Čeká na přípravu'}[j.status] || 'Ke kontrole'}</p>)}
           </div>
-          <Field label="Příjemce předání"><select className="h-12 w-full rounded border px-3" value={recipient} onChange={e => setRecipient(e.target.value)}><option value="">Vyberte jiného vedoucího nebo jednatele</option>{(users.data || []).filter(u => u.id !== user.id && u.active !== false && ['manager', 'operations_manager', 'owner'].includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
-          {(weekly.data || []).length === 0 && <p className="text-sm text-slate-600">Zatím žádný připravený týden.</p>}
+          <Field label="Příjemce předání"><select className="h-12 w-full rounded border px-3" value={recipient} onChange={e => setRecipient(e.target.value)}><option value="">{t("Vyberte jiného vedoucího nebo jednatele")}</option>{(users.data || []).filter(u => u.id !== user.id && u.active !== false && ['manager', 'operations_manager', 'owner'].includes(u.role)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></Field>
+          {(weekly.data || []).length === 0 && <p className="text-sm text-slate-600">{t("Zatím žádný připravený týden.")}</p>}
           {(weekly.data || []).map((w) => (
             <div key={w.export_id || w.week} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 p-3" data-testid="weekly-export-item">
               <div className="min-w-0 flex-1"><div className="font-semibold">Týden {dmy(w.week)} – {dmy(w.week_end)}</div><div className="text-xs text-slate-600">verze {w.version ?? 0} · {statusLabel[w.status] || statusLabel.legacy} · {w.records} zápisů · {w.employees} zaměstnanců · připraveno {dateTime(w.generated_at)} ({w.generated_by})</div></div>
-              {(w.validation?.blockers || []).length > 0 && <div className="w-full rounded border border-amber-300 bg-amber-50 p-3 text-sm"><b>Nejdříve opravit:</b><ul>{w.validation.blockers.map((p, i) => <li key={i}>{problemLabel[p.code] || "Podklad vyžaduje kontrolu"}{p.date ? ` · ${dmy(p.date)}` : ''}{p.employee ? ` · ${p.employee}` : ''}</li>)}</ul></div>}
-              {w.status === 'draft' && <Button className="h-12" disabled={!!busy || !recipient || !!w.validation?.blockers?.length} onClick={() => handover(w, 'submit')}>Předat příjemci</Button>}
-              {w.status === 'submitted' && (w.recipients || []).includes(user.id) && w.submitted_by !== user.id && <><Button className="h-12" disabled={!!busy} onClick={() => handover(w, 'accept')}>Převzít tuto verzi</Button><Button variant="outline" className="h-12" disabled={!!busy} onClick={() => handover(w, 'return')}>Vrátit k opravě</Button></>}
+              {(w.validation?.blockers || []).length > 0 && <div className="w-full rounded border border-amber-300 bg-amber-50 p-3 text-sm"><b>{t("Nejdříve opravit:")}</b><ul>{w.validation.blockers.map((p, i) => <li key={i}>{problemLabel[p.code] || "Podklad vyžaduje kontrolu"}{p.date ? ` · ${dmy(p.date)}` : ''}{p.employee ? ` · ${p.employee}` : ''}</li>)}</ul></div>}
+              {w.status === 'draft' && <Button className="h-12" disabled={!!busy || !recipient || !!w.validation?.blockers?.length} onClick={() => handover(w, 'submit')}>{t("Předat příjemci")}</Button>}
+              {w.status === 'submitted' && (w.recipients || []).includes(user.id) && w.submitted_by !== user.id && <><Button className="h-12" disabled={!!busy} onClick={() => handover(w, 'accept')}>{t("Převzít tuto verzi")}</Button><Button variant="outline" className="h-12" disabled={!!busy} onClick={() => handover(w, 'return')}>{t("Vrátit k opravě")}</Button></>}
               {(w.history || []).map((h, i) => <p key={i} className="w-full text-xs">{dateTime(h.at)} · {h.by_name} · {h.action === 'submit' ? 'Předáno' : h.action === 'accept' ? 'Převzato' : 'Vráceno'}{h.note ? ` · ${h.note}` : ''}</p>)}
               {["pdf", "xlsx", "csv"].map((f) => <Button key={f} variant="outline" className="h-10" disabled={!!busy} onClick={() => run(`w-${w.week}-${f}`, `/exports/weekly/${w.week}/${f}${w.export_id ? `?version=${encodeURIComponent(w.export_id)}` : ""}`, `DEMSTAV_sichtovnice_tyden_${w.week}.${f}`)} data-testid={`weekly-download-${f}`}><FileDown className="mr-1 h-4 w-4" />{f.toUpperCase()}</Button>)}
             </div>
           ))}
         </section>
       )}
-      {!s.online && <p className="text-sm text-amber-800">Export vyžaduje připojení k serveru.</p>}
+      {!s.online && <p className="text-sm text-amber-800">{t("Export vyžaduje připojení k serveru.")}</p>}
     </div>
   );
 }
