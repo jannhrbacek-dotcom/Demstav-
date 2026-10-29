@@ -104,3 +104,43 @@ test("external vision is only called after explicit click and never saves a reco
   expect(el.querySelector('[data-testid="ocr-check-mthStart"]').checked).toBe(false);
   expect(apply).not.toHaveBeenCalled();
 });
+
+
+test("invalid date and declining MTH cannot enter the draft even when explicitly selected", async () => {
+  http.post.mockResolvedValue({ data: {
+    text: "Datum: 31.02.2026\nMTH začátek: 8440\nMTH konec: 8439",
+    fields: [
+      { key: "date", label: "Datum", value: "2026-02-31" },
+      { key: "mthStart", label: "MTH začátek", value: "8440" },
+      { key: "mthEnd", label: "MTH konec", value: "8439" },
+    ],
+  } });
+  const input = el.querySelector('[data-testid="ocr-gallery-input"]');
+  await act(async () => {
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["sample"], "date.jpg", { type: "image/jpeg" })] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  for (const key of ["date", "mthStart", "mthEnd"]) {
+    await act(async () => el.querySelector('[data-testid="ocr-check-" + key + "]").click());
+  }
+  await act(async () => el.querySelector('[data-testid="ocr-apply"]').click());
+  expect(apply).not.toHaveBeenCalled();
+  expect(el.querySelector('[role="alert"]').textContent).toContain("Neplatné nebo rozporné");
+});
+
+test("machine not in the fleet registry must be rejected before import", async () => {
+  http.post.mockResolvedValue({ data: {
+    text: "Stroj: L566/99",
+    fields: [{ key: "machine", label: "Stroj", value: "L566/99" }],
+  } });
+  await act(async () => root.render(<PhotoDiaryOcr record={record} machines={[{label:"L566/3", active: true}]} onAttach={attach} onApply={apply} />));
+  const input = el.querySelector('[data-testid="ocr-gallery-input"]');
+  await act(async () => {
+    Object.defineProperty(input, "files", { configurable: true, value: [new File(["sample"], "machine.jpg", { type: "image/jpeg" })] });
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await act(async () => el.querySelector('[data-testid="ocr-check-machine"]').click());
+  await act(async () => el.querySelector('[data-testid="ocr-apply"]').click());
+  expect(apply).not.toHaveBeenCalled();
+  expect(el.querySelector('[role="alert"]').textContent).toContain("Stroj");
+});
