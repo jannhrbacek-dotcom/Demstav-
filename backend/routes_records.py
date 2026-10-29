@@ -1,6 +1,7 @@
 import re
 import hashlib
 import json
+from urllib.parse import quote
 from datetime import date as date_cls
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response
@@ -26,7 +27,7 @@ SIG_RE = re.compile(r"^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$")
 MAX_UPLOAD = 15 * 1024 * 1024
 ATT_SECTIONS = ("general", "service", "timesheet")
 CHAIN_GENESIS = "DEMSTAV-GENESIS"
-ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf"}
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv", "text/plain", "application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet"}
 
 RECORD_FIELDS_TEXT = {
     "shift": 100, "operator": 200, "crew": 1000, "attendanceWorkplaceId": 100, "machine": 200, "customer": 300,
@@ -449,7 +450,7 @@ async def upload_attachment(file: UploadFile = File(...), id: str = Form(...), k
         return existing  # idempotent re-upload
     ctype = (file.content_type or "application/octet-stream").lower()
     if ctype not in ALLOWED_TYPES:
-        raise HTTPException(status_code=400, detail="Povolené jsou fotografie (JPG, PNG, WEBP, HEIC) a PDF.")
+        raise HTTPException(status_code=400, detail="Povolené jsou fotografie, PDF, Word, Excel, CSV, TXT, ODT a ODS.")
     data = await file.read()
     if len(data) > MAX_UPLOAD:
         raise HTTPException(status_code=413, detail="Soubor je větší než 15 MB.")
@@ -478,4 +479,4 @@ async def download_attachment(aid: str, user: dict = Depends(get_ready_user)):
         data, _ = get_object(att["storage_path"])
     except Exception:
         raise HTTPException(status_code=503, detail="Úložiště souborů je dočasně nedostupné.")
-    return Response(content=data, media_type=att["type"], headers={"Cache-Control": "private, max-age=3600"})
+    return Response(content=data, media_type=att["type"], headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff", "Content-Disposition": f"attachment; filename*=UTF-8''{quote(att['name'], safe='')}"})
