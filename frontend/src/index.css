@@ -93,7 +93,7 @@ img, video, canvas, svg { max-width: 100%; height: auto; }
 .simple-mode-badge { background: #FFD200; color: #0F172A; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
 
 /* Shared semantic palette: every navigation surface follows the selected theme. */
-:root { color-scheme:light; --shell:#f4f6f9; --surface:#fff; --surface-raised:#f8fafc; --ink:#172233; --muted-ink:#596779; --line:#e0e6ee; --brand:#b56b00; --brand-soft:#fff0cb; }
+:root { color-scheme:light; --shell:#f4f6f9; --surface:#fff; --surface-raised:#f8fafc; --ink:#172233; --muted-ink:#596779; --line:#e0e6ee; --brand:#995900; --brand-soft:#fff0cb; }
 html.dark { color-scheme:dark; --shell:#0c1119; --surface:#19222f; --surface-raised:#202b3a; --ink:#f1f5fa; --muted-ink:#adbbcc; --line:#2d394a; --brand:#ffb41d; --brand-soft:#ffb41d18; }
 body,.app-shell { background:var(--shell); color:var(--ink); }
 .shell-header,.shell-topbar,.shell-sidebar,.shell-bottom-nav { background:var(--surface); color:var(--ink); border-color:var(--line); }
@@ -115,14 +115,14 @@ body,.app-shell { background:var(--shell); color:var(--ink); }
 .theme-select { max-width:150px; }
 html.dark .bg-white { background-color:var(--surface); }
 html.dark .bg-slate-50,html.dark .bg-slate-100 { background-color:var(--surface-raised); }
-html.dark .text-slate-900,html.dark .text-slate-800,html.dark .text-slate-700 { color:var(--ink); }
+html.dark .text-slate-950,html.dark .text-slate-900,html.dark .text-slate-800,html.dark .text-slate-700 { color:var(--ink); }
 html.dark .text-slate-600,html.dark .text-slate-500 { color:var(--muted-ink); }
 html.dark .border-slate-200,html.dark .border-slate-300 { border-color:var(--line); }
 html.dark input,html.dark textarea,html.dark select { background-color:var(--surface); color:var(--ink); }
-html.dark .app-shell .bg-\[\#FFD200\],html.dark .app-shell .bg-amber-100,html.dark .app-shell .bg-emerald-100,html.dark .app-shell .bg-red-100,.btn-primary { color:#0f172a; }
+
 .app-shell main { min-height:100dvh; }
 .lock-screen { background:var(--shell); color:var(--ink); }
-.lock-card { background:var(--surface); border:1px solid var(--line); border-radius:24px; padding:28px; box-shadow:0 16px 70px #0001; }
+.lock-card { color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:24px; padding:28px; box-shadow:0 16px 70px #0001; }
 html:not(.dark) .demstav-launch { background:radial-gradient(ellipse at top,#fff6e6,#f4f6f9 70%); color:var(--ink); }
 html:not(.dark) .demstav-launch-brand { text-shadow:none; }
 html:not(.dark) .demstav-launch-brand p { color:var(--muted-ink); }
@@ -133,4 +133,69 @@ html:not(.dark) .demstav-launch-skip { background:var(--surface); color:var(--in
 .shell-nav-create.is-active svg { background:#ffb41d; box-shadow:0 5px 16px #ee9c1240; }
 html.dark .shell-nav-create { color:#ffc44d; }
 html.dark .bg-slate-200 { background-color:#303c4d; color:var(--ink); }
-html.dark .bg-amber-400,html.dark .bg-amber-100,html.dark .bg-emerald-100,html.dark .bg-red-100 { color:#172233; }
+
+
+/* Keep foreground and surface together: status panels retain their meaning in
+   dark mode, including explicitly coloured children and interactive states. */
+.shell-logo > svg { color:var(--brand); }
+html.dark :is(.hover\:bg-white,.hover\:bg-slate-50,.hover\:bg-slate-100):hover {
+  background-color:var(--surface-raised);
+}
+html.dark :is(input,textarea)::placeholder { color:var(--muted-ink); opacity:1; }
+html.dark :is(.border-slate-400,.border-slate-500) { border-color:#70849d; }
+html.dark :is(.border-slate-800,.border-slate-900) { border-color:#91a4bb; }
+html.dark :is(.text-gray-950,.text-gray-900,.text-gray-800,.text-gray-700) { color:var(--ink); }
+html.dark :is(.text-slate-400,.text-gray-600,.text-gray-500) { color:var(--muted-ink); }
+html.dark :is(.bg-gray-50,.bg-gray-100) { background-color:var(--surface-raised); }
+html.dark :is(.bg-amber-50,.bg-amber-100,.bg-amber-200) { background-color:#382c15; color:#fde68a; }
+html.dark :is(.text-amber-600,.text-amber-700,.text-amber-800,.text-amber-900,.text-amber-950) { color:#fde68a; }
+html.dark :is(.border-amber-100,.border-amber-200,.border-amber-300) { border-color:#a17c2a; }
+html.dark :is(.hover\:bg-amber-50,.hover\:bg-amber-100,.hover\:bg-amber-200):hover { background-color:#382c15; }
+html.dark :is(.bg-yellow-50,.bg-yellow-100,.bg-yellow-200) { background-color:#382f13; color:#fef08a; }
+html.dark :is(.text-yellow-600,.text-yellow-700,.text-yellow-800,.text-yellow-900,.text-yellow-950) { color:#fef08a; }
+html.dark :is(.border-yellow-100,.border-yellow-200,.border-yellow-300) { border-color:#a17c2a; }
+html.dark :is(.hover\:bg-yellow-50,.hover\:bg-yellow-100,.hover\:bg-yellow-200):hover { background-color:#382f13; }
+html.dark :is(.bg-orange-50,.bg-orange-100,.bg-orange-200) { background-color:#3b271b; color:#fed7aa; }
+html.dark :is(.text-orange-600,.text-orange-700,.text-orange-800,.text-orange-900,.text-orange-950) { color:#fed7aa; }
+html.dark :is(.border-orange-100,.border-orange-200,.border-orange-300) { border-color:#a46a37; }
+html.dark :is(.hover\:bg-orange-50,.hover\:bg-orange-100,.hover\:bg-orange-200):hover { background-color:#3b271b; }
+html.dark :is(.bg-emerald-50,.bg-emerald-100,.bg-emerald-200) { background-color:#14382f; color:#a7f3d0; }
+html.dark :is(.text-emerald-600,.text-emerald-700,.text-emerald-800,.text-emerald-900,.text-emerald-950) { color:#a7f3d0; }
+html.dark :is(.border-emerald-100,.border-emerald-200,.border-emerald-300) { border-color:#3d8a72; }
+html.dark :is(.hover\:bg-emerald-50,.hover\:bg-emerald-100,.hover\:bg-emerald-200):hover { background-color:#14382f; }
+html.dark :is(.bg-green-50,.bg-green-100,.bg-green-200) { background-color:#193624; color:#bbf7d0; }
+html.dark :is(.text-green-600,.text-green-700,.text-green-800,.text-green-900,.text-green-950) { color:#bbf7d0; }
+html.dark :is(.border-green-100,.border-green-200,.border-green-300) { border-color:#46885d; }
+html.dark :is(.hover\:bg-green-50,.hover\:bg-green-100,.hover\:bg-green-200):hover { background-color:#193624; }
+html.dark :is(.bg-red-50,.bg-red-100,.bg-red-200) { background-color:#3d2229; color:#fecaca; }
+html.dark :is(.text-red-600,.text-red-700,.text-red-800,.text-red-900,.text-red-950) { color:#fecaca; }
+html.dark :is(.border-red-100,.border-red-200,.border-red-300) { border-color:#a46470; }
+html.dark :is(.hover\:bg-red-50,.hover\:bg-red-100,.hover\:bg-red-200):hover { background-color:#3d2229; }
+html.dark :is(.bg-rose-50,.bg-rose-100,.bg-rose-200) { background-color:#3d222f; color:#fecdd3; }
+html.dark :is(.text-rose-600,.text-rose-700,.text-rose-800,.text-rose-900,.text-rose-950) { color:#fecdd3; }
+html.dark :is(.border-rose-100,.border-rose-200,.border-rose-300) { border-color:#a46480; }
+html.dark :is(.hover\:bg-rose-50,.hover\:bg-rose-100,.hover\:bg-rose-200):hover { background-color:#3d222f; }
+html.dark :is(.bg-blue-50,.bg-blue-100,.bg-blue-200) { background-color:#1b304b; color:#bfdbfe; }
+html.dark :is(.text-blue-600,.text-blue-700,.text-blue-800,.text-blue-900,.text-blue-950) { color:#bfdbfe; }
+html.dark :is(.border-blue-100,.border-blue-200,.border-blue-300) { border-color:#527eac; }
+html.dark :is(.hover\:bg-blue-50,.hover\:bg-blue-100,.hover\:bg-blue-200):hover { background-color:#1b304b; }
+html.dark :is(.bg-sky-50,.bg-sky-100,.bg-sky-200) { background-color:#163445; color:#bae6fd; }
+html.dark :is(.text-sky-600,.text-sky-700,.text-sky-800,.text-sky-900,.text-sky-950) { color:#bae6fd; }
+html.dark :is(.border-sky-100,.border-sky-200,.border-sky-300) { border-color:#4a839f; }
+html.dark :is(.hover\:bg-sky-50,.hover\:bg-sky-100,.hover\:bg-sky-200):hover { background-color:#163445; }
+html.dark :is(.bg-purple-50,.bg-purple-100,.bg-purple-200) { background-color:#332445; color:#e9d5ff; }
+html.dark :is(.text-purple-600,.text-purple-700,.text-purple-800,.text-purple-900,.text-purple-950) { color:#e9d5ff; }
+html.dark :is(.border-purple-100,.border-purple-200,.border-purple-300) { border-color:#8a6daa; }
+html.dark :is(.hover\:bg-purple-50,.hover\:bg-purple-100,.hover\:bg-purple-200):hover { background-color:#332445; }
+
+/* These are deliberately bright action surfaces in both themes. Explicit
+   text utilities on labels/icons must not turn white against the yellow. */
+html.dark :is(.btn-primary,.bg-amber-400,.bg-\[\#FFD200\]) {
+  color:#172233;
+}
+html.dark :is(.btn-primary,.bg-amber-400,.bg-\[\#FFD200\])
+:is(.text-slate-950,.text-slate-900,.text-slate-800,.text-slate-700,.text-slate-600,.text-slate-500) {
+  color:#172233;
+}
+
+html.dark .bg-\[\#F5F7FA\] { background-color:var(--shell); }

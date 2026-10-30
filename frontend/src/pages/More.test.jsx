@@ -13,7 +13,7 @@ test("More exposes one machines link to employees and managers while administrat
   await act(async () => root.render(<More />));
   expect(el.querySelector('[data-testid="more-machines"]').getAttribute("href")).toBe("/stroje");
   expect(el.querySelector('[data-testid="more-users"]')).toBeNull();
-  const settings = el.querySelector('[data-testid="more-device-settings"]');
+  const settings = el.querySelector('[data-testid="more-account-settings"]');
   expect(settings.open).toBe(false);
   const quickAccess = el.querySelector('[data-testid="more-quick-access"]');
   expect(el.querySelector("h1").compareDocumentPosition(quickAccess) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
