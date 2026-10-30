@@ -21,3 +21,13 @@ Nejkratší další krok je určit účel této druhé služby a připravit jej�
 https://github.com/jannhrbacek-dotcom/Demstav-/pull/42 zůstává otevřený koncept. Jeho CI na `69765b60` je úspěšné. Větev obsahuje externí vision OCR a překrývající se starší implementace navigace/zámku; neslučovat ji automaticky přes novější produkční úpravy. Potřebné funkce nejprve porovnat a přenést jednotlivě.
 
 Aktuální produkční záloha MongoDB a příloh včetně testovací obnovy ani produkční nastavení externího OCR nejsou touto kontrolou ověřeny. Historický archiv, samotný snapshot a zelené CI nedokládají aktuální obnovitelnost. Postup: `docs/OSTRA_ZALOHA_API_NASAZENI_2026-10-29.md` ve větvi PR #42. Před zásahem do produkce je třeba získat fyzické archivy, checksumy a protokol izolované obnovy; OCR klíč ani přepínače při tomto auditu neměnit.
+
+## Ověřená záloha po přihlášení – 30. 10. 2026
+
+Databázový dump vytvořen 13:57:55 UTC (14:57:55 CET): `/data/db/backups/demstav-20261030T135755Z.archive.gz`, cca 144 KiB. SHA-256: `1a3724ae32b2b18e985da3904117a21b4607b4adad2d30c60876225443e7ad3e`.
+
+Zkušební obnova proběhla do samostatného namespace `backup_verify_20261030T135901Z` na stejné MongoDB instanci, bez přepisování produkční databáze. Ověřeno 20 kolekcí / 121 dokumentů; počty dokumentů i indexů bez rozdílů. Následné SHA-256 porovnání serializovaného obsahu všech kolekcí potvrdilo úplnou shodu ve 14:00:04 UTC. Ověřovací DB je ponechána, nebyla smazána. Nešlo o obnovu na nezávislé instanci. Soubor protokolu má příponu `.verification.json` vedle archivu.
+
+Přílohy archivovány ve 14:00:42 UTC: `/var/data/backups/demstav-objects-20261030T140042Z.tar.gz`, cca 11 MiB / 3 soubory. SHA-256: `8a5b744a4f19fabe54f82780cda7a495fd6edeff0ceafcfc66c623dceedd39b7`. Archiv lze celý přečíst; SHA-256 obsahu každého souboru z archivu odpovídá zdrojovému souboru. Kontrolní protokol je ve stejném adresáři. Soubory nebyly přepisovány ani rozbalovány do produkčního úložiště.
+
+**Stále zbývá:** nezávislá kopie obou archivů mimo Render a ověření checksumů v cíli, ověření vazeb příloh a vizuální kontrola opravy. Archivy jsou zatím pouze na příslušných trvalých discích Renderu. Web Shell nenabízí stažení souborů a pro SSH nebyl nastaven přístup. Proto stále neproběhl merge ani deploy PR #45. CI na kódu `16954879` před touto dokumentační aktualizací prošlo celé: https://github.com/jannhrbacek-dotcom/Demstav-/actions/runs/41064100607.
