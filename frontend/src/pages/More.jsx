@@ -68,7 +68,18 @@ export default function More() {
           <L to="/vykazy-vazeni" icon={Files} label="Společný výkaz" description="Práce a vážní lístky" testid="more-production" />
           <L to="/exporty" icon={FileDown} label="Exporty a reporty" description="PDF, Excel, CSV" testid="more-exports" />
           <L to="/jak-na-to" icon={CircleHelp} label="Jak na to" testid="more-guide" />
-          <details className="group" data-testid="more-account-settings">
+
+        </div>
+      </section>
+      {atLeast(user, "manager") && <section aria-labelledby="more-management-title" className="space-y-3"><h2 id="more-management-title" className="font-heading text-lg font-bold">{t("Vedení a správa")}</h2><div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <L to="/prehled" icon={LayoutDashboard} label="Přehled vedení" testid="more-overview" />
+        <L to="/kontrola" icon={ShieldCheck} label="Kontrola výjimek docházky" testid="more-review" />
+        <L to="/vsechny-zapisy" icon={Files} label="Všechny zápisy" testid="more-all-records" />
+        <L to="/pracoviste" icon={MapPin} label="Pracoviště a QR" testid="more-workplaces" />
+        <L to="/uzivatele" icon={Users} label="Uživatelé a přístupy" testid="more-users" />
+      </div></section>}
+
+          <details className="group rounded-2xl border border-slate-200 bg-white" data-testid="more-account-settings">
             <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-slate-900 [&::-webkit-details-marker]:hidden">
               <Settings aria-hidden="true" className="h-5 w-5 shrink-0" />
               <span className="min-w-0 flex-1"><span className="block font-semibold">{t("Nastavení účtu")}</span><span className="mt-1 block text-sm text-slate-600">{t("Heslo · jazyk · jednoduchý režim")}</span></span>
@@ -109,27 +120,11 @@ export default function More() {
                 : <p className="mt-1 text-sm text-slate-700">{t("iPhone: v Safari klepněte na Sdílet → Přidat na plochu. Android: v Chrome nabídka ⋮ → Instalovat aplikaci.")}</p>}
               <p className="mt-2 text-xs text-slate-600">{t("Po prvním načtení se aplikace otevře i bez internetu; zápisy se ukládají do fronty v telefonu. Ikona na ploše sama o sobě neznamená ověřený offline provoz na vašem zařízení.")}</p>
             </div>
+            <div className="space-y-3 border-t border-slate-200 p-3">
+              <LockSettings />
+              <Button variant="outline" className="min-h-11 w-full" onClick={()=>window.dispatchEvent(new Event("demstav-intro"))}>{t("Přehrát úvodní obrazovku")}</Button>
+            </div>
           </details>
-        </div>
-      </section>
-      {atLeast(user, "manager") && <section aria-labelledby="more-management-title" className="space-y-3"><h2 id="more-management-title" className="font-heading text-lg font-bold">{t("Vedení a správa")}</h2><div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <L to="/prehled" icon={LayoutDashboard} label="Přehled vedení" testid="more-overview" />
-        <L to="/kontrola" icon={ShieldCheck} label="Kontrola výjimek docházky" testid="more-review" />
-        <L to="/vsechny-zapisy" icon={Files} label="Všechny zápisy" testid="more-all-records" />
-        <L to="/pracoviste" icon={MapPin} label="Pracoviště a QR" testid="more-workplaces" />
-        <L to="/uzivatele" icon={Users} label="Uživatelé a přístupy" testid="more-users" />
-      </div></section>}
-      <details className="group rounded-2xl border border-slate-200 bg-white" data-testid="more-device-settings">
-        <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-4 py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
-          <Settings className="more-list-icon h-5 w-5" aria-hidden="true" />
-          <span className="flex-1">{t("Nastavení")}</span>
-          <ChevronRight className="h-5 w-5 text-slate-400 transition-transform group-open:rotate-90" aria-hidden="true" />
-        </summary>
-        <div className="space-y-3 border-t border-slate-200 p-3">
-          <LockSettings />
-          <Button variant="outline" className="min-h-11 w-full" onClick={()=>window.dispatchEvent(new Event("demstav-intro"))}>{t("Přehrát úvodní obrazovku")}</Button>
-        </div>
-      </details>
       <Button variant="outline" className="h-14 w-full text-base font-semibold text-red-700" onClick={out} data-testid="more-logout-button"><LogOut className="mr-2 h-5 w-5" />{t("Odhlásit")}</Button>
     </div>
   );
