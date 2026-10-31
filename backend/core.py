@@ -91,7 +91,7 @@ def password_problem(pw: str) -> Optional[str]:
 
 
 def create_access_token(user: dict) -> str:
-    payload = {"sub": user["id"], "email": user["email"], "tv": user.get("token_version", 0),
+    payload = {"sub": user["id"], "email": user.get("email", ""), "tv": user.get("token_version", 0),
                "exp": now_utc() + timedelta(hours=ACCESS_HOURS), "type": "access"}
     return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
 
