@@ -11,6 +11,14 @@ export const LANGUAGES = [
   { value: "uk", label: "Українська" },
 ];
 const uk = {
+  "Docházka je návrh zaměstnanecké směny pro šichtovnici. Neurčuje dobu provozu stroje. Zkontrolujte skutečně odpracovaný čas.": "Дані відвідуваності є пропозицією зміни працівника для табеля. Вони не визначають час роботи машини. Перевірте фактично відпрацьований час.",
+  "Použít příchod a odchod z docházky": "Використати прихід і вихід з обліку відвідуваності",
+  "Směna v docházce ještě nemá odchod. Čas konce neodhadujeme.": "У зміні ще немає виходу. Час завершення не вгадується.",
+  "Pro tento den už existuje čas u jiného zápisu. Rozdělte skutečné úseky mezi stroje, celou směnu znovu nekopírujte.": "На цей день уже є час в іншому записі. Розподіліть фактичні періоди між машинами, не копіюйте всю зміну повторно.",
+  "Docházka čeká na ověření. Návrh bude dostupný po schválení.": "Відвідуваність очікує перевірки. Пропозиція буде доступна після схвалення.",
+  "Opakovaná práce – návrhy pro": "Повторювана робота — пропозиції для",
+  "Nahradit vyplněný popis práce vybraným návrhem?": "Замінити введений опис роботи вибраною пропозицією?",
+
   "Po příjezdu vyberte nové pracoviště (bod B) a dejte Příchod s ověřením podle pracoviště. Čas přejezdu se počítá do pracovní doby, ale nefakturuje se.": "Після прибуття виберіть нове робоче місце (точку Б) і натисніть «Прихід», підтвердивши його відповідно до вимог робочого місця. Час переїзду враховується як робочий час, але не виставляється замовнику до оплати.",
   "Odjíždíte z: {workplace} (bod A). Zůstáváte v práci – směna se nepřeruší.": "Ви виїжджаєте з: {workplace} (точка А). Ви залишаєтеся на роботі — зміна не переривається.",
   "Naskenujte QR": "Відскануйте QR-код",

@@ -1,16 +1,13 @@
 .operations-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.operations-tile { --tile-accent: #f5a400; position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; min-width: 0; min-height: 144px; padding: 20px 18px; border: 1px solid var(--line, #dce2ea); border-radius: 18px; background: linear-gradient(140deg, color-mix(in srgb, var(--tile-accent) 6%, var(--surface, #fff)), var(--surface, #fff)); color: var(--ink, #172234); box-shadow: 0 8px 24px #00000006, inset 0 1px 0 #ffffff0c; transition: transform .18s, border-color .18s, box-shadow .18s; text-decoration: none; }
-.operations-tile:hover { transform: translateY(-2px); border-color: var(--tile-accent); box-shadow: 0 8px 24px #00000015; }
-.operations-tile:focus-visible { outline: 3px solid var(--tile-accent); outline-offset: 3px; }
-.operations-tile--blue { --tile-accent: #378aff; }
-.operations-tile--green { --tile-accent: #51be3c; }
-.operations-tile--purple { --tile-accent: #aa43f5; }
-.operations-tile--slate { --tile-accent: #8c9bad; }
-.operations-tile--red { --tile-accent: #f54850; }
-.operations-tile-icon { width: 42px; height: 42px; color: var(--tile-accent); }
-.operations-tile-label { display: block; padding-right: 30px; margin-top: 15px; font-size: 17px; line-height: 1.25; font-weight: 700; }
-.operations-tile-arrow { position: absolute; right: 14px; bottom: 19px; display: grid; place-items: center; width: 27px; height: 27px; border-radius: 50%; color: white; background: var(--tile-accent); }
-.operations-more { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.operations-tile { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; min-width: 0; min-height: 132px; padding: 18px; border: 1px solid var(--line, #dce2ea); border-radius: 12px; background: var(--surface, #fff); color: var(--ink, #172234); box-shadow: none; transition: border-color .15s, background-color .15s; text-decoration: none; }
+.operations-tile:hover { border-color: var(--icon-ink); background:var(--surface-raised); }
+.operations-tile:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.operations-tile--primary { border-left:3px solid var(--brand); padding-left:16px; }
+.operations-tile-icon { width: 30px; height: 30px; color: var(--icon-ink, #506174); }
+.operations-tile--primary .operations-tile-icon { color:var(--brand); }
+.operations-tile-label { display: block; padding-right: 24px; margin-top: 16px; font-size: 16px; line-height: 1.3; font-weight: 650; }
+.operations-tile-arrow { position: absolute; right: 14px; bottom: 19px; display: grid; place-items: center; width: 20px; height: 20px; color: var(--icon-ink); background:transparent; }
+.operations-more { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .operations-more > summary { display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 12px 16px; font-weight: 650; cursor: pointer; list-style: none; }
 .operations-more > summary::-webkit-details-marker { display: none; }
 .operations-more[open] > summary > svg { transform: rotate(90deg); }

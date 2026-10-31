@@ -1,3 +1,4 @@
+import { attendanceSuggestion, recurringWork } from "@/lib/attendancePrefill";
 import AttachmentActions from "@/components/AttachmentActions";
 import BreakRequests from "@/components/BreakRequests";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -93,6 +94,7 @@ export default function RecordForm() {
   const machines = useCached("/machines");
   const wps = useCached("/workplaces");
   const mine = useCached("/records?mine=1&limit=200");
+  const attendance = useCached("/attendance/me?days=31");
   const [rec, setRec] = useState(null);
   const [server, setServer] = useState(null);
   const [draftRevision, setDraftRevision] = useState(null);
@@ -191,8 +193,15 @@ export default function RecordForm() {
     toast.success(t("Údaje vloženy do konceptu. Před potvrzením je zkontrolujte."));
   };
   const setFault = (i, k, v) => set("faults", rec.faults.map((f, j) => (j === i ? { ...f, [k]: v } : f)));
-  const recentWork = [...new Set(mergedRecords(mine.data, s.records).map(x => x.record)
-    .filter(x => x.machine === rec.machine && x.work?.trim()).map(x => x.work.trim()))].slice(0, 4);
+  const ownRecords = mergedRecords(mine.data, s.records).map(x => x.record);
+  const recentWork = recurringWork(ownRecords, rec, user.id);
+  const attendanceProposal = attendanceSuggestion(attendance.data?.events, rec, user.id, ownRecords);
+  const useAttendance = () => setRec(current => {
+    const proposal = attendanceSuggestion(attendance.data?.events, current, user.id, ownRecords);
+    if (!proposal.intervals.length) return current;
+    return { ...current, billing: proposal.intervals, site: current.site || proposal.site,
+      attendanceWorkplaceId: current.attendanceWorkplaceId || proposal.workplaceId };
+  });
   const mthDiff = num(rec.mthStart) !== null && num(rec.mthEnd) !== null ? Math.round((num(rec.mthEnd) - num(rec.mthStart)) * 1000) / 1000 : null;
 
 
@@ -330,6 +339,13 @@ export default function RecordForm() {
       </Section>
 
       <Section title="Pracovní čas" subtitle="Celá pracovní doba a prostoje" testid="section-time">
+        <div className="space-y-2 rounded-lg border border-slate-200 p-3" data-testid="attendance-prefill">
+          <p className="text-sm text-slate-600">{t("Docházka je návrh zaměstnanecké směny pro šichtovnici. Neurčuje dobu provozu stroje. Zkontrolujte skutečně odpracovaný čas.")}</p>
+          {attendanceProposal.intervals.length > 0 && <Button type="button" variant="outline" onClick={useAttendance} data-testid="use-attendance-button">{t("Použít příchod a odchod z docházky")} · {attendanceProposal.intervals.map(i => `${i.start}–${i.end || "…"}`).join(", ")}</Button>}
+          {attendanceProposal.reason === "open" && <p className="text-sm text-slate-600">{t("Směna v docházce ještě nemá odchod. Čas konce neodhadujeme.")}</p>}
+          {attendanceProposal.reason === "multiple" && <p className="text-sm text-slate-600">{t("Pro tento den už existuje čas u jiného zápisu. Rozdělte skutečné úseky mezi stroje, celou směnu znovu nekopírujte.")}</p>}
+          {attendanceProposal.reason === "unverified" && <p className="text-sm text-slate-600">{t("Docházka čeká na ověření. Návrh bude dostupný po schválení.")}</p>}
+        </div>
         <IntervalEditor label="Pracovní doba (celá směna)" hint="Zadejte celou směnu. Od 27. 10. 2026 se přestávky 12:00–12:30 a 15:30–16:00 odečítají automaticky pouze uvnitř směny." items={rec.billing} onChange={(v) => set("billing", v)} testid="billing" />
         <BreakRequests initialDate={rec.date} compact />
         <p className="text-sm">Odečtené přestávky: {fmtH(bd.breakHours)} h</p>
@@ -346,9 +362,9 @@ export default function RecordForm() {
         </div>
         <Field label="Provedená práce"><DictateTextarea value={rec.work} onChange={(v) => set("work", v)} placeholder={t("např. Třídění, nakládka… (nebo klepněte na mikrofon)")} testid="record-work-input" /></Field>
         {recentWork.length > 0 && <div className="space-y-1.5">
-          <div className="text-xs font-semibold text-slate-600">{t("Použité popisy pro")} {rec.machine}</div>
+          <div className="text-xs font-semibold text-slate-600">{t("Opakovaná práce – návrhy pro")} {rec.machine}</div>
           <div className="grid grid-cols-1 gap-1" data-testid="record-work-suggestions">{recentWork.map((w, i) => <button key={i} type="button"
-            title={w} onClick={() => set("work", w)}
+            title={w} onClick={() => { if (!rec.work.trim() || window.confirm(t("Nahradit vyplněný popis práce vybraným návrhem?"))) set("work", w); }}
             className="block h-11 w-full min-w-0 truncate rounded-md border border-slate-200 bg-white px-3 text-left text-sm font-medium leading-5 text-slate-800 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
             data-testid="record-work-suggestion">{w}</button>)}</div>
         </div>}

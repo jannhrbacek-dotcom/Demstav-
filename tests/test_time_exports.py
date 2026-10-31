@@ -58,16 +58,18 @@ def test_overnight_multiple_machines_union():
 
 
 @pytest.mark.asyncio
-async def test_machine_xlsx_matches_approved_breaks(database):
+async def test_machine_xlsx_ignores_employee_breaks(database):
     actor = dict(id="employee-a", name="Test A", role="employee")
     await database.users.insert_one(actor.copy())
-    await database.records.insert_one(record(owner_id=actor["id"], status="confirmed"))
+    await routes_records.save_record("audit-record", {"opId": "machine-export", "baseRevision": 0, "confirm": True, "record": record()}, actor)
     await database.break_requests.insert_one(dict(employee_id=actor["id"], date="2026-10-28",
         status="approved", breaks=[], decision=dict(at="2026-10-28T18:00:00Z")))
     by_machine, users, machines = await routes_data.machine_log_data(actor, {})
     xlsx = routes_data.machine_logs_xlsx(by_machine, users, machines, {})
     sheet = load_workbook(io.BytesIO(xlsx)).worksheets[1]
-    assert sheet.cell(5, 12).value == 11
+    headers = [c.value for c in sheet[4]]
+    assert "Celkem h" not in headers
+    assert sheet.cell(5, headers.index("MTH rozdíl") + 1).value == 2
 
 
 @pytest.mark.asyncio

@@ -6,9 +6,9 @@ export default function ThemeSelect() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", resolvedTheme === "dark" ? "#19222f" : "#ffffff");
+    if (meta) meta.setAttribute("content", resolvedTheme === "dark" ? "#1d242c" : "#ffffff");
   }, [resolvedTheme]);
   return <select aria-label={t("Vzhled aplikace")} title={t("Vzhled aplikace")} value={theme || 'system'} onChange={e => setTheme(e.target.value)} className="theme-select min-h-11 rounded-lg border px-2 text-xs font-semibold">
-    <option value="light">☀ {t("Světlý")}</option><option value="dark">☾ {t("Tmavý")}</option><option value="system">◐ {t("Automaticky")}</option>
+    <option value="light">{t("Světlý")}</option><option value="dark">{t("Tmavý")}</option><option value="system">{t("Automaticky")}</option>
   </select>;
 }

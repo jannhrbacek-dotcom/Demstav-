@@ -40,22 +40,22 @@ img, video, canvas, svg { max-width: 100%; height: auto; }
     --chart-2: 222 47% 11%;
   }
   .dark {
-    --background: 222 47% 6%;
-    --foreground: 0 0% 98%;
-    --card: 222 47% 10%;
+    --background: 213 20% 9%;
+    --foreground: 215 22% 93%;
+    --card: 212 19% 14%;
     --card-foreground: 0 0% 98%;
-    --popover: 222 47% 10%;
+    --popover: 212 19% 14%;
     --popover-foreground: 0 0% 98%;
     --primary: 49 100% 50%;
     --primary-foreground: 222 47% 11%;
-    --secondary: 222 30% 14%;
+    --secondary: 212 19% 18%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 222 30% 14%;
+    --muted: 212 19% 18%;
     --muted-foreground: 215 20% 75%;
-    --accent: 222 30% 16%;
+    --accent: 212 19% 21%;
     --accent-foreground: 0 0% 98%;
-    --border: 222 30% 18%;
-    --input: 222 30% 22%;
+    --border: 213 17% 30%;
+    --input: 213 17% 34%;
     --ring: 48 100% 45%;
   }
 }
@@ -93,20 +93,20 @@ img, video, canvas, svg { max-width: 100%; height: auto; }
 .simple-mode-badge { background: #FFD200; color: #0F172A; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
 
 /* Shared semantic palette: every navigation surface follows the selected theme. */
-:root { color-scheme:light; --shell:#f4f6f9; --surface:#fff; --surface-raised:#f8fafc; --ink:#172233; --muted-ink:#596779; --line:#e0e6ee; --brand:#995900; --brand-soft:#fff0cb; }
-html.dark { color-scheme:dark; --shell:#0c1119; --surface:#19222f; --surface-raised:#202b3a; --ink:#f1f5fa; --muted-ink:#adbbcc; --line:#2d394a; --brand:#ffb41d; --brand-soft:#ffb41d18; }
+:root { color-scheme:light; --shell:#f4f6f9; --surface:#fff; --surface-raised:#f8fafc; --ink:#172233; --muted-ink:#596779; --line:#e0e6ee; --brand:#805800; --brand-soft:#f5eddc; --icon-ink:#506174; }
+html.dark { color-scheme:dark; --shell:#12171d; --surface:#1d242c; --surface-raised:#27313c; --ink:#edf0f4; --muted-ink:#b5c0cd; --line:#46515f; --brand:#e5b45a; --brand-soft:#e5b45a14; --icon-ink:#b7c3d0; }
 body,.app-shell { background:var(--shell); color:var(--ink); }
 .shell-header,.shell-topbar,.shell-sidebar,.shell-bottom-nav { background:var(--surface); color:var(--ink); border-color:var(--line); }
 .shell-header { border-bottom:1px solid var(--line); }
 .shell-sidebar { border-right:1px solid var(--line); }
-.shell-bottom-nav { box-shadow:0 -8px 28px #00000008; }
+.shell-bottom-nav { box-shadow:0 -1px 0 var(--line); }
 .shell-logo-title { color:var(--ink); }.shell-logo-subtitle,.shell-muted { color:var(--muted-ink); }
 .shell-control,.theme-select { background:var(--surface-raised); color:var(--ink); border:1px solid var(--line); }
 .shell-control:hover,.shell-nav-item:hover { background:var(--brand-soft); }
 .shell-control.is-selected,.shell-nav-item.is-active { color:var(--brand); background:var(--brand-soft); }
 .shell-nav-item,.shell-bottom-item { color:var(--muted-ink); }
 .shell-bottom-item.is-active { color:var(--brand); }
-.shell-bottom-item.is-active svg { background:var(--brand-soft); border-radius:10px; box-shadow:0 0 0 6px var(--brand-soft); }
+.shell-bottom-item.is-active svg { background:transparent; box-shadow:none; }
 .shell-bottom-item svg,.operations-tile-icon { stroke-width:1.7; }
 .shell-popover { background:var(--surface); color:var(--ink); border-color:var(--line); }
 .shell-divider { border-color:var(--line); }
@@ -128,10 +128,10 @@ html:not(.dark) .demstav-launch-brand { text-shadow:none; }
 html:not(.dark) .demstav-launch-brand p { color:var(--muted-ink); }
 html:not(.dark) .demstav-launch-skip { background:var(--surface); color:var(--ink); border-color:var(--line); }
 @media(max-width:380px) { .shell-header { padding:10px; gap:6px; }.shell-header-actions { gap:5px; }.shell-logo-title { font-size:18px; } }
-.shell-nav-create { margin-top:-13px; padding-top:5px; color:#895200; }
-.shell-nav-create svg { width:46px; height:46px; padding:10px; border-radius:17px; background:linear-gradient(135deg,#ffc94c,#ffb018); color:#231800; box-shadow:0 5px 16px #ee9c1230; stroke-width:2.3; }
-.shell-nav-create.is-active svg { background:#ffb41d; box-shadow:0 5px 16px #ee9c1240; }
-html.dark .shell-nav-create { color:#ffc44d; }
+.shell-nav-create { margin-top:0; padding-top:0; color:var(--brand); }
+.shell-nav-create svg { width:36px; height:36px; padding:7px; border:1px solid currentColor; border-radius:8px; background:transparent; color:var(--brand); box-shadow:none; stroke-width:1.8; }
+.shell-nav-create.is-active svg { background:var(--brand-soft); box-shadow:none; }
+html.dark .shell-nav-create { color:var(--brand); }
 html.dark .bg-slate-200 { background-color:#303c4d; color:var(--ink); }
 
 

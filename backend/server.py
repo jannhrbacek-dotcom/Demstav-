@@ -27,6 +27,7 @@ from worktime import day_union, fmt_hours, time_breakdown  # noqa: E402
 from storage import init_storage, get_object  # noqa: E402
 from break_policy import hydrate_records, hydrate_events
 from exports import timesheet_pdf, diary_pdf  # noqa: E402
+from machine_diary import verified_diary_records, verified_diary_attachment
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("demstav")
@@ -114,7 +115,7 @@ async def overview(date: str = "", days: int = 7, user: dict = Depends(require_r
 
 
 # ---------------- exports ----------------
-async def _export_records(user, employee_id, date_from, date_to, machine, include_drafts):
+async def _export_records(user, employee_id, date_from, date_to, machine, include_drafts, machine_only=False):
     q = {}
     if not is_manager(user):
         q["owner_id"] = user["id"]
@@ -130,7 +131,8 @@ async def _export_records(user, employee_id, date_from, date_to, machine, includ
         q["machine"] = machine
     if not include_drafts:
         q["status"] = "confirmed"
-    return await hydrate_records(await db.records.find(q, {"_id": 0}).sort([("date", 1), ("updatedAt", 1)]).to_list(5000))
+    records = await db.records.find(q, {"_id": 0}).sort([("date", 1), ("updatedAt", 1)]).to_list(5000)
+    return await verified_diary_records(db, records) if machine_only else await hydrate_records(records)
 
 
 def _range_name(a, b):
@@ -165,20 +167,14 @@ async def export_timesheet(employee_id: str = "", date_from: str = "", date_to: 
 
 
 @api.get("/exports/denik.pdf")
-async def export_diary(employee_id: str = "", machine: str = "", date_from: str = "", date_to: str = "", include_drafts: int = 1,
+async def export_diary(employee_id: str = "", machine: str = "", date_from: str = "", date_to: str = "", include_drafts: int = 0,
                        user: dict = Depends(get_ready_user)):
-    recs = await _export_records(user, employee_id, date_from, date_to, machine, bool(include_drafts))
+    recs = await _export_records(user, employee_id, date_from, date_to, machine, bool(include_drafts), machine_only=True)
     att_ids = [a["id"] for r in recs for a in (r.get("attachments") or []) if a.get("section") == "service"]
     atts = {a["id"]: a for a in await db.attachments.find({"id": {"$in": att_ids}, "is_deleted": False}, {"_id": 0}).to_list(5000)}
 
     def loader(a):
-        doc = atts.get(a["id"])
-        if not doc:
-            return None
-        try:
-            return get_object(doc["storage_path"])[0]
-        except Exception:
-            return None
+        return verified_diary_attachment(a, atts.get(a["id"]), get_object)
     data = diary_pdf(recs, loader)
     return Response(content=data, media_type="application/pdf",
                     headers={"Content-Disposition": f'attachment; filename="DEMSTAV_provozni_denik_{_range_name(date_from, date_to)}.pdf"'})
