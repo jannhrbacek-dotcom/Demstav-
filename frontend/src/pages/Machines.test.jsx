@@ -9,9 +9,11 @@ test("employee can read full machine and service data without management control
   global.IS_REACT_ACT_ENVIRONMENT = true; mockRole = "employee";
   const el = document.createElement("div"), root = createRoot(el);
   await act(async () => root.render(<Machines />));
-  expect(el.textContent).toContain("54 mth");
-  expect(el.querySelector('[data-testid="machine-specs"]').textContent).toContain("MTH 8446");
-  expect(el.querySelector('[data-testid="machine-service-details"]').textContent).toContain("poslední servis při 8000 mth");
+  expect(el.querySelector("summary").textContent).toBe("L576/5");
+  expect(el.querySelector("details").open).toBe(false);
+  await act(async () => el.querySelector("summary").click());
+  expect(el.querySelector("table").textContent).toContain("8446");
+  expect(el.querySelector("table").textContent).toContain("8000");
   expect(el.querySelector('[data-testid="machine-create-button"]')).toBeNull();
   expect(el.querySelector('[data-testid="machine-edit-button"]')).toBeNull();
   mockRole = "manager"; await act(async () => root.render(<Machines />));

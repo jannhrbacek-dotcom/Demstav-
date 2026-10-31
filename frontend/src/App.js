@@ -81,6 +81,7 @@ export default function App() {
             <Route path="/vsechny-zapisy" element={<Guard role="manager"><Records all /></Guard>} />
             <Route path="/pracoviste" element={<Guard role="manager"><Workplaces /></Guard>} />
             <Route path="/pracoviste/:id/qr" element={<Guard role="manager" bare><QrDisplay /></Guard>} />
+            <Route path="/servis" element={<Guard><Machines serviceOnly /></Guard>} />
             <Route path="/stroje" element={<Guard><Machines /></Guard>} />
             <Route path="/uzivatele" element={<Guard role="manager"><UsersPage /></Guard>} />
             <Route path="*" element={<Home />} />

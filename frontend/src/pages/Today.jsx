@@ -57,7 +57,7 @@ export default function Today() {
         <Tile to="/zapis/novy" icon={FilePenLine} label={t("Nový denní záznam")} tone="primary" testid="today-new-record-button" />
         <Tile to="/dochazka" icon={Clock3} label={t("Docházka")} tone="blue" />
         <Tile to="/zapisy" icon={ClipboardList} label={t("Šichtovnice")} tone="green" />
-        <Tile to="/stroje" icon={Wrench} label={t("Servis")} tone="purple" />
+        <Tile to="/servis" icon={Wrench} label={t("Servis")} tone="purple" />
         {atLeast(user, "manager")
           ? <Tile to="/pracoviste" icon={Building2} label={t("Pracoviště")} tone="slate" />
           : <Tile to="/stroje" icon={Truck} label={t("Stroje")} tone="slate" />}
