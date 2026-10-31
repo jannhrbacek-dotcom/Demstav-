@@ -6,12 +6,13 @@ import hmac
 import io
 import logging
 import os
+import secrets
 from datetime import date as date_cls, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Font, PatternFill, Protection
 from openpyxl.utils import get_column_letter
 
 from core import db, get_ready_user, is_manager, require_role, iso_now, new_id, audit, ROLE_LABELS, POSITIONS, role_label
@@ -21,6 +22,7 @@ from storage import put_object, get_object
 from break_policy import hydrate_records, hydrate_events
 from worktime import time_breakdown, fmt_hours, day_union
 from journey import journey_text
+from machine_diary import diary_projection, verified_diary_records
 
 log = logging.getLogger("data")
 router = APIRouter()
@@ -162,49 +164,36 @@ def _bool(v):
 
 def _machine_log_header():
     return [
-        "Datum", "Směna", "Zaměstnanec", "Objednatel", "Pracoviště", "Zakázka",
-        "SPZ na pracoviště", "SPZ z pracoviště", "Ubytování", "Posádka",
-        "Pracovní doba (úseky)", "Celkem h", "Práce h", "Servis h", "Prostoje h", "Přejezdy h", "K fakturaci h",
-        "Přejezdy – trasa", "Důvod prostoje", "Popis práce",
-        "MTH začátek", "MTH konec", "MTH celkem",
+        "Datum", "Směna", "Obsluha", "Posádka", "Stavba / pracoviště", "Provozní práce stroje",
+        "MTH začátek", "MTH konec", "MTH rozdíl",
         "Denní kontrola", "Kontrola příslušenství", "Kontrola vybavení", "Provozuschopný",
-        "Závady (shrnutí)", "STOP závady",
-        "Servis provedl", "Externí firma", "Popis servisu", "Popis opravy", "Pravidelný servis (interval)",
+        "Závady a jejich odstranění", "STOP závady", "Servis provedl", "Externí firma",
+        "Popis servisu", "Popis opravy", "Pravidelný servis (interval)",
         "Nafta l", "Hydr. olej l", "Mot. olej l", "Jiná kapalina",
-        "Předal (jméno)", "Poznámky",
-        "Stav zápisu", "Revize", "Důvod opravy", "Autor", "ID zápisu", "Otisk SHA-256",
+        "Předání stroje / pracoviště", "Předal (jméno)",
+        "Stav zápisu", "Revize", "Autor záznamu", "Zapsáno", "ID zápisu", "Otisk SHA-256",
     ]
 
 
-def _machine_log_row(r, bd, users):
+def _machine_log_row(r, bd=None, users=None):
+    r = diary_projection(r)
     ms, me = _num(r.get("mthStart")), _num(r.get("mthEnd"))
     faults = r.get("faults") or []
-    stops = [f for f in faults if f.get("severity") == "stop"]
     service_actor = {"operator": "Strojník", "operator_workshop": "Strojník + dílna",
                      "workshop": "Dílna – výjezd", "external": "Externí servis"}.get(r.get("serviceBy", ""), "")
-    author = users.get(r.get("owner_id", ""), {}).get("name") or r.get("owner_name", "")
-    rev = r.get("revisions") or []
-    last_reason = rev[-1].get("reason", "") if rev else ""
     return [
-        r.get("date", ""), r.get("shift", ""), r.get("operator", ""), r.get("customer", ""), r.get("site", ""), r.get("job", ""),
-        r.get("vehiclesTo", ""), r.get("vehiclesFrom", ""), r.get("accommodation", ""), r.get("crew", ""),
-        ", ".join(f"{i['start']}–{i['end']}" for i in bd["totalIntervals"]),
-        _h(bd["totalHours"]), _h(bd["workHours"]), _h(bd["serviceHours"]), _h(bd["downtimeHours"]),
-        _h(bd.get("travelHours")), _h(bd.get("billableHours", bd["totalHours"])),
-        "; ".join(f"{t.get('from', '')} → {t.get('to', '')}" for t in r.get("travel") or []),
-        r.get("downtimeReason", ""), r.get("work", ""),
-        ms, me, round(me - ms, 1) if ms is not None and me is not None else None,
+        r.get("date", ""), r.get("shift", ""), r.get("operator", ""), r.get("crew", ""), r.get("site", ""), r.get("work", ""),
+        ms, me, round(me - ms, 3) if ms is not None and me is not None else None,
         _bool(r.get("dailyCheck")), _bool(r.get("accessoryCheck")), _bool(r.get("equipmentCheck")),
         {"yes": "ano", "no": "ne", "unknown": "nevím"}.get(r.get("fit", ""), ""),
-        "; ".join(f"{'STOP ' if f.get('severity') == 'stop' else ''}{f.get('description', '')}"
+        "; ".join(f"{'STOP ' if f.get('severity') == 'stop' else ''}{f.get('time', '')} {f.get('description', '')}"
                   + (" → " + f.get("resolution", "") if f.get("resolved") else " [neopraveno]") for f in faults),
-        "; ".join(f.get("description", "") for f in stops),
+        "; ".join(f.get("description", "") for f in faults if f.get("severity") == "stop"),
         service_actor, r.get("externalCompany", ""), r.get("serviceDescription", ""), r.get("repairDescription", ""),
-        _bool(r.get("intervalService")),
-        _num(r.get("diesel")), _num(r.get("hydraulic")), _num(r.get("oil")), r.get("otherFluid", ""),
-        r.get("handoverName", ""), r.get("notes", ""),
-        STATUS_REC.get(r.get("status", ""), r.get("status", "")), r.get("revision"), last_reason,
-        author, r.get("id", ""), (r.get("integrity_hash") or "")[:16],
+        _bool(r.get("intervalService")), _num(r.get("diesel")), _num(r.get("hydraulic")), _num(r.get("oil")), r.get("otherFluid", ""),
+        r.get("handover", ""), r.get("handoverName", ""),
+        STATUS_REC.get(r.get("status", ""), r.get("status", "")), r.get("revision"),
+        r.get("author_name", ""), r.get("updatedAt", ""), r.get("id", ""), r.get("integrity_hash", ""),
     ]
 
 
@@ -243,7 +232,7 @@ def machine_logs_xlsx(records_by_machine: dict, users: dict, machines: dict, met
     overview.append([f"Období: {meta.get('date_from', '')} – {meta.get('date_to', '')}"])
     overview.append([f"Vygeneroval: {meta.get('generated_by', '')} ({meta.get('generated_at', '')})"])
     overview.append([])
-    overview.append(["Stroj", "Interní č.", "Počet záznamů", "Hodiny celkem", "MTH celkem", "List"])
+    overview.append(["Stroj", "Interní č.", "Počet záznamů", "MTH rozdíl celkem", "List"])
     for c in overview[5]:
         c.font = Font(bold=True)
         c.fill = PatternFill("solid", fgColor="FFD200")
@@ -269,12 +258,9 @@ def machine_logs_xlsx(records_by_machine: dict, users: dict, machines: dict, met
         ws.append([])
         ws.append(header)
         hdr_row = ws.max_row
-        total_h = 0.0
         mth_total = 0.0
         for r in sorted(rows, key=lambda x: x.get("date", "")):
-            bd = time_breakdown(r)
-            ws.append(_machine_log_row(r, bd, users))
-            total_h += bd["totalHours"]
+            ws.append(_machine_log_row(r))
             ms, me = _num(r.get("mthStart")), _num(r.get("mthEnd"))
             if ms is not None and me is not None and me >= ms: mth_total += me - ms
         # Styly záhlaví
@@ -291,16 +277,29 @@ def machine_logs_xlsx(records_by_machine: dict, users: dict, machines: dict, met
         ws.freeze_panes = f"A{hdr_row + 1}"
         if ws.max_row > hdr_row:
             ws.auto_filter.ref = f"A{hdr_row}:{get_column_letter(len(header))}{ws.max_row}"
-        overview.append([label, m.get("internal_number", ""), len(rows), round(total_h, 2), round(mth_total, 1), sheet_name])
-    for i in range(1, 7):
-        overview.column_dimensions[get_column_letter(i)].width = [34, 12, 16, 16, 14, 24][i - 1]
+        overview.append([label, m.get("internal_number", ""), len(rows), round(mth_total, 3), sheet_name])
+    for i in range(1, 6):
+        overview.column_dimensions[get_column_letter(i)].width = [34, 12, 16, 20, 24][i - 1]
+    # Edit deterrence in office clients, not cryptographic authenticity. All cells
+    # stay locked; canonical data and audit trail remain on the server.
+    for sheet in wb.worksheets:
+        for row in sheet:
+            for cell in row:
+                cell.protection = Protection(locked=True)
+                if cell.data_type == "f" or isinstance(cell.value, str) and cell.value.startswith(("=", "+", "-", "@")):
+                    cell.data_type = "s"
+        sheet.protection.sheet = True
+        sheet.protection.set_password(secrets.token_urlsafe(24))
+        sheet.protection.autoFilter = False
+    wb.security.lockStructure = True
+    wb.security.set_workbook_password(secrets.token_urlsafe(24))
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()
 
 
 async def machine_log_data(user, f: dict):
-    """Načte potvrzené i draft záznamy a seskupí je podle stroje."""
+    """Verified machine-only snapshots. Drafts only with an explicit opt-in."""
     users = {u["id"]: u for u in await _users_scope(user, f.get("employee_id", ""), f.get("position", ""))}
     q = {"owner_id": {"$in": list(users)}}
     if f.get("date_from") or f.get("date_to"):
@@ -310,7 +309,7 @@ async def machine_log_data(user, f: dict):
     if not f.get("include_drafts"):
         q["status"] = "confirmed"
     recs = await db.records.find(q, {"_id": 0}).sort([("machine", 1), ("date", 1)]).to_list(50000)
-    recs = await hydrate_records(recs)
+    recs = await verified_diary_records(db, recs)
     by_machine: dict = {}
     for r in recs:
         label = (r.get("machine") or "Bez stroje").strip() or "Bez stroje"

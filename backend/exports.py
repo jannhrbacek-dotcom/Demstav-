@@ -1,5 +1,7 @@
 """PDF exports matching the company templates (DEMSTAV šichtovnice + provozní deník).
-Exports use the same stored records and the same time calculation (worktime.py) as the screens."""
+Machine diaries use a machine-only view; employee timesheets retain their own time calculation."""
+from machine_diary import diary_projection
+
 import io
 import os
 from datetime import date as date_cls, datetime
@@ -431,7 +433,7 @@ def _ts_supplement(pdf: Pdf, items):
 # ============================== PROVOZNÍ DENÍK ==============================
 def diary_pdf(records: list, attachment_loader=None) -> bytes:
     pdf = Pdf()
-    recs = sorted(records, key=lambda r: (r.get("machine", ""), r["date"], r.get("updatedAt", "")))
+    recs = sorted((diary_projection(r) for r in records), key=lambda r: (r.get("machine", ""), r["date"], r.get("updatedAt", "")))
     if not recs:
         pdf.page(A4)
         pdf.txt(40, 60, "Pro zvolený filtr nejsou žádné záznamy.", 12, True)
@@ -492,7 +494,6 @@ def _diary_block(pdf: Pdf, r: dict, top: float, overflow: list):
     X = lambda px: px * s
     L, R = X(38), X(871)
     W = R - L
-    bd = time_breakdown(r)
     y = top
     pdf.rect(L, y, W, 18)
     pdf.txt(L + 4, y + 5, f"STROJ: {r.get('machine', '')}", 8, True)
@@ -524,9 +525,8 @@ def _diary_block(pdf: Pdf, r: dict, top: float, overflow: list):
     pdf.rect(L, y, W, 17, GREY)
     pdf.txt(L + 4, y + 5, "Další provozní záznamy: údržba, opravy, předání pracoviště, předání stroje:", 6.5)
     y += 17
-    first = f"Čas celkem {fmt_hours(bd['totalHours'])} h; práce bez servisu{' a prostojů' if bd['downtimeHours'] else ''} {fmt_hours(bd['workHours'])} h; servis {fmt_hours(bd['serviceHours'])} h"
-    first += f"; prostoje {fmt_hours(bd['downtimeHours'])} h." if bd["downtimeHours"] else "."
-    lines = [first]
+    # Employee shift/service hour allocations do not measure machine operation.
+    lines = []
     if r.get("work"):
         lines.append("Práce: " + r["work"])
     if r.get("serviceDescription"):
@@ -541,8 +541,6 @@ def _diary_block(pdf: Pdf, r: dict, top: float, overflow: list):
         if f.get("acknowledged"):
             t += "; střídající obsluha seznámena"
         lines.append(t)
-    if bd["downtimeHours"] and r.get("downtimeReason"):
-        lines.append("Prostoj: " + r["downtimeReason"])
     if r.get("notes"):
         lines.append("Poznámka: " + r["notes"])
     if r.get("correctionReason"):

@@ -27,7 +27,7 @@ export default function Exports() {
   const [wpId, setWpId] = useState("");
   const [status, setStatus] = useState("");
   const [position, setPosition] = useState("");
-  const [drafts, setDrafts] = useState(true);
+  const [drafts, setDrafts] = useState(false);
   const [duplex, setDuplex] = useState(true);
   const [busy, setBusy] = useState("");
   const [recipient, setRecipient] = useState("");

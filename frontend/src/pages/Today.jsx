@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { CloudUpload, Clock3, FileDown, CalendarDays, BarChart3, Construction, Tractor, Wrench, Building2, ChevronRight, Info } from "lucide-react";
+import { CloudUpload, Clock3, FileDown, CalendarDays, BarChart3, FilePenLine, ClipboardList, Truck, Wrench, Building2, ChevronRight, Info } from "lucide-react";
 import { useAuth, atLeast } from "@/lib/auth";
 import { useCached, mergedRecords } from "@/lib/data";
 import { useSync } from "@/lib/sync";
@@ -17,7 +17,7 @@ import "./Today.css";
 const STATE_CLS = { away: "bg-slate-200 text-slate-900", working: "bg-emerald-600 text-white", break: "bg-amber-400 text-slate-900" };
 
 /** Navigace je vždy skutečný odkaz; barva doplňuje text i ikonu. */
-function Tile({ to, icon: Icon, label, tone = "amber", testid }) {
+function Tile({ to, icon: Icon, label, tone = "neutral", testid }) {
   return <Link to={to} data-testid={testid} className={`operations-tile operations-tile--${tone}`}>
     <Icon className="operations-tile-icon" strokeWidth={1.8} aria-hidden="true" />
     <span className="operations-tile-label">{label}</span>
@@ -54,13 +54,13 @@ export default function Today() {
       </div>
       <WeatherWidget workplaces={wps.data} preferredWorkplaceId={currentWorkplaceId} />
       <nav className="operations-tiles" aria-label={t("Hlavní nabídka")}>
-        <Tile to="/zapis/novy" icon={Construction} label={t("Nový denní záznam")} testid="today-new-record-button" />
+        <Tile to="/zapis/novy" icon={FilePenLine} label={t("Nový denní záznam")} tone="primary" testid="today-new-record-button" />
         <Tile to="/dochazka" icon={Clock3} label={t("Docházka")} tone="blue" />
-        <Tile to="/zapisy" icon={Tractor} label={t("Šichtovnice")} tone="green" />
+        <Tile to="/zapisy" icon={ClipboardList} label={t("Šichtovnice")} tone="green" />
         <Tile to="/stroje" icon={Wrench} label={t("Servis")} tone="purple" />
         {atLeast(user, "manager")
           ? <Tile to="/pracoviste" icon={Building2} label={t("Pracoviště")} tone="slate" />
-          : <Tile to="/stroje" icon={Tractor} label={t("Stroje")} tone="slate" />}
+          : <Tile to="/stroje" icon={Truck} label={t("Stroje")} tone="slate" />}
         <Tile to="/exporty" icon={FileDown} label={t("Výkazy a exporty")} tone="red" />
       </nav>
       <section className="space-y-3 rounded-xl border-2 border-slate-200 bg-white p-4 shadow-sm" data-testid="today-attendance-primary">

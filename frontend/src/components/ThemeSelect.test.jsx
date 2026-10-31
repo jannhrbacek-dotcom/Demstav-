@@ -26,7 +26,7 @@ test("theme choice is translated, applies selection, and keeps browser color in 
   expect(mockSetTheme).toHaveBeenCalledWith("dark");
   mockResolvedTheme = "dark";
   await act(async () => root.render(<LanguageProvider><ThemeSelect /></LanguageProvider>));
-  expect(meta.content).toBe("#19222f");
+  expect(meta.content).toBe("#1d242c");
   await act(async () => root.unmount());
   meta.remove();
   localStorage.removeItem(LANGUAGE_STORAGE_KEY);

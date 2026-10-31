@@ -26,7 +26,7 @@ DEC_RE = re.compile(r"^\d+(?:[.,]\d{1,3})?$")
 SIG_RE = re.compile(r"^data:image/(?:png|jpeg);base64,[A-Za-z0-9+/=]+$")
 MAX_UPLOAD = 15 * 1024 * 1024
 ATT_SECTIONS = ("general", "service", "timesheet")
-CHAIN_GENESIS = "DEMSTAV-GENESIS"
+from record_integrity import CHAIN_GENESIS, canonical, chain_hash
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv", "text/plain", "application/vnd.oasis.opendocument.text", "application/vnd.oasis.opendocument.spreadsheet"}
 
 RECORD_FIELDS_TEXT = {
@@ -197,15 +197,6 @@ def validate_record(r: dict, confirm: bool):
     return errors, out
 
 
-def canonical(obj) -> bytes:
-    return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str).encode()
-
-
-def chain_hash(prev_hash: str, snapshot: dict) -> str:
-    """Otisk revize = SHA-256(otisk předchozí revize + kanonický obsah revize). Změna kterékoli starší revize rozbije řetěz."""
-    return hashlib.sha256(prev_hash.encode() + b"|" + canonical(snapshot)).hexdigest()
-
-
 async def verify_chain(rid: str) -> dict:
     vs = await db.record_versions.find({"record_id": rid}, {"_id": 0}).sort("revision", 1).to_list(1000)
     prev = CHAIN_GENESIS
@@ -224,8 +215,12 @@ async def verify_chain(rid: str) -> dict:
             return {"ok": False, "broken_at": v["revision"], "versions": len(vs), "checked": checked, "legacy": legacy, "head": None}
         prev = v["hash"]
         checked += 1
-    cur = await db.records.find_one({"id": rid}, {"_id": 0, "integrity_hash": 1, "revision": 1})
-    head_ok = not cur or not cur.get("integrity_hash") or cur["integrity_hash"] == prev
+    cur = await db.records.find_one({"id": rid}, {"_id": 0})
+    # A projection can be edited while retaining its original hash. Compare its
+    # actual body with the committed snapshot, not just the copied hash field.
+    head_ok = bool(cur and vs and cur.get("integrity_hash") == prev
+                   and cur.get("revision") == vs[-1]["revision"]
+                   and canonical({k: v for k, v in cur.items() if k not in ("integrity_hash", "prev_hash")}) == canonical(vs[-1]["payload"]))
     return {"ok": head_ok, "broken_at": None if head_ok else (cur or {}).get("revision"), "versions": len(vs),
             "checked": checked, "legacy": legacy, "head": prev if vs else None}
 

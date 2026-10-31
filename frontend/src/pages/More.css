@@ -1,7 +1,7 @@
-.more-card { background:var(--surface,#fff); border-color:var(--line,#dbe1e9); color:var(--ink,#162131); outline-color:#557799; }
-.more-card:hover { border-color:#91a6bc; }
-.more-icon { background:#edf1f5; color:#405b75; }
-.more-list-icon { color:#536b81; }
-html.dark .more-card { background:#1b2738; border-color:#344254; }
-html.dark .more-icon { background:#2a3b50; color:#bdd3ea; }
-html.dark .more-list-icon { color:#b5cbe0; }
+.more-card { background:var(--surface,#fff); border-color:var(--line,#dbe1e9); color:var(--ink,#162131); outline-color:var(--brand); border-radius:12px; box-shadow:none; }
+.more-card:hover { border-color:var(--icon-ink); background:var(--surface-raised); }
+.more-card .more-icon { width:32px; height:32px; padding:0; background:transparent; color:var(--icon-ink,#506174); border-radius:0; }
+.more-card .more-icon svg { width:28px; height:28px; stroke-width:1.8; }
+.more-list-icon { color:var(--icon-ink,#506174); stroke-width:1.8; }
+html.dark .more-card { background:var(--surface); border-color:var(--line); }
+html.dark .more-card:hover { background:var(--surface-raised); border-color:var(--icon-ink); }
