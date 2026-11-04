@@ -200,11 +200,11 @@ html.dark :is(.btn-primary,.bg-amber-400,.bg-\[\#FFD200\])
 
 html.dark .bg-\[\#F5F7FA\] { background-color:var(--shell); }
 /* Quiet, warm surfaces with a single help affordance beside explanatory content. */
-:root { --shell:#f5f3ed; --surface:#fdfcf8; --surface-raised:#eeeee7; --ink:#262d29; --muted-ink:#6b746b; --line:#e1e3da; --brand:#46624d; --brand-soft:#e3e9df; }
+:root { --shell:#f6f4ef; --surface:#fffefa; --surface-raised:#efede7; --ink:#252525; --muted-ink:#6e6b65; --line:#e4e0d7; --brand:#8a5700; --brand-soft:#fff0c7; }
 html:not(.dark) body,html:not(.dark) .app-shell { background:var(--shell); color:var(--ink); }
 html:not(.dark) .bg-white { background-color:var(--surface); }
-html:not(.dark) .btn-primary { background:#49634f; color:#fff; border-color:#49634f; }
-html:not(.dark) .btn-primary:hover { background:#3b5140; }
+html:not(.dark) .btn-primary { background:#ffbd20; color:#24201a; border-color:#ffbd20; }
+html:not(.dark) .btn-primary:hover { background:#f2ad0c; }
 .context-help { position:relative; font-size:13px; color:var(--muted-ink); }
 .context-help summary { display:flex; align-items:center; justify-content:center; width:44px; min-height:44px; cursor:pointer; list-style:none; border-radius:50%; }
 .context-help summary::-webkit-details-marker { display:none; }
@@ -212,6 +212,19 @@ html:not(.dark) .btn-primary:hover { background:#3b5140; }
 .context-help summary:focus-visible { outline:2px solid var(--brand); }
 .context-help-content { padding:12px 16px; background:var(--surface-raised); border-radius:12px; line-height:1.6; margin-bottom:8px; }
 html:not(.dark) .operations-tile { background:var(--surface); border-color:var(--line); box-shadow:0 4px 16px #27352606; min-height:112px; border-radius:22px; }
-html:not(.dark) .operations-tile-icon { color:#5b7160; }
-html:not(.dark) .operations-tile-arrow { color:#49634f; background:#e4eadd; }
-html:not(.dark) .more-icon { color:#49634f; background:#e4eadd; }
+html:not(.dark) .operations-tile-icon { color:#67615a; }
+html:not(.dark) .operations-tile-arrow { color:#6a520d; background:#f7ebc5; }
+html:not(.dark) .more-icon { color:#6a520d; background:#f7ebc5; }
+
+/* DEMSTAV brand, with the quiet card and floating dock layout. */
+.shell-logo > svg { color:#ffb718; }
+.app-shell .shell-bottom-nav { inset-inline:12px; bottom:max(12px,env(safe-area-inset-bottom)); border:1px solid var(--line); border-radius:30px; padding:5px 6px; box-shadow:0 8px 32px #24201a12; }
+.shell-bottom-nav .shell-bottom-item { min-height:58px; border-radius:24px; font-size:10px; }
+.shell-bottom-item.is-active { background:var(--brand-soft); }
+.shell-bottom-item.is-active > span.absolute { display:none; }
+.shell-bottom-item svg { width:23px; height:23px; }
+.shell-bottom-nav .shell-nav-create svg { width:39px; height:39px; border:0; padding:9px; border-radius:50%; background:#ffbd20; color:#24201a; }
+html.dark .shell-bottom-nav .shell-nav-create svg { background:#ffbd20; color:#24201a; }
+html.dark .shell-bottom-item.is-active { background:#ffbc2018; }
+.app-shell .operations-home > section { border:1px solid var(--line); border-radius:24px; box-shadow:0 5px 20px #24201a05; }
+html:not(.dark) .operations-home h1 { color:#242424; }
