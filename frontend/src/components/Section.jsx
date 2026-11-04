@@ -3,6 +3,11 @@ import { ChevronDown } from "lucide-react";
 import { useLanguage } from "@/lib/language";
 const tr = (t, text) => typeof text === "string" ? t(text) : text;
 
+export function Help({ children }) {
+  const { t } = useLanguage();
+  return <details className="context-help"><summary aria-label={t("Nápověda")} title={t("Nápověda")}><span aria-hidden="true">?</span><span className="sr-only">{t("Nápověda")}</span></summary><div className="context-help-content">{children}</div></details>;
+}
+
 export function Section({ title, subtitle, children, defaultOpen = true, testid, badge }) {
   const [open, setOpen] = useState(defaultOpen);
   const { t } = useLanguage();
@@ -10,10 +15,10 @@ export function Section({ title, subtitle, children, defaultOpen = true, testid,
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm" data-testid={testid}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={contentId} className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left" data-testid={testid ? `${testid}-toggle` : undefined}>
-        <div><div className="font-heading text-base font-semibold text-slate-900">{tr(t,title)}</div>{subtitle && <div className="text-xs text-slate-600">{tr(t,subtitle)}</div>}</div>
+        <div><div className="font-heading text-base font-semibold text-slate-900">{tr(t,title)}</div></div>
         <div className="flex items-center gap-2">{badge}<ChevronDown className={`h-5 w-5 text-slate-600 transition-transform duration-200 ${open ? "rotate-180" : ""}`} /></div>
       </button>
-      <div id={contentId} hidden={!open} className="space-y-4 border-t border-slate-100 px-4 pb-5 pt-4">{open && children}</div>
+      <div id={contentId} hidden={!open} className="space-y-4 border-t border-slate-100 px-4 pb-5 pt-4">{open && <>{subtitle && <Help>{tr(t,subtitle)}</Help>}{children}</>}</div>
     </section>
   );
 }
@@ -22,7 +27,7 @@ export function PageHeader({ title, subtitle, actions }) {
   const { t } = useLanguage();
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div><h1 className="font-heading text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">{tr(t,title)}</h1>{subtitle && <p className="mt-1 text-sm text-slate-600">{tr(t,subtitle)}</p>}</div>
+      <div><h1 className="font-heading text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">{tr(t,title)}</h1>{subtitle && <Help>{tr(t,subtitle)}</Help>}</div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
     </div>
   );
@@ -31,12 +36,12 @@ export function PageHeader({ title, subtitle, actions }) {
 export function Field({ label, hint, children, error }) {
   const { t } = useLanguage();
   return (
-    <label className="block space-y-1.5">
+    <div className="block space-y-1.5"><label className="block space-y-1.5">
       <span className="text-sm font-semibold text-slate-900">{tr(t,label)}</span>
       {children}
-      {hint && !error && <span className="block text-xs text-slate-600">{tr(t,hint)}</span>}
+      </label>{hint && !error && <Help>{tr(t,hint)}</Help>}
       {error && <span className="block text-xs font-medium text-red-700">{tr(t,error)}</span>}
-    </label>
+    </div>
   );
 }
 
