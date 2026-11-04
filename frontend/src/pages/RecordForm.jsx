@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Section, Field, PageHeader } from "@/components/Section";
+import { Section, Field, PageHeader, Help } from "@/components/Section";
 import { IntervalEditor } from "@/components/IntervalEditor";
 import { SignaturePad } from "@/components/SignaturePad";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -294,14 +294,14 @@ export default function RecordForm() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-3" data-testid="record-copy-last-banner">
           <div className="text-sm text-amber-950">
             <div className="font-semibold">Načíst údaje z posledního zápisu?</div>
-            <div className="text-xs">{lastRecord.date} · {lastRecord.machine || "bez stroje"} · {lastRecord.site || "—"}. Doplní stroj, pracoviště, zakázku, SPZ, MTH začátek a další.</div>
+            <Help>{lastRecord.date} · {lastRecord.machine || "bez stroje"} · {lastRecord.site || "—"}. Doplní stroj, pracoviště, zakázku, SPZ, MTH začátek a další.</Help>
           </div>
           <Button type="button" variant="outline" className="h-11 font-semibold" data-testid="record-copy-last-button"
             onClick={() => setRec((r) => ({ ...r,
-              machine: lastRecord.machine || r.machine, customer: lastRecord.customer || r.customer, site: lastRecord.site || r.site,
-              job: lastRecord.job || r.job, vehiclesTo: lastRecord.vehiclesTo || r.vehiclesTo,
-              vehiclesFrom: lastRecord.vehiclesFrom || r.vehiclesFrom, accommodation: lastRecord.accommodation || r.accommodation,
-              crew: lastRecord.crew || r.crew, mthStart: prefillMachine({ ...r, machine: "" }, lastRecord.machine || r.machine, mergedRecords(mine.data, s.records).map(x => x.record), machines.data || []).mthStart, shift: lastRecord.shift || r.shift,
+              machine: r.machine || lastRecord.machine, customer: r.customer || lastRecord.customer, site: r.site || lastRecord.site,
+              job: r.job || lastRecord.job, vehiclesTo: r.vehiclesTo || lastRecord.vehiclesTo,
+              vehiclesFrom: r.vehiclesFrom || lastRecord.vehiclesFrom, accommodation: r.accommodation || lastRecord.accommodation,
+              crew: r.crew || lastRecord.crew, mthStart: r.mthStart || prefillMachine({ ...r, machine: "" }, r.machine || lastRecord.machine, mergedRecords(mine.data, s.records).map(x => x.record), machines.data || []).mthStart, shift: r.shift || lastRecord.shift,
             }))}>{t("Načíst z minula")}</Button>
         </div>
       )}
@@ -340,7 +340,7 @@ export default function RecordForm() {
 
       <Section title="Pracovní čas" subtitle="Celá pracovní doba a prostoje" testid="section-time">
         <div className="space-y-2 rounded-lg border border-slate-200 p-3" data-testid="attendance-prefill">
-          <p className="text-sm text-slate-600">{t("Docházka je návrh zaměstnanecké směny pro šichtovnici. Neurčuje dobu provozu stroje. Zkontrolujte skutečně odpracovaný čas.")}</p>
+          <Help>{t("Docházka je návrh zaměstnanecké směny pro šichtovnici. Neurčuje dobu provozu stroje. Zkontrolujte skutečně odpracovaný čas.")}</Help>
           {attendanceProposal.intervals.length > 0 && <Button type="button" variant="outline" onClick={useAttendance} data-testid="use-attendance-button">{t("Použít příchod a odchod z docházky")} · {attendanceProposal.intervals.map(i => `${i.start}–${i.end || "…"}`).join(", ")}</Button>}
           {attendanceProposal.reason === "open" && <p className="text-sm text-slate-600">{t("Směna v docházce ještě nemá odchod. Čas konce neodhadujeme.")}</p>}
           {attendanceProposal.reason === "multiple" && <p className="text-sm text-slate-600">{t("Pro tento den už existuje čas u jiného zápisu. Rozdělte skutečné úseky mezi stroje, celou směnu znovu nekopírujte.")}</p>}
@@ -377,7 +377,7 @@ export default function RecordForm() {
           <Field label="MTH konec"><Input inputMode="decimal" value={rec.mthEnd} onChange={(e) => set("mthEnd", e.target.value)} className="h-12 text-lg" data-testid="record-mth-end-input" /></Field>
           <Field label="Rozdíl"><div className={`flex h-12 items-center rounded-md border px-3 text-lg font-semibold ${mthDiff !== null && mthDiff < 0 ? "border-red-300 bg-red-50 text-red-800" : "border-slate-200 bg-slate-50"}`} data-testid="record-mth-diff">{mthDiff === null ? "—" : String(mthDiff).replace(".", ",")}</div></Field>
         </div>
-        <p className="text-xs text-slate-600">{t("MTH je údaj měřidla stroje a počítá se nezávisle na pracovních hodinách.")}</p>
+        <Help>{t("MTH je údaj měřidla stroje a počítá se nezávisle na pracovních hodinách.")}</Help>
         {svc && (
           <div className={`flex items-start gap-3 rounded-lg px-3 py-2 text-sm ${svc.service_state === "due" ? "bg-black text-[#FFD200]" : svc.service_state === "soon" ? "bg-amber-100 text-amber-950" : "bg-slate-100 text-slate-800"}`} data-testid="record-service-hint">
             <Wrench className="mt-0.5 h-4 w-4 shrink-0" />
@@ -457,7 +457,7 @@ export default function RecordForm() {
           <Field label="Moje doba jízdy (H:MM)" hint="Vlastní jízdu zapisuje i spolujezdec. Nulová jízda = 0:00, nevyplněno není nula. Nepřičítá se znovu k pracovní době."><Input placeholder="0:45" value={rec.journeyEditing ? rec.drive : journeyText(rec) === "neověřeno" ? "" : journeyText(rec)} onChange={e => { const value = e.target.value; setRec(r => ({ ...r, drive: value, driveMinutes: durationMinutes(value), journeyEditing: true })); }} className="h-12" data-testid="record-drive-input" /></Field>
           {rec.drive && !rec.drive.includes(":") && rec.driveMinutes == null && <p role="alert" className="text-sm text-amber-900">Původní nejednoznačný údaj jízdy: {rec.drive}. Ověřte skutečnou dobu; údaj se automaticky nepřevádí na minuty.</p>}
           <Field label="Jel(a) jsem jako"><select value={rec.journeyRole || ""} onChange={e => { const role = e.target.value; setRec(r => role === "none" ? { ...r, journeyRole: role, drive: "0:00", driveMinutes: 0 } : { ...r, journeyRole: role }); }} className="h-12 w-full rounded border px-3"><option value="">Vyberte</option><option value="driver">Řidič</option><option value="passenger">Spolujezdec</option><option value="mixed">Řidič i spolujezdec</option><option value="none">Žádná jízda</option></select></Field>
-          <p className="text-sm font-semibold">Čipování ve vozidle: neověřeno. Nezapomeňte se čipovat i jako spolujezdec a uvést všechny SPZ. Vyplnění aplikace čipnutí nepotvrzuje.</p>
+          <Help>Čipování ve vozidle: neověřeno. Nezapomeňte se čipovat i jako spolujezdec a uvést všechny SPZ. Vyplnění aplikace čipnutí nepotvrzuje.</Help>
           <Field label="SPZ vozidla (na pracoviště)">
             <Input list="vto-list" value={rec.vehiclesTo} onChange={(e) => set("vehiclesTo", e.target.value.toUpperCase())} className="h-12" data-testid="record-vehicles-to-input" />
             <datalist id="vto-list">{sugg.vehiclesTo.map((v) => <option key={v} value={v} />)}</datalist>
@@ -508,7 +508,7 @@ export default function RecordForm() {
           <div className="sm:col-span-2"><AttachmentActions prefix="record-attachment" onChange={onFile} /></div>
         </div>
         <div className="space-y-2">{rec.attachments.filter((a) => (a.section || "general") === "general").map((a) => <AttachmentThumb key={a.id} att={a} onRemove={() => removeAtt(a.id)} />)}</div>
-        <p className="text-xs text-slate-600">{t("Fotografie, PDF, Word, Excel, CSV, TXT, ODT a ODS. Max. 15 MB na soubor. Bez připojení se soubor uloží v telefonu a nahraje se později.")}</p>
+        <Help>{t("Fotografie, PDF, Word, Excel, CSV, TXT, ODT a ODS. Max. 15 MB na soubor. Bez připojení se soubor uloží v telefonu a nahraje se později.")}</Help>
         </div>
       </Section>
       </div>

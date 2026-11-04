@@ -199,3 +199,19 @@ html.dark :is(.btn-primary,.bg-amber-400,.bg-\[\#FFD200\])
 }
 
 html.dark .bg-\[\#F5F7FA\] { background-color:var(--shell); }
+/* Quiet, warm surfaces with a single help affordance beside explanatory content. */
+:root { --shell:#f5f3ed; --surface:#fdfcf8; --surface-raised:#eeeee7; --ink:#262d29; --muted-ink:#6b746b; --line:#e1e3da; --brand:#46624d; --brand-soft:#e3e9df; }
+html:not(.dark) body,html:not(.dark) .app-shell { background:var(--shell); color:var(--ink); }
+html:not(.dark) .bg-white { background-color:var(--surface); }
+html:not(.dark) .btn-primary { background:#49634f; color:#fff; border-color:#49634f; }
+html:not(.dark) .btn-primary:hover { background:#3b5140; }
+.context-help { position:relative; font-size:13px; color:var(--muted-ink); }
+.context-help summary { display:flex; align-items:center; justify-content:center; width:44px; min-height:44px; cursor:pointer; list-style:none; border-radius:50%; }
+.context-help summary::-webkit-details-marker { display:none; }
+.context-help summary>span:first-child { border:1px solid var(--line); border-radius:50%; width:23px; height:23px; text-align:center; line-height:21px; font-weight:600; }
+.context-help summary:focus-visible { outline:2px solid var(--brand); }
+.context-help-content { padding:12px 16px; background:var(--surface-raised); border-radius:12px; line-height:1.6; margin-bottom:8px; }
+html:not(.dark) .operations-tile { background:var(--surface); border-color:var(--line); box-shadow:0 4px 16px #27352606; min-height:112px; border-radius:22px; }
+html:not(.dark) .operations-tile-icon { color:#5b7160; }
+html:not(.dark) .operations-tile-arrow { color:#49634f; background:#e4eadd; }
+html:not(.dark) .more-icon { color:#49634f; background:#e4eadd; }
