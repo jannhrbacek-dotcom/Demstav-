@@ -7,6 +7,15 @@ on:
 permissions:
   contents: read
 jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Audit production Python dependencies
+        run: |
+          python3 -m venv /tmp/demstav-audit
+          /tmp/demstav-audit/bin/pip install pip-audit==2.10.0
+          /tmp/demstav-audit/bin/pip-audit -r backend/requirements-cloud.txt --strict --progress-spinner off
   verify:
     runs-on: ubuntu-latest
     steps:
