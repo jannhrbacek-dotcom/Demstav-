@@ -111,7 +111,7 @@ export default function Layout({ children }) {
         <div className="flex items-center justify-between gap-2"><Logo />{help}</div>
         <div className="mt-6 space-y-1">
           <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider shell-muted">{t("Můj den")}</div>
-          {employeeNav.filter((n) => n.to !== "/vice" && (n.to !== "/fronta" || s.queue.length > 0)).map(item)}
+          {employeeNav.map(item)}
           {s.queue.length > 0 && item({ to: "/fronta", label: "Fronta", icon: CloudUpload, testid: "nav-queue" })}
           {item({ to: "/jak-na-to", label: "Jak na to", icon: Eye, testid: "nav-guide" })}
           {item({ to: "/prehledy", label: "Moje přehledy", icon: BarChart3, testid: "nav-my-overview" })}
